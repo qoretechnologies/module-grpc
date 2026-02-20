@@ -14,9 +14,326 @@
     To use this module, use \c "%requires grpc" in your code for the binary protobuf support and
     \c "%requires Grpc" for the gRPC protocol layer.
 
+    @section grpcarch Architecture
+
+    The module has two layers:
+
+    - <b>Binary module (\c grpc.so)</b>: C++ QPP wrapping \c libprotobuf for schema loading
+      and message encoding/decoding. Provides the @ref Qore::Grpc::ProtobufSchema class.
+    - <b>Qore module (\c Grpc)</b>: Pure %Qore implementing the gRPC protocol on top of
+      %Qore's HTTP/2 stack. Provides @ref Qore::Grpc::GrpcClient, @ref Qore::Grpc::GrpcServer,
+      @ref Qore::Grpc::GrpcChannel, and streaming classes.
+
+    @section grpcquickstart Quick Start
+
+    @subsection grpcunary Unary Call
+
+    @code{.py}
+#!/usr/bin/env qore
+
+%modern
+%requires grpc
+%requires Grpc
+
+# Load a .proto schema
+ProtobufSchema schema("./proto/", "service.proto");
+
+# Create a channel and client
+GrpcChannel channel("http://localhost:50051");
+GrpcClient client(channel, schema, "MyService");
+
+# Make a unary call
+hash<GrpcCallResult> result = client.call("SayHello", {"name": "World"});
+printf("Response: %y\n", result.body);
+printf("Status: %d %s\n", result.status_code, result.status_message);
+
+# Clean up
+channel.shutdown();
+    @endcode
+
+    @subsection grpcserver Server
+
+    @code{.py}
+ProtobufSchema schema("./proto/", "service.proto");
+GrpcServer server(schema);
+
+# Register a unary handler
+server.registerHandler("MyService", "SayHello",
+    hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+        return {"message": "Hello, " + request.name, "status": 0};
+    });
+
+int port = server.addInsecurePort("localhost:0");
+server.start();
+printf("Server listening on port %d\n", port);
+server.wait();
+    @endcode
+
+    @section grpcstreaming Streaming
+
+    The module supports all four gRPC streaming patterns.
+
+    @subsection grpcserverstream Server Streaming
+
+    The client sends a single request and reads a stream of responses.
+
+    @code{.py}
+# Client
+GrpcClientStream stream = client.serverStream("ListItems", {"category": "books"});
+while (*hash<auto> item = stream.read(5s)) {
+    printf("Item: %y\n", item);
+}
+hash<GrpcCallResult> result = stream.finish();
+
+# Server handler
+server.registerHandler("MyService", "ListItems",
+    sub(hash<auto> request, GrpcServerStream stream, hash<string, string> metadata) {
+        list<hash<auto>> items = getItems(request.category);
+        for (int i = 0; i < items.size(); ++i) {
+            stream.write(items[i]);
+        }
+    });
+    @endcode
+
+    @subsection grpcclientstream Client Streaming
+
+    The client sends a stream of messages and receives a single response.
+
+    @code{.py}
+# Client
+GrpcClientStream stream = client.clientStream("UploadData");
+stream.write({"chunk": "data1"});
+stream.write({"chunk": "data2"});
+hash<GrpcCallResult> result = stream.finish();
+
+# Server handler
+server.registerHandler("MyService", "UploadData",
+    hash<auto> sub(GrpcServerStream stream, hash<string, string> metadata) {
+        list<string> chunks = ();
+        while (*hash<auto> msg = stream.read()) {
+            chunks += msg.chunk;
+        }
+        return {"total_chunks": chunks.size()};
+    });
+    @endcode
+
+    @subsection grpcbidi Bidirectional Streaming
+
+    Both client and server send streams of messages.
+
+    @code{.py}
+# Client
+GrpcClientStream stream = client.bidiStream("Chat");
+stream.write({"text": "Hello"});
+stream.write({"text": "How are you?"});
+stream.writesDone();
+while (*hash<auto> msg = stream.read(5s)) {
+    printf("Reply: %s\n", msg.text);
+}
+hash<GrpcCallResult> result = stream.finish();
+
+# Server handler
+server.registerHandler("MyService", "Chat",
+    sub(GrpcServerStream stream, hash<string, string> metadata) {
+        while (*hash<auto> msg = stream.read()) {
+            stream.write({"text": "Echo: " + msg.text});
+        }
+    });
+    @endcode
+
+    @section grpctls TLS/SSL
+
+    @subsection grpctlsserver Server TLS
+
+    @code{.py}
+# Read certificate and key files
+string cert = ReadOnlyFile::readTextFile("server.crt");
+string key = ReadOnlyFile::readTextFile("server.key");
+
+GrpcServer server(schema);
+int port = server.addSecurePort("localhost:0", <GrpcSslOptions>{
+    "server_cert": cert,
+    "server_key": key,
+});
+server.start();
+    @endcode
+
+    @subsection grpctlsclient Client TLS
+
+    @code{.py}
+# Connect via HTTPS (accepts all certs by default)
+GrpcChannel channel("https://localhost:50051");
+
+# Or with strict certificate verification
+GrpcChannel channel("https://localhost:50051", <GrpcChannelOptions>{
+    "ssl": <GrpcSslOptions>{
+        "root_certs": ReadOnlyFile::readTextFile("ca.crt"),
+    },
+});
+    @endcode
+
+    @section grpcmetadata Metadata
+
+    Metadata (key-value pairs) can be passed between client and server via HTTP/2 headers
+    and trailers.
+
+    @subsection grpcreqmeta Request Metadata (Client to Server)
+
+    @code{.py}
+# Client sends metadata
+hash<GrpcCallOptions> opts = <GrpcCallOptions>{
+    "metadata": {
+        "x-request-id": "abc-123",
+        "authorization": "Bearer token",
+    },
+};
+hash<GrpcCallResult> result = client.call("Method", request, opts);
+
+# Server receives metadata
+server.registerHandler("Service", "Method",
+    hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+        string req_id = metadata."x-request-id";
+        # ...
+    });
+    @endcode
+
+    @subsection grpcrespmeta Response Metadata (Server to Client)
+
+    @code{.py}
+# Server sends initial metadata (streaming only)
+server.registerHandler("Service", "ServerStream",
+    sub(hash<auto> request, GrpcServerStream stream, hash<string, string> metadata) {
+        stream.sendInitialMetadata({"x-server-version": "1.0"});
+        # ...
+    });
+
+# Server sets trailing metadata (streaming only)
+server.registerHandler("Service", "ServerStream",
+    sub(hash<auto> request, GrpcServerStream stream, hash<string, string> metadata) {
+        stream.setTrailingMetadata({"x-request-count": "42"});
+        stream.write({"message": "data"});
+    });
+
+# Client receives metadata
+hash<GrpcCallResult> result = client.call("Method", request);
+hash<string, string> trailing = result.trailing_metadata;
+    @endcode
+
+    @section grpctimeouts Timeouts and Deadlines
+
+    The client can set a timeout for gRPC calls. The server enforces the deadline — if the
+    handler exceeds it, the server returns @ref Qore::Grpc::GRPC_STATUS_DEADLINE_EXCEEDED.
+
+    @code{.py}
+hash<GrpcCallOptions> opts = <GrpcCallOptions>{
+    "timeout_ms": 5000,  # 5 second deadline
+};
+hash<GrpcCallResult> result = client.call("Method", request, opts);
+if (result.status_code == GRPC_STATUS_DEADLINE_EXCEEDED) {
+    printf("Call timed out\n");
+}
+    @endcode
+
+    @section grpcerrors Error Handling
+
+    gRPC uses status codes for error communication via HTTP/2 trailers. The standard status
+    codes are defined as constants:
+
+    |!Constant|!Value|!Description
+    |@ref Qore::Grpc::GRPC_STATUS_OK|0|Success
+    |@ref Qore::Grpc::GRPC_STATUS_CANCELLED|1|Operation cancelled
+    |@ref Qore::Grpc::GRPC_STATUS_UNKNOWN|2|Unknown error
+    |@ref Qore::Grpc::GRPC_STATUS_INVALID_ARGUMENT|3|Invalid argument
+    |@ref Qore::Grpc::GRPC_STATUS_DEADLINE_EXCEEDED|4|Deadline expired
+    |@ref Qore::Grpc::GRPC_STATUS_NOT_FOUND|5|Entity not found
+    |@ref Qore::Grpc::GRPC_STATUS_ALREADY_EXISTS|6|Entity already exists
+    |@ref Qore::Grpc::GRPC_STATUS_PERMISSION_DENIED|7|Permission denied
+    |@ref Qore::Grpc::GRPC_STATUS_RESOURCE_EXHAUSTED|8|Resource exhausted
+    |@ref Qore::Grpc::GRPC_STATUS_FAILED_PRECONDITION|9|Invalid state
+    |@ref Qore::Grpc::GRPC_STATUS_ABORTED|10|Operation aborted
+    |@ref Qore::Grpc::GRPC_STATUS_OUT_OF_RANGE|11|Out of range
+    |@ref Qore::Grpc::GRPC_STATUS_UNIMPLEMENTED|12|Not implemented
+    |@ref Qore::Grpc::GRPC_STATUS_INTERNAL|13|Internal error
+    |@ref Qore::Grpc::GRPC_STATUS_UNAVAILABLE|14|Service unavailable
+    |@ref Qore::Grpc::GRPC_STATUS_DATA_LOSS|15|Data loss
+    |@ref Qore::Grpc::GRPC_STATUS_UNAUTHENTICATED|16|Unauthenticated
+
+    Server handler exceptions are automatically caught and returned as
+    @ref Qore::Grpc::GRPC_STATUS_INTERNAL with the exception message.
+
+    @section grpcprotobuf Standalone Protobuf
+
+    The @ref Qore::Grpc::ProtobufSchema class can be used independently for protobuf
+    encoding/decoding without gRPC:
+
+    @code{.py}
+%requires grpc
+
+# Load from file
+ProtobufSchema schema("./proto/", "messages.proto");
+
+# Or from string
+string proto_content = "syntax = \"proto3\";\n"
+    + "message Event { string type = 1; int64 timestamp = 2; }";
+ProtobufSchema schema(proto_content);
+
+# Encode
+binary data = schema.encode("Event", {"type": "click", "timestamp": 1234567890});
+
+# Decode
+hash<auto> event = schema.decode("Event", data);
+
+# JSON conversion
+string json = schema.toJson("Event", {"type": "click", "timestamp": 1234567890});
+hash<auto> parsed = schema.fromJson("Event", json);
+
+# Service and type introspection
+list<hash<GrpcServiceInfo>> services = schema.services();
+list<string> types = schema.messageTypes();
+hash<auto> defaults = schema.defaultMessage("Event");
+    @endcode
+
+    @section grpctypemapping Protobuf Type Mapping
+
+    |!Protobuf Type|!Qore Type|!Notes
+    |double, float|\c float|
+    |int32, sint32, sfixed32|\c int|
+    |int64, sint64, sfixed64|\c int|
+    |uint32, fixed32|\c int|
+    |uint64, fixed64|\c int|Large values may overflow signed int64
+    |bool|\c bool|
+    |string|\c string|
+    |bytes|\c binary|
+    |enum|\c int|Numeric value
+    |message|\c hash<auto>|Recursive
+    |repeated T|\c list<auto>|
+    |map<K,V>|\c hash<auto>|
+
     @section grpcrelnotes Release Notes
 
     @subsection grpc_v1_0 grpc Module Version 1.0
 
+    <b>Dependencies</b>: \c libprotobuf (no \c libgrpc++ required)
+    - Ubuntu/Debian: \c libprotobuf-dev
+    - Fedora/RHEL: \c protobuf-devel
+    - Alpine: \c protobuf-dev
+
+    <b>Features</b>:
     - initial release
+    - dynamic protobuf schema loading (file and string)
+    - protobuf encoding/decoding for all field types
+    - JSON conversion via protobuf
+    - gRPC client with unary, server streaming, client streaming, bidirectional streaming
+    - gRPC server with handler registration and async I/O
+    - TLS/SSL support on client and server
+    - custom metadata (request, initial response, trailing)
+    - timeout/deadline enforcement
+    - connection pooling via Http2ClientConnectionManager
+    - gRPC status codes and error handling
+
+    @section grpclicense License
+
+    The grpc module is released under the MIT license.
+
+    Copyright (C) 2026 Qore Technologies, s.r.o.
 */

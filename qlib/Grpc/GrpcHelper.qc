@@ -40,18 +40,17 @@ public class GrpcHelper {
     /** @param data the message payload
         @param compressed if True, set the compressed flag
         @return the framed message (5-byte header + payload)
+
+        @since %Grpc 1.0
     */
     static binary frameMessage(binary data, bool compressed = False) {
         int len = data.size();
-        binary header = binary();
-        # Compressed flag (1 byte)
-        header += compressed ? <01> : <00>;
-        # Length (4 bytes big-endian)
-        header += <00000000>;
-        header[1] = (len >> 24) & 0xFF;
-        header[2] = (len >> 16) & 0xFF;
-        header[3] = (len >> 8) & 0xFF;
-        header[4] = len & 0xFF;
+        # Build 5-byte header: [compressed_flag][4 bytes big-endian length]
+        binary header = compressed ? <01> : <00>;
+        header += chr((len >> 24) & 0xFF);
+        header += chr((len >> 16) & 0xFF);
+        header += chr((len >> 8) & 0xFF);
+        header += chr(len & 0xFF);
         return header + data;
     }
 
@@ -60,6 +59,8 @@ public class GrpcHelper {
         @return a hash with \c compressed (bool) and \c data (binary) keys
 
         @throw GRPC-FRAMING-ERROR if the data is too short
+
+        @since %Grpc 1.0
     */
     static hash<auto> unframeMessage(binary data) {
         if (data.size() < 5) {
@@ -77,9 +78,63 @@ public class GrpcHelper {
         };
     }
 
+    #! Parse multiple concatenated gRPC-framed messages from a binary buffer
+    /** @param data the buffer containing one or more framed messages
+        @return a list of hashes, each with \c compressed (bool) and \c data (binary) keys
+
+        @throw GRPC-FRAMING-ERROR if any frame is malformed
+
+        @since %Grpc 1.0
+    */
+    static list<hash<auto>> unframeMessages(binary data) {
+        list<hash<auto>> messages = ();
+        int offset = 0;
+        while (offset < data.size()) {
+            if (data.size() - offset < 5) {
+                throw "GRPC-FRAMING-ERROR",
+                    sprintf("incomplete gRPC frame header at offset %d: %d bytes remaining",
+                        offset, data.size() - offset);
+            }
+            bool compressed = data[offset] != 0;
+            int len = (data[offset + 1] << 24) | (data[offset + 2] << 16)
+                | (data[offset + 3] << 8) | data[offset + 4];
+            if (data.size() - offset - 5 < len) {
+                throw "GRPC-FRAMING-ERROR",
+                    sprintf("incomplete gRPC frame at offset %d: declares %d bytes but only %d available",
+                        offset, len, data.size() - offset - 5);
+            }
+            messages += {
+                "compressed": compressed,
+                "data": data.substr(offset + 5, len),
+            };
+            offset += 5 + len;
+        }
+        return messages;
+    }
+
+    #! Get the size of the next complete gRPC frame in a buffer
+    /** @param data the buffer to check
+        @return the total frame size (5 + payload), or -1 if incomplete
+
+        @since %Grpc 1.0
+    */
+    static int nextFrameSize(binary data) {
+        if (data.size() < 5) {
+            return -1;
+        }
+        int len = (data[1] << 24) | (data[2] << 16) | (data[3] << 8) | data[4];
+        int total = 5 + len;
+        if (data.size() < total) {
+            return -1;
+        }
+        return total;
+    }
+
     #! Format a timeout value for the grpc-timeout header
     /** @param timeout_ms timeout in milliseconds
-        @return the formatted timeout string (e.g., "5000m" for 5000ms)
+        @return the formatted timeout string (e.g., \c "5000m" for 5000ms)
+
+        @since %Grpc 1.0
     */
     static string formatTimeout(int timeout_ms) {
         if (timeout_ms >= 100000000) {
@@ -91,6 +146,8 @@ public class GrpcHelper {
     #! Parse a grpc-timeout header value
     /** @param value the timeout string (e.g., "5000m", "5S", "100u", "200n")
         @return the timeout in milliseconds, or NOTHING if the format is invalid
+
+        @since %Grpc 1.0
     */
     static *int parseTimeout(string value) {
         if (value.empty()) {
@@ -117,6 +174,8 @@ public class GrpcHelper {
     /** @param method_path the full gRPC method path (e.g., "/package.Service/Method")
         @param opts optional call options
         @return a hash of HTTP/2 headers for the request
+
+        @since %Grpc 1.0
     */
     static hash<string, string> buildRequestHeaders(string method_path,
             *hash<GrpcCallOptions> opts) {

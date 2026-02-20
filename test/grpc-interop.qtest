@@ -1,0 +1,380 @@
+#!/usr/bin/env qore
+# -*- mode: qore; indent-tabs-mode: nil -*-
+
+/*
+    Copyright (C) 2026 Qore Technologies, s.r.o., all rights reserved
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+
+    gRPC interop test suite -- validates against known-good gRPC implementations
+*/
+
+%modern
+
+%requires QUnit
+
+%requires grpc
+%requires Grpc
+%requires process
+
+%exec-class GrpcInteropTest
+
+public class GrpcInteropTest inherits QUnit::Test {
+    private {
+        string test_dir;
+        string interop_dir;
+
+        #! Path to grpcurl binary (empty string if not available)
+        string grpcurl_path;
+
+        #! Path to python3 binary (empty string if not available)
+        string python3_path;
+
+        #! True if Python grpcio is available
+        bool has_python_grpc = False;
+    }
+
+    constructor() : Test("GrpcInteropTest", "1.0") {
+        test_dir = get_script_dir();
+        interop_dir = test_dir + "/interop";
+
+        # Detect tools
+        grpcurl_path = findExecutable("grpcurl", ("/tmp/grpcurl",));
+        python3_path = findExecutable("python3", ("/usr/bin/python3", "/usr/local/bin/python3"));
+
+        # Detect Python + grpcio and generate proto stubs
+        has_python_grpc = setupPythonGrpc();
+
+        # Interop: Qore client -> Python gRPC server
+        addTestCase("interop: qore client -> python server: unary",
+            \testQoreClientPythonServerUnary());
+        addTestCase("interop: qore client -> python server: server streaming",
+            \testQoreClientPythonServerStream());
+        addTestCase("interop: qore client -> python server: client streaming",
+            \testQoreClientPythonClientStream());
+        addTestCase("interop: qore client -> python server: bidi streaming",
+            \testQoreClientPythonBidiStream());
+
+        # Interop: grpcurl -> Qore gRPC server
+        addTestCase("interop: grpcurl -> qore server: unary",
+            \testGrpcurlQoreServerUnary());
+        addTestCase("interop: grpcurl -> qore server: server streaming",
+            \testGrpcurlQoreServerStream());
+
+        set_return_value(main());
+    }
+
+    private string findExecutable(string name, list<string> extra_paths) {
+        # Check extra locations first
+        for (int i = 0; i < extra_paths.size(); ++i) {
+            if (is_executable(extra_paths[i])) {
+                return extra_paths[i];
+            }
+        }
+        # Check PATH via shell
+        try {
+            string result = trim(backquote(sprintf("which %s 2>/dev/null", name)));
+            if (result.size() > 0 && is_executable(result)) {
+                return result;
+            }
+        } catch () {
+            # ignore
+        }
+        return "";
+    }
+
+    private bool setupPythonGrpc() {
+        if (!python3_path) {
+            return False;
+        }
+
+        # Check if grpcio is available
+        try {
+            int rc = system(python3_path + " -c 'import grpc' 2>/dev/null");
+            if (rc != 0) {
+                return False;
+            }
+        } catch () {
+            return False;
+        }
+
+        # Generate Python proto stubs if not present
+        string pb2_path = interop_dir + "/test_pb2.py";
+        if (!is_file(pb2_path)) {
+            try {
+                int rc = system(sprintf(
+                    "%s -m grpc_tools.protoc -I%s --python_out=%s --grpc_python_out=%s %s/test.proto 2>/dev/null",
+                    python3_path, test_dir, interop_dir, interop_dir, test_dir
+                ));
+                if (rc != 0) {
+                    return False;
+                }
+            } catch () {
+                return False;
+            }
+        }
+
+        return True;
+    }
+
+    #! Starts the Python gRPC server and returns a hash with "proc" and "port" keys
+    private hash<auto> startPythonServer() {
+        Process proc(python3_path, (interop_dir + "/interop_server.py", "0"));
+
+        # Read "READY <port>" from stdout
+        string output = "";
+        date deadline = now_us() + 15s;
+        while (True) {
+            if (now_us() > deadline) {
+                proc.terminate();
+                throw "INTEROP-ERROR", "Python gRPC server did not become ready in time";
+            }
+            # Read available output
+            *string chunk = proc.readStdout(1024, 500ms);
+            if (chunk) {
+                output += chunk;
+                if (output =~ /READY (\d+)/) {
+                    int port = (output =~ x/READY (\d+)/)[0].toInt();
+                    return {"proc": proc, "port": port};
+                }
+            }
+            if (!proc.running()) {
+                throw "INTEROP-ERROR",
+                    sprintf("Python gRPC server exited unexpectedly: %s", output);
+            }
+        }
+    }
+
+    #! Runs grpcurl and returns a hash with stdout, stderr, and exit_code
+    private hash<auto> runGrpcurl(int port, string method, *string json_data) {
+        # Build the shell command to capture stdout and stderr
+        string cmd = sprintf("%s -plaintext -import-path %s -proto test.proto",
+            grpcurl_path, test_dir);
+        if (exists json_data) {
+            cmd += sprintf(" -d '%s'", json_data);
+        }
+        cmd += sprintf(" localhost:%d %s", port, method);
+
+        string stdout_file = sprintf("/tmp/grpcurl-out-%d.txt", getpid());
+        string stderr_file = sprintf("/tmp/grpcurl-err-%d.txt", getpid());
+        on_exit {
+            unlink(stdout_file);
+            unlink(stderr_file);
+        }
+
+        int exit_code = system(sprintf("%s >%s 2>%s", cmd, stdout_file, stderr_file));
+
+        string stdout = "";
+        string stderr = "";
+        try { stdout = ReadOnlyFile::readTextFile(stdout_file); } catch () {}
+        try { stderr = ReadOnlyFile::readTextFile(stderr_file); } catch () {}
+
+        return {
+            "exit_code": exit_code,
+            "stdout": stdout,
+            "stderr": stderr,
+        };
+    }
+
+    # ---- Qore client -> Python server tests ----
+
+    testQoreClientPythonServerUnary() {
+        if (!has_python_grpc) {
+            testSkip("Python grpcio not available");
+        }
+
+        hash<auto> py = startPythonServer();
+        on_exit py.proc.terminate();
+
+        ProtobufSchema schema(test_dir, "test.proto");
+        GrpcChannel channel(sprintf("http://localhost:%d", py.port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        hash<GrpcCallResult> result = client.call("UnaryCall",
+            {"name": "InteropTest", "id": 42},
+            <GrpcCallOptions>{"timeout_ms": 10000});
+
+        assertEq(GRPC_STATUS_OK, result.status_code,
+            "python server: unary status OK");
+        assertEq("Hello, InteropTest", result.body.message,
+            "python server: unary response message");
+        assertEq(0, result.body.status,
+            "python server: unary response status");
+    }
+
+    testQoreClientPythonServerStream() {
+        if (!has_python_grpc) {
+            testSkip("Python grpcio not available");
+        }
+
+        hash<auto> py = startPythonServer();
+        on_exit py.proc.terminate();
+
+        ProtobufSchema schema(test_dir, "test.proto");
+        GrpcChannel channel(sprintf("http://localhost:%d", py.port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        GrpcClientStream stream = client.serverStream("ServerStream",
+            {"name": "World", "id": 1});
+
+        list<hash<auto>> messages = ();
+        while (*hash<auto> msg = stream.read(10s)) {
+            messages += msg;
+        }
+
+        assertEq(3, messages.size(),
+            "python server: received 3 stream messages");
+        assertEq("msg 0 for World", messages[0].message,
+            "python server: first stream message");
+        assertEq("msg 2 for World", messages[2].message,
+            "python server: last stream message");
+
+        hash<GrpcCallResult> result = stream.finish();
+        assertEq(GRPC_STATUS_OK, result.status_code,
+            "python server: stream status OK");
+    }
+
+    testQoreClientPythonClientStream() {
+        if (!has_python_grpc) {
+            testSkip("Python grpcio not available");
+        }
+
+        hash<auto> py = startPythonServer();
+        on_exit py.proc.terminate();
+
+        ProtobufSchema schema(test_dir, "test.proto");
+        GrpcChannel channel(sprintf("http://localhost:%d", py.port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        GrpcClientStream stream = client.clientStream("ClientStream");
+        stream.write({"name": "Alice", "id": 1});
+        stream.write({"name": "Bob", "id": 2});
+
+        hash<GrpcCallResult> result = stream.finish();
+        assertEq(GRPC_STATUS_OK, result.status_code,
+            "python server: client stream status OK");
+        assertEq("Alice, Bob", result.body.message,
+            "python server: client stream aggregated response");
+        assertEq(2, result.body.status,
+            "python server: client stream count");
+    }
+
+    testQoreClientPythonBidiStream() {
+        if (!has_python_grpc) {
+            testSkip("Python grpcio not available");
+        }
+
+        hash<auto> py = startPythonServer();
+        on_exit py.proc.terminate();
+
+        ProtobufSchema schema(test_dir, "test.proto");
+        GrpcChannel channel(sprintf("http://localhost:%d", py.port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        GrpcClientStream stream = client.bidiStream("BidiStream");
+        stream.write({"name": "one", "id": 1});
+        stream.write({"name": "two", "id": 2});
+        stream.writesDone();
+
+        list<hash<auto>> messages = ();
+        while (*hash<auto> msg = stream.read(10s)) {
+            messages += msg;
+        }
+
+        assertEq(2, messages.size(),
+            "python server: bidi received 2 messages");
+        assertEq("echo: one", messages[0].message,
+            "python server: bidi first echo");
+        assertEq("echo: two", messages[1].message,
+            "python server: bidi second echo");
+
+        hash<GrpcCallResult> result = stream.finish();
+        assertEq(GRPC_STATUS_OK, result.status_code,
+            "python server: bidi status OK");
+    }
+
+    # ---- grpcurl -> Qore server tests ----
+
+    testGrpcurlQoreServerUnary() {
+        if (!grpcurl_path) {
+            testSkip("grpcurl not available");
+        }
+
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                return {
+                    "message": "Hello, " + request.name,
+                    "status": 0,
+                };
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        hash<auto> result = runGrpcurl(port, "test.TestService/UnaryCall",
+            '{"name": "grpcurl", "id": 99}');
+
+        assertEq(0, result.exit_code,
+            "grpcurl unary: exit code 0");
+        # grpcurl outputs JSON response
+        assertTrue(result.stdout.find("Hello, grpcurl") >= 0,
+            "grpcurl unary: response contains greeting");
+    }
+
+    testGrpcurlQoreServerStream() {
+        if (!grpcurl_path) {
+            testSkip("grpcurl not available");
+        }
+
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "ServerStream",
+            sub(hash<auto> request, GrpcServerStream stream,
+                    hash<string, string> metadata) {
+                for (int i = 0; i < 3; ++i) {
+                    stream.write({
+                        "message": sprintf("msg %d for %s", i, request.name),
+                        "status": i,
+                    });
+                }
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        hash<auto> result = runGrpcurl(port, "test.TestService/ServerStream",
+            '{"name": "grpcurl", "id": 1}');
+
+        assertEq(0, result.exit_code,
+            "grpcurl server stream: exit code 0");
+        # grpcurl outputs each streamed message as a JSON object
+        assertTrue(result.stdout.find("msg 0 for grpcurl") >= 0,
+            "grpcurl server stream: first message");
+        assertTrue(result.stdout.find("msg 2 for grpcurl") >= 0,
+            "grpcurl server stream: last message");
+    }
+}

@@ -1,0 +1,247 @@
+#!/usr/bin/env qore
+# -*- mode: qore; indent-tabs-mode: nil -*-
+
+/*
+    Copyright (C) 2026 Qore Technologies, s.r.o., all rights reserved
+
+    gRPC unary RPC integration test suite
+*/
+
+%modern
+
+%requires QUnit
+
+%requires grpc
+%requires Grpc
+
+%exec-class GrpcUnaryTest
+
+public class GrpcUnaryTest inherits QUnit::Test {
+    private {
+        string test_dir;
+        string CertPem;
+        string KeyPem;
+    }
+
+    constructor() : Test("GrpcUnaryTest", "1.0") {
+        test_dir = get_script_dir();
+        CertPem = ReadOnlyFile::readTextFile(test_dir + "/certs/server.crt");
+        KeyPem = ReadOnlyFile::readTextFile(test_dir + "/certs/server.key");
+
+        addTestCase("unary call success", \testUnaryCallSuccess());
+        addTestCase("unary call error from handler", \testUnaryCallHandlerError());
+        addTestCase("unary call unimplemented method", \testUnaryCallUnimplemented());
+        addTestCase("gRPC framing round-trip", \testGrpcFraming());
+        addTestCase("gRPC framing empty message", \testGrpcFramingEmpty());
+        addTestCase("gRPC timeout formatting", \testTimeoutFormat());
+        addTestCase("gRPC timeout parsing", \testTimeoutParse());
+        addTestCase("server lifecycle", \testServerLifecycle());
+        addTestCase("multiple requests on same connection", \testMultipleRequests());
+        addTestCase("secure server with TLS", \testSecureServer());
+
+        set_return_value(main());
+    }
+
+    testUnaryCallSuccess() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        # Start server
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                return {
+                    "message": "Hello, " + request.name,
+                    "status": 0,
+                };
+            });
+        int port = server.addSecurePort("localhost:0",
+            <GrpcSslOptions>{"server_cert": CertPem, "server_key": KeyPem});
+        server.start();
+
+        on_exit server.shutdown();
+
+        # Client call
+        GrpcChannel channel(sprintf("https://localhost:%d", port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        hash<GrpcCallResult> result = client.call("UnaryCall", {"name": "World", "id": 42});
+
+        assertEq(GRPC_STATUS_OK, result.status_code, "status should be OK");
+        assertEq("OK", result.status_message, "status message");
+        assertEq("Hello, World", result.body.message, "response message");
+        assertEq(0, result.body.status, "response status field");
+    }
+
+    testUnaryCallHandlerError() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                throw "HANDLER-ERROR", "something went wrong";
+            });
+        int port = server.addSecurePort("localhost:0",
+            <GrpcSslOptions>{"server_cert": CertPem, "server_key": KeyPem});
+        server.start();
+
+        on_exit server.shutdown();
+
+        GrpcChannel channel(sprintf("https://localhost:%d", port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        hash<GrpcCallResult> result = client.call("UnaryCall", {"name": "error"});
+
+        assertEq(GRPC_STATUS_INTERNAL, result.status_code, "should be INTERNAL error");
+        assertTrue(result.status_message.find("HANDLER-ERROR") >= 0,
+            "error message should contain exception info");
+    }
+
+    testUnaryCallUnimplemented() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        # Register only UnaryCall but call ServerStream
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                return {"message": "ok", "status": 0};
+            });
+        int port = server.addSecurePort("localhost:0",
+            <GrpcSslOptions>{"server_cert": CertPem, "server_key": KeyPem});
+        server.start();
+
+        on_exit server.shutdown();
+
+        GrpcChannel channel(sprintf("https://localhost:%d", port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        hash<GrpcCallResult> result = client.call("ServerStream", {"name": "test"});
+
+        assertEq(GRPC_STATUS_UNIMPLEMENTED, result.status_code,
+            "unregistered method should return UNIMPLEMENTED");
+    }
+
+    testGrpcFraming() {
+        binary payload = <deadbeefcafe>;
+        binary framed = GrpcHelper::frameMessage(payload);
+
+        # Check frame header
+        assertEq(6 + 5, framed.size(), "framed size = 5 header + 6 payload");
+
+        # Unframe
+        hash<auto> result = GrpcHelper::unframeMessage(framed);
+        assertFalse(result.compressed, "should not be compressed");
+        assertEq(payload, result.data, "unframed data should match original");
+    }
+
+    testGrpcFramingEmpty() {
+        binary empty = binary();
+        binary framed = GrpcHelper::frameMessage(empty);
+        assertEq(5, framed.size(), "empty frame should be 5 bytes");
+
+        hash<auto> result = GrpcHelper::unframeMessage(framed);
+        assertFalse(result.compressed, "should not be compressed");
+        assertEq(0, result.data.size(), "empty frame data should be empty");
+    }
+
+    testTimeoutFormat() {
+        assertEq("5000m", GrpcHelper::formatTimeout(5000), "5 second timeout");
+        assertEq("1m", GrpcHelper::formatTimeout(1), "1ms timeout");
+        assertEq("100000S", GrpcHelper::formatTimeout(100000000), "large timeout in seconds");
+    }
+
+    testTimeoutParse() {
+        assertEq(5000, GrpcHelper::parseTimeout("5000m"), "parse ms");
+        assertEq(5000, GrpcHelper::parseTimeout("5S"), "parse seconds");
+        assertEq(300000, GrpcHelper::parseTimeout("5M"), "parse minutes");
+        assertEq(3600000, GrpcHelper::parseTimeout("1H"), "parse hours");
+        assertNothing(GrpcHelper::parseTimeout(""), "parse empty");
+        assertNothing(GrpcHelper::parseTimeout("x"), "parse invalid");
+    }
+
+    testServerLifecycle() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                return {"message": "ok", "status": 0};
+            });
+        int port = server.addSecurePort("localhost:0",
+            <GrpcSslOptions>{"server_cert": CertPem, "server_key": KeyPem});
+        assertTrue(port > 0, "port should be positive");
+
+        server.start();
+        assertTrue(server.isRunning(), "server should be running after start");
+
+        # Verify double start throws
+        assertThrows("GRPC-SERVER-ERROR", sub() { server.start(); });
+
+        server.shutdown(5000);
+        assertFalse(server.isRunning(), "server should not be running after shutdown");
+    }
+
+    testMultipleRequests() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        int call_count = 0;
+        Mutex mx();
+
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                {
+                    AutoLock al(mx);
+                    ++call_count;
+                }
+                return {
+                    "message": "response-" + request.name,
+                    "status": 0,
+                };
+            });
+        int port = server.addSecurePort("localhost:0",
+            <GrpcSslOptions>{"server_cert": CertPem, "server_key": KeyPem});
+        server.start();
+
+        on_exit server.shutdown();
+
+        GrpcChannel channel(sprintf("https://localhost:%d", port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        # Send 3 requests
+        for (int i = 0; i < 3; ++i) {
+            hash<GrpcCallResult> result = client.call("UnaryCall",
+                {"name": string(i), "id": i});
+            assertEq(GRPC_STATUS_OK, result.status_code, sprintf("request %d status", i));
+            assertEq("response-" + string(i), result.body.message,
+                sprintf("request %d response", i));
+        }
+
+        assertEq(3, call_count, "server should have received 3 calls");
+    }
+
+    testSecureServer() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                return {"message": "secure-" + request.name, "status": 0};
+            });
+        int port = server.addSecurePort("localhost:0",
+            <GrpcSslOptions>{"server_cert": CertPem, "server_key": KeyPem});
+        server.start();
+
+        on_exit server.shutdown();
+
+        GrpcChannel channel(sprintf("https://localhost:%d", port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        hash<GrpcCallResult> result = client.call("UnaryCall", {"name": "tls"});
+        assertEq(GRPC_STATUS_OK, result.status_code, "TLS call should succeed");
+        assertEq("secure-tls", result.body.message, "TLS response");
+    }
+}

@@ -27,7 +27,7 @@
 #ifndef _QORE_PROTOBUF_SCHEMA_H
 #define _QORE_PROTOBUF_SCHEMA_H
 
-#include <qore/Qore.h>
+#include "grpc-module.h"
 
 #include <google/protobuf/descriptor.h>
 #include <google/protobuf/descriptor.pb.h>
@@ -89,10 +89,17 @@ private:
     //! Error collector for protobuf parser errors
     class ErrorCollector : public google::protobuf::compiler::MultiFileErrorCollector {
     public:
+#ifdef GRPC_PROTOBUF_V26_PLUS
         void RecordError(absl::string_view filename, int line, int column,
             absl::string_view message) override;
         void RecordWarning(absl::string_view filename, int line, int column,
             absl::string_view message) override;
+#else
+        void AddError(const std::string& filename, int line, int column,
+            const std::string& message) override;
+        void AddWarning(const std::string& filename, int line, int column,
+            const std::string& message) override;
+#endif
 
         std::string getErrors() const;
         bool hasErrors() const { return !errors.empty(); }
@@ -105,7 +112,11 @@ private:
     class StringSourceTree : public google::protobuf::compiler::SourceTree {
     public:
         void addFile(const std::string& filename, const std::string& content);
+#ifdef GRPC_PROTOBUF_V26_PLUS
         google::protobuf::io::ZeroCopyInputStream* Open(absl::string_view filename) override;
+#else
+        google::protobuf::io::ZeroCopyInputStream* Open(const std::string& filename) override;
+#endif
         std::string GetLastErrorMessage() override;
 
     private:

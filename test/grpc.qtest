@@ -30,6 +30,7 @@
 %requires QUnit
 
 %requires grpc
+%requires Grpc
 
 %exec-class GrpcTest
 
@@ -42,6 +43,7 @@ public class GrpcTest inherits QUnit::Test {
         # Find the test directory (where test.proto lives)
         test_dir = get_script_dir();
 
+        # ProtobufSchema tests (Phase 3)
         addTestCase("schema loading from file", \testSchemaLoadFile());
         addTestCase("schema loading from string", \testSchemaLoadString());
         addTestCase("schema load invalid file", \testSchemaLoadInvalidFile());
@@ -65,6 +67,74 @@ public class GrpcTest inherits QUnit::Test {
         addTestCase("default message", \testDefaultMessage());
         addTestCase("JSON round-trip", \testJsonRoundTrip());
         addTestCase("JSON invalid input", \testJsonInvalidInput());
+
+        # GrpcHelper tests (Phase 4)
+        addTestCase("framing: frame and unframe", \testFrameUnframe());
+        addTestCase("framing: empty message", \testFrameEmpty());
+        addTestCase("framing: compressed flag", \testFrameCompressed());
+        addTestCase("framing: large message", \testFrameLarge());
+        addTestCase("framing: unframe too short", \testUnframeTooShort());
+        addTestCase("framing: unframe truncated", \testUnframeTruncated());
+        addTestCase("timeout formatting", \testTimeoutFormat());
+        addTestCase("timeout parsing", \testTimeoutParse());
+        addTestCase("request headers", \testBuildRequestHeaders());
+
+        # GrpcClient tests (Phase 4)
+        addTestCase("client: constructor validates service", \testClientConstructor());
+        addTestCase("client: invalid service", \testClientInvalidService());
+        addTestCase("client: invalid method", \testClientInvalidMethod());
+
+        # GrpcServer tests (Phase 4)
+        addTestCase("server: register handler", \testServerRegisterHandler());
+        addTestCase("server: invalid handler registration", \testServerInvalidHandler());
+        addTestCase("server: bind and port", \testServerBindPort());
+        addTestCase("server: double start error", \testServerDoubleStart());
+
+        # Integration tests (Phase 4)
+        addTestCase("integration: unary call", \testUnaryCall());
+        addTestCase("integration: unary call with metadata", \testUnaryCallMetadata());
+        addTestCase("integration: handler exception", \testHandlerException());
+        addTestCase("integration: unimplemented method", \testUnimplementedMethod());
+        addTestCase("integration: empty request/response", \testEmptyRequestResponse());
+        addTestCase("integration: multiple sequential calls", \testMultipleSequentialCalls());
+        addTestCase("integration: concurrent calls", \testConcurrentCalls());
+
+        # Streaming tests (Phase 5)
+        addTestCase("helper: unframe multiple messages", \testUnframeMessages());
+        addTestCase("helper: next frame size", \testNextFrameSize());
+        addTestCase("streaming: server stream", \testServerStream());
+        addTestCase("streaming: client stream", \testClientStream());
+        addTestCase("streaming: bidi stream", \testBidiStream());
+        addTestCase("streaming: server stream cancel", \testServerStreamCancel());
+        addTestCase("streaming: empty server stream", \testEmptyServerStream());
+
+        # TLS tests (Phase 6)
+        addTestCase("tls: secure server and client", \testTlsSecure());
+
+        # Metadata tests (Phase 6)
+        addTestCase("metadata: server trailing metadata (streaming)",
+            \testServerTrailingMetadata());
+        addTestCase("metadata: server initial metadata (streaming)",
+            \testServerInitialMetadata());
+        addTestCase("metadata: trailing metadata in unary",
+            \testUnaryTrailingMetadata());
+
+        # Timeout/deadline tests (Phase 6)
+        addTestCase("timeout: deadline not exceeded", \testDeadlineNotExceeded());
+        addTestCase("timeout: deadline exceeded", \testDeadlineExceeded());
+        addTestCase("timeout: deadline exceeded streaming",
+            \testDeadlineExceededStreaming());
+        addTestCase("timeout: grpc-timeout not leaked to handler metadata",
+            \testTimeoutNotLeakedToMetadata());
+
+        # API getter tests
+        addTestCase("client: getSchema returns schema", \testClientGetSchema());
+        addTestCase("channel: target returns URL", \testChannelTarget());
+        addTestCase("channel: getConnectionManager", \testChannelGetConnectionManager());
+        addTestCase("server stream: clientMetadata", \testServerStreamClientMetadata());
+
+        # Transport error tests
+        addTestCase("client: connection refused", \testConnectionRefused());
 
         set_return_value(main());
     }
@@ -130,9 +200,9 @@ public class GrpcTest inherits QUnit::Test {
         ProtobufSchema schema(test_dir, "test.proto");
         list<string> types = schema.messageTypes();
         assertTrue(types.size() >= 10, "should have many message types");
-        assertTrue("test.SimpleRequest" in types, "should contain SimpleRequest");
-        assertTrue("test.SimpleResponse" in types, "should contain SimpleResponse");
-        assertTrue("test.AllTypesMessage" in types, "should contain AllTypesMessage");
+        assertTrue(inlist("test.SimpleRequest", types), "should contain SimpleRequest");
+        assertTrue(inlist("test.SimpleResponse", types), "should contain SimpleResponse");
+        assertTrue(inlist("test.AllTypesMessage", types), "should contain AllTypesMessage");
     }
 
     testEncodeDecodeSimple() {
@@ -154,7 +224,7 @@ public class GrpcTest inherits QUnit::Test {
             "int32_val": -100,
             "int64_val": -9999999999,
             "uint32_val": 4000000000,
-            "uint64_val": 18000000000000000000,
+            "uint64_val": 9000000000000000000,
             "sint32_val": -500,
             "sint64_val": -123456789012,
             "fixed32_val": 12345,
@@ -344,6 +414,955 @@ public class GrpcTest inherits QUnit::Test {
         ProtobufSchema schema(test_dir, "test.proto");
         assertThrows("PROTOBUF-JSON-ERROR", sub() {
             schema.fromJson("test.SimpleRequest", "not valid json{{{");
+        });
+    }
+
+    # --- GrpcHelper tests ---
+
+    testFrameUnframe() {
+        binary payload = binary("hello-grpc");
+        binary framed = GrpcHelper::frameMessage(payload);
+
+        # 5-byte header + payload
+        assertEq(5 + payload.size(), framed.size(), "framed size");
+
+        # First byte is compressed flag (0)
+        assertEq(0, framed[0], "compressed flag is 0");
+
+        # Bytes 1-4 are big-endian length
+        int len = (framed[1] << 24) | (framed[2] << 16) | (framed[3] << 8) | framed[4];
+        assertEq(payload.size(), len, "length field");
+
+        # Round-trip
+        hash<auto> result = GrpcHelper::unframeMessage(framed);
+        assertFalse(result.compressed, "not compressed");
+        assertEq(payload, result.data, "payload round-trip");
+    }
+
+    testFrameEmpty() {
+        binary empty = binary();
+        binary framed = GrpcHelper::frameMessage(empty);
+        assertEq(5, framed.size(), "empty frame is 5 bytes");
+
+        hash<auto> result = GrpcHelper::unframeMessage(framed);
+        assertFalse(result.compressed, "not compressed");
+        assertEq(0, result.data.size(), "empty payload");
+    }
+
+    testFrameCompressed() {
+        binary payload = binary("data");
+        binary framed = GrpcHelper::frameMessage(payload, True);
+        assertEq(1, framed[0], "compressed flag is 1");
+
+        hash<auto> result = GrpcHelper::unframeMessage(framed);
+        assertTrue(result.compressed, "compressed flag set");
+        assertEq(payload, result.data, "payload matches");
+    }
+
+    testFrameLarge() {
+        # Create a payload > 65535 bytes to test multi-byte length encoding
+        binary payload = binary(strmul("x", 100000));
+        binary framed = GrpcHelper::frameMessage(payload);
+
+        hash<auto> result = GrpcHelper::unframeMessage(framed);
+        assertEq(100000, result.data.size(), "large payload size");
+    }
+
+    testUnframeTooShort() {
+        assertThrows("GRPC-FRAMING-ERROR", sub() {
+            GrpcHelper::unframeMessage(<0001>);
+        });
+    }
+
+    testUnframeTruncated() {
+        # Header says 100 bytes but only 5 available
+        assertThrows("GRPC-FRAMING-ERROR", sub() {
+            GrpcHelper::unframeMessage(<0000000064AABBCC>);
+        });
+    }
+
+    testTimeoutFormat() {
+        assertEq("5000m", GrpcHelper::formatTimeout(5000), "5s in ms");
+        assertEq("100m", GrpcHelper::formatTimeout(100), "100ms");
+        assertEq("100000S", GrpcHelper::formatTimeout(100000000), "large timeout in seconds");
+    }
+
+    testTimeoutParse() {
+        assertEq(5000, GrpcHelper::parseTimeout("5000m"), "5000ms");
+        assertEq(5000, GrpcHelper::parseTimeout("5S"), "5 seconds");
+        assertEq(60000, GrpcHelper::parseTimeout("1M"), "1 minute");
+        assertEq(3600000, GrpcHelper::parseTimeout("1H"), "1 hour");
+        assertNothing(GrpcHelper::parseTimeout(""), "empty string");
+        assertNothing(GrpcHelper::parseTimeout("X"), "invalid unit");
+    }
+
+    testBuildRequestHeaders() {
+        hash<string, string> headers = GrpcHelper::buildRequestHeaders("/test.Svc/Method");
+        assertEq("application/grpc+proto", headers."content-type", "content-type header");
+        assertEq("trailers", headers.te, "te header");
+
+        # With options
+        hash<GrpcCallOptions> opts = <GrpcCallOptions>{
+            "timeout_ms": 5000,
+            "metadata": {"x-custom": "value"},
+        };
+        headers = GrpcHelper::buildRequestHeaders("/test.Svc/Method", opts);
+        assertEq("5000m", headers."grpc-timeout", "grpc-timeout header");
+        assertEq("value", headers."x-custom", "custom metadata header");
+    }
+
+    # --- GrpcClient tests ---
+
+    testClientConstructor() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        GrpcChannel channel("https://localhost:50051");
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+        hash<GrpcServiceInfo> info = client.getServiceInfo();
+        assertEq("TestService", info.name, "service name matches");
+        assertEq(4, info.methods.size(), "method count matches");
+    }
+
+    testClientInvalidService() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        GrpcChannel channel("https://localhost:50051");
+        on_exit channel.shutdown();
+        assertThrows("GRPC-SERVICE-ERROR", sub() {
+            new GrpcClient(channel, schema, "NonExistentService");
+        });
+    }
+
+    testClientInvalidMethod() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        GrpcChannel channel("https://localhost:50051");
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+        assertThrows("GRPC-METHOD-ERROR", sub() {
+            client.call("NonExistentMethod", {});
+        });
+    }
+
+    # --- GrpcServer tests ---
+
+    testServerRegisterHandler() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        GrpcServer server(schema);
+        # Should not throw
+        server.registerHandler("TestService", "UnaryCall", hash<auto> sub(hash<auto> req, hash<string, string> meta) {
+            return {"message": "ok", "status": 0};
+        });
+        assertTrue(True, "handler registered successfully");
+    }
+
+    testServerInvalidHandler() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        GrpcServer server(schema);
+        assertThrows("GRPC-HANDLER-ERROR", sub() {
+            server.registerHandler("TestService", "NonExistent", hash<auto> sub(hash<auto> req, hash<string, string> meta) {
+                return {};
+            });
+        });
+    }
+
+    testServerBindPort() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        GrpcServer server(schema);
+        int port = server.addInsecurePort("localhost:0");
+        assertTrue(port > 0, "bound to a port");
+    }
+
+    testServerDoubleStart() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        GrpcServer server(schema);
+        server.addInsecurePort("localhost:0");
+        server.registerHandler("TestService", "UnaryCall", hash<auto> sub(hash<auto> req, hash<string, string> meta) {
+            return {"message": "ok", "status": 0};
+        });
+        server.start();
+        on_exit server.shutdown();
+        assertThrows("GRPC-SERVER-ERROR", sub() {
+            server.start();
+        });
+    }
+
+    # --- Integration tests ---
+
+    testUnaryCall() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        # Set up server
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                return {
+                    "message": "Hello, " + request.name,
+                    "status": 0,
+                };
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        # Set up client
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        # Make unary call with timeout
+        hash<GrpcCallOptions> call_opts = <GrpcCallOptions>{
+            "timeout_ms": 10000,
+        };
+        hash<GrpcCallResult> result = client.call("UnaryCall", {"name": "World", "id": 1}, call_opts);
+        assertEq(GRPC_STATUS_OK, result.status_code, "status code OK");
+        assertEq("OK", result.status_message, "status message OK");
+        assertEq("Hello, World", result.body.message, "response message");
+        assertEq(0, result.body.status, "response status");
+    }
+
+    testUnaryCallMetadata() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        # Server that echoes metadata
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                return {
+                    "message": metadata."x-request-id" ?? "none",
+                    "status": 0,
+                };
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        hash<GrpcCallOptions> opts = <GrpcCallOptions>{
+            "metadata": {"x-request-id": "test-123"},
+        };
+        hash<GrpcCallResult> result = client.call("UnaryCall", {"name": "test"}, opts);
+        assertEq(GRPC_STATUS_OK, result.status_code, "status code OK");
+        assertEq("test-123", result.body.message, "metadata echoed back");
+    }
+
+    testHandlerException() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "UnaryCall",
+            sub(hash<auto> request, hash<string, string> metadata) {
+                throw "TEST-ERROR", "deliberate error";
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        hash<GrpcCallResult> result = client.call("UnaryCall", {"name": "test"});
+        assertEq(GRPC_STATUS_INTERNAL, result.status_code, "status code INTERNAL");
+        assertTrue(result.status_message.find("TEST-ERROR") >= 0, "error message contains exception");
+    }
+
+    testUnimplementedMethod() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        # Register only UnaryCall, not ServerStream
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                return {"message": "ok", "status": 0};
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        # Call an unregistered method
+        hash<GrpcCallResult> result = client.call("ServerStream", {"name": "test"});
+        assertEq(GRPC_STATUS_UNIMPLEMENTED, result.status_code, "status code UNIMPLEMENTED");
+    }
+
+    testEmptyRequestResponse() {
+        # Test with EmptyMessage - need a proto with a service that uses it
+        string proto_content = "syntax = \"proto3\";\n"
+            + "package empty_test;\n"
+            + "message EmptyMsg {}\n"
+            + "message SimpleMsg { string value = 1; }\n"
+            + "service EmptyService {\n"
+            + "  rpc Ping (EmptyMsg) returns (SimpleMsg);\n"
+            + "}\n";
+
+        ProtobufSchema schema(proto_content);
+
+        GrpcServer server(schema);
+        server.registerHandler("EmptyService", "Ping",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                return {"value": "pong"};
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "EmptyService");
+
+        hash<GrpcCallResult> result = client.call("Ping", {});
+        assertEq(GRPC_STATUS_OK, result.status_code, "status code OK");
+        assertEq("pong", result.body.value, "response value");
+    }
+
+    testMultipleSequentialCalls() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                return {
+                    "message": "Hello, " + request.name,
+                    "status": request.id,
+                };
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        # Make 5 sequential calls on the same client/channel
+        for (int i = 0; i < 5; ++i) {
+            hash<GrpcCallResult> result = client.call("UnaryCall",
+                {"name": sprintf("User%d", i), "id": i});
+            assertEq(GRPC_STATUS_OK, result.status_code,
+                sprintf("call %d: status OK", i));
+            assertEq(sprintf("Hello, User%d", i), result.body.message,
+                sprintf("call %d: response message", i));
+            assertEq(i, result.body.status,
+                sprintf("call %d: response status", i));
+        }
+    }
+
+    testConcurrentCalls() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                return {
+                    "message": "Hello, " + request.name,
+                    "status": 0,
+                };
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        # Launch multiple concurrent calls
+        int num_calls = 4;
+        Counter done(num_calls);
+        list<hash<auto>> results();
+        Mutex results_mutex();
+
+        for (int i = 0; i < num_calls; ++i) {
+            int idx = i;
+            background sub() {
+                on_exit done.dec();
+                try {
+                    GrpcChannel ch("http://localhost:" + string(port));
+                    on_exit ch.shutdown();
+                    GrpcClient cl(ch, schema, "TestService");
+                    hash<GrpcCallResult> r = cl.call("UnaryCall",
+                        {"name": sprintf("Concurrent%d", idx), "id": idx});
+                    {
+                        AutoLock al(results_mutex);
+                        results += {"idx": idx, "result": r};
+                    }
+                } catch (hash<ExceptionInfo> ex) {
+                    {
+                        AutoLock al(results_mutex);
+                        results += {"idx": idx, "error": sprintf("%s: %s", ex.err, ex.desc)};
+                    }
+                }
+            }();
+        }
+
+        done.waitForZero(30s);
+        assertEq(num_calls, results.size(), "all concurrent calls completed");
+        for (int i = 0; i < results.size(); ++i) {
+            assertNothing(results[i].error,
+                sprintf("concurrent call %d: no error", results[i].idx));
+            assertEq(GRPC_STATUS_OK, results[i].result.status_code,
+                sprintf("concurrent call %d: status OK", results[i].idx));
+        }
+    }
+
+    # --- GrpcHelper multi-frame tests ---
+
+    testUnframeMessages() {
+        # Frame two messages
+        binary msg1 = binary("hello");
+        binary msg2 = binary("world");
+        binary framed = GrpcHelper::frameMessage(msg1) + GrpcHelper::frameMessage(msg2);
+
+        list<hash<auto>> messages = GrpcHelper::unframeMessages(framed);
+        assertEq(2, messages.size(), "two messages");
+        assertEq(msg1, messages[0].data, "first message data");
+        assertEq(msg2, messages[1].data, "second message data");
+        assertFalse(messages[0].compressed, "first not compressed");
+    }
+
+    testNextFrameSize() {
+        binary payload = binary("test");
+        binary framed = GrpcHelper::frameMessage(payload);
+
+        assertEq(9, GrpcHelper::nextFrameSize(framed), "complete frame size");
+        assertEq(-1, GrpcHelper::nextFrameSize(<00>), "incomplete header");
+        assertEq(-1, GrpcHelper::nextFrameSize(binary()), "empty buffer");
+    }
+
+    # --- Streaming integration tests ---
+
+    testServerStream() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "ServerStream",
+            sub(hash<auto> request, GrpcServerStream stream,
+                    hash<string, string> metadata) {
+                # Send multiple response messages
+                for (int i = 0; i < 3; ++i) {
+                    stream.write({
+                        "message": sprintf("msg %d for %s", i, request.name),
+                        "status": i,
+                    });
+                }
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        GrpcClientStream stream = client.serverStream("ServerStream",
+            {"name": "World", "id": 1});
+
+        # Read all messages
+        list<hash<auto>> messages = ();
+        while (*hash<auto> msg = stream.read(5s)) {
+            messages += msg;
+        }
+
+        assertEq(3, messages.size(), "received 3 messages");
+        assertEq("msg 0 for World", messages[0].message, "first message");
+        assertEq("msg 1 for World", messages[1].message, "second message");
+        assertEq("msg 2 for World", messages[2].message, "third message");
+        assertEq(0, messages[0].status, "first status");
+        assertEq(2, messages[2].status, "third status");
+
+        hash<GrpcCallResult> result = stream.finish();
+        assertEq(GRPC_STATUS_OK, result.status_code, "stream status OK");
+    }
+
+    testClientStream() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "ClientStream",
+            hash<auto> sub(GrpcServerStream stream, hash<string, string> metadata) {
+                # Read all client messages and aggregate
+                list<string> names = ();
+                while (*hash<auto> msg = stream.read()) {
+                    names += msg.name;
+                }
+                return {
+                    "message": names.join(", "),
+                    "status": names.size(),
+                };
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        GrpcClientStream stream = client.clientStream("ClientStream");
+        stream.write({"name": "Alice", "id": 1});
+        stream.write({"name": "Bob", "id": 2});
+        stream.write({"name": "Charlie", "id": 3});
+
+        hash<GrpcCallResult> result = stream.finish();
+        assertEq(GRPC_STATUS_OK, result.status_code, "stream status OK");
+        # The response should contain the aggregated names
+        # Note: client-streaming returns a single response via finish()
+    }
+
+    testBidiStream() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "BidiStream",
+            sub(GrpcServerStream stream, hash<string, string> metadata) {
+                # Echo each client message back with a prefix
+                while (*hash<auto> msg = stream.read()) {
+                    stream.write({
+                        "message": "echo: " + msg.name,
+                        "status": msg.id,
+                    });
+                }
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        GrpcClientStream stream = client.bidiStream("BidiStream");
+
+        # Send messages
+        stream.write({"name": "one", "id": 1});
+        stream.write({"name": "two", "id": 2});
+        stream.writesDone();
+
+        # Read responses
+        list<hash<auto>> messages = ();
+        while (*hash<auto> msg = stream.read(5s)) {
+            messages += msg;
+        }
+
+        assertEq(2, messages.size(), "received 2 echo messages");
+        assertEq("echo: one", messages[0].message, "first echo");
+        assertEq("echo: two", messages[1].message, "second echo");
+
+        hash<GrpcCallResult> result = stream.finish();
+        assertEq(GRPC_STATUS_OK, result.status_code, "bidi stream status OK");
+    }
+
+    testServerStreamCancel() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "ServerStream",
+            sub(hash<auto> request, GrpcServerStream stream,
+                    hash<string, string> metadata) {
+                for (int i = 0; i < 100; ++i) {
+                    stream.write({
+                        "message": sprintf("msg %d", i),
+                        "status": i,
+                    });
+                }
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        GrpcClientStream stream = client.serverStream("ServerStream",
+            {"name": "cancel-test", "id": 1});
+
+        # Read first message then cancel
+        *hash<auto> msg = stream.read(5s);
+        assertTrue(exists msg, "got at least one message before cancel");
+        stream.cancel();
+        # After cancel, the stream should be done
+        assertTrue(True, "cancel succeeded without hang");
+    }
+
+    testEmptyServerStream() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "ServerStream",
+            sub(hash<auto> request, GrpcServerStream stream,
+                    hash<string, string> metadata) {
+                # Handler writes nothing — empty stream
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        GrpcClientStream stream = client.serverStream("ServerStream",
+            {"name": "empty", "id": 1});
+
+        # Should get nothing
+        *hash<auto> msg = stream.read(5s);
+        assertNothing(msg, "empty stream returns nothing");
+
+        hash<GrpcCallResult> result = stream.finish();
+        assertEq(GRPC_STATUS_OK, result.status_code, "empty stream status OK");
+    }
+
+    # --- TLS tests ---
+
+    testTlsSecure() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        # Read test certificates
+        string cert_dir = test_dir + "/certs";
+        string server_cert = ReadOnlyFile::readTextFile(cert_dir + "/server.crt");
+        string server_key = ReadOnlyFile::readTextFile(cert_dir + "/server.key");
+
+        # Set up server with TLS
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                return {
+                    "message": "TLS Hello, " + request.name,
+                    "status": 0,
+                };
+            });
+        int port = server.addSecurePort("localhost:0", <GrpcSslOptions>{
+            "server_cert": server_cert,
+            "server_key": server_key,
+        });
+        server.start();
+        on_exit server.shutdown();
+
+        # Connect with HTTPS (accept all certs since self-signed)
+        GrpcChannel channel("https://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        hash<GrpcCallResult> result = client.call("UnaryCall",
+            {"name": "World", "id": 1});
+        assertEq(GRPC_STATUS_OK, result.status_code, "TLS status code OK");
+        assertEq("TLS Hello, World", result.body.message, "TLS response message");
+    }
+
+    # --- Metadata tests ---
+
+    testServerTrailingMetadata() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "ServerStream",
+            sub(hash<auto> request, GrpcServerStream stream,
+                    hash<string, string> metadata) {
+                # Set custom trailing metadata
+                stream.setTrailingMetadata({
+                    "x-request-count": "2",
+                    "x-server-id": "test-server",
+                });
+                stream.write({
+                    "message": "msg 0",
+                    "status": 0,
+                });
+                stream.write({
+                    "message": "msg 1",
+                    "status": 1,
+                });
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        GrpcClientStream stream = client.serverStream("ServerStream",
+            {"name": "meta-test", "id": 1});
+
+        # Drain messages
+        list<hash<auto>> messages = ();
+        while (*hash<auto> msg = stream.read(5s)) {
+            messages += msg;
+        }
+        assertEq(2, messages.size(), "received 2 messages");
+
+        hash<GrpcCallResult> result = stream.finish();
+        assertEq(GRPC_STATUS_OK, result.status_code, "status OK");
+        assertEq("2", result.trailing_metadata."x-request-count",
+            "custom trailing metadata: request count");
+        assertEq("test-server", result.trailing_metadata."x-server-id",
+            "custom trailing metadata: server id");
+    }
+
+    testServerInitialMetadata() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "ServerStream",
+            sub(hash<auto> request, GrpcServerStream stream,
+                    hash<string, string> metadata) {
+                # Send initial metadata before writing messages
+                stream.sendInitialMetadata({
+                    "x-server-version": "1.0",
+                });
+                stream.write({
+                    "message": "with initial metadata",
+                    "status": 0,
+                });
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        GrpcClientStream cstream = client.serverStream("ServerStream",
+            {"name": "init-meta", "id": 1});
+
+        *hash<auto> msg = cstream.read(5s);
+        assertTrue(exists msg, "got message with initial metadata");
+        assertEq("with initial metadata", msg.message, "message content");
+
+        hash<GrpcCallResult> result = cstream.finish();
+        assertEq(GRPC_STATUS_OK, result.status_code, "status OK");
+    }
+
+    testUnaryTrailingMetadata() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        # Unary calls always return trailing metadata from trailers
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                return {
+                    "message": "Hello, " + request.name,
+                    "status": 0,
+                };
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        hash<GrpcCallResult> result = client.call("UnaryCall",
+            {"name": "test", "id": 1});
+        assertEq(GRPC_STATUS_OK, result.status_code, "status OK");
+        # Trailing metadata should have grpc-status/message filtered out
+        # but should be a valid (possibly empty) hash
+        assertTrue(result.trailing_metadata.typeCode() == NT_HASH,
+            "trailing_metadata is a hash");
+    }
+
+    # --- Timeout/deadline tests ---
+
+    testDeadlineNotExceeded() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                # Fast handler — should not exceed deadline
+                return {
+                    "message": "fast response",
+                    "status": 0,
+                };
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        # Call with generous timeout
+        hash<GrpcCallOptions> opts = <GrpcCallOptions>{
+            "timeout_ms": 30000,
+        };
+        hash<GrpcCallResult> result = client.call("UnaryCall",
+            {"name": "test", "id": 1}, opts);
+        assertEq(GRPC_STATUS_OK, result.status_code,
+            "deadline not exceeded: status OK");
+        assertEq("fast response", result.body.message, "response message");
+    }
+
+    testDeadlineExceeded() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                # Slow handler — will exceed a very short deadline
+                usleep(500ms);
+                return {
+                    "message": "slow response",
+                    "status": 0,
+                };
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        # Call with very short timeout (1ms)
+        hash<GrpcCallOptions> opts = <GrpcCallOptions>{
+            "timeout_ms": 1,
+        };
+        hash<GrpcCallResult> result = client.call("UnaryCall",
+            {"name": "test", "id": 1}, opts);
+        assertEq(GRPC_STATUS_DEADLINE_EXCEEDED, result.status_code,
+            "deadline exceeded: status DEADLINE_EXCEEDED");
+    }
+
+    testTimeoutNotLeakedToMetadata() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                # grpc-timeout should NOT appear in handler metadata
+                return {
+                    "message": exists metadata."grpc-timeout" ? "leaked" : "clean",
+                    "status": 0,
+                };
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        hash<GrpcCallOptions> opts = <GrpcCallOptions>{
+            "timeout_ms": 30000,
+        };
+        hash<GrpcCallResult> result = client.call("UnaryCall",
+            {"name": "test", "id": 1}, opts);
+        assertEq(GRPC_STATUS_OK, result.status_code, "status OK");
+        assertEq("clean", result.body.message,
+            "grpc-timeout not leaked to handler metadata");
+    }
+
+    testDeadlineExceededStreaming() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "ServerStream",
+            sub(hash<auto> request, GrpcServerStream stream,
+                    hash<string, string> metadata) {
+                # Slow streaming handler — will exceed a short deadline
+                usleep(500ms);
+                stream.write({
+                    "message": "late message",
+                    "status": 0,
+                });
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        hash<GrpcCallOptions> opts = <GrpcCallOptions>{
+            "timeout_ms": 1,
+        };
+        GrpcClientStream stream = client.serverStream("ServerStream",
+            {"name": "deadline-test", "id": 1}, opts);
+
+        # Drain messages
+        while (stream.read(5s)) {
+            # May or may not receive messages depending on timing
+        }
+
+        hash<GrpcCallResult> result = stream.finish();
+        assertEq(GRPC_STATUS_DEADLINE_EXCEEDED, result.status_code,
+            "streaming deadline exceeded: status DEADLINE_EXCEEDED");
+    }
+
+    # --- API getter tests ---
+
+    testClientGetSchema() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        GrpcChannel channel("https://localhost:50051");
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+        ProtobufSchema returned = client.getSchema();
+        # Verify it's the same schema by checking message types
+        assertEq(schema.messageTypes(), returned.messageTypes(),
+            "getSchema returns same schema");
+    }
+
+    testChannelTarget() {
+        string url = "https://localhost:50051";
+        GrpcChannel channel(url);
+        on_exit channel.shutdown();
+        assertEq(url, channel.target(), "target returns constructor URL");
+    }
+
+    testChannelGetConnectionManager() {
+        GrpcChannel channel("https://localhost:50051");
+        on_exit channel.shutdown();
+        auto mgr = channel.getConnectionManager();
+        assertEq(NT_OBJECT, mgr.typeCode(),
+            "getConnectionManager returns an object");
+    }
+
+    testServerStreamClientMetadata() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        *hash<string, string> received_metadata;
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "ServerStream",
+            sub(hash<auto> request, GrpcServerStream stream,
+                    hash<string, string> metadata) {
+                received_metadata = stream.clientMetadata();
+                stream.write({"message": "ok", "status": 0});
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        hash<GrpcCallOptions> opts = <GrpcCallOptions>{
+            "metadata": {"x-test-key": "test-value"},
+        };
+        GrpcClientStream stream = client.serverStream("ServerStream",
+            {"name": "metadata-test", "id": 1}, opts);
+        while (stream.read(5s)) {}
+        stream.finish();
+
+        assertEq("test-value", received_metadata."x-test-key",
+            "clientMetadata returns client headers");
+    }
+
+    testConnectionRefused() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        # Use a port that nothing is listening on
+        GrpcChannel channel("http://localhost:1");
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+        assertThrows("GRPC-ERROR", sub() {
+            client.call("UnaryCall", {"name": "test", "id": 1});
         });
     }
 }

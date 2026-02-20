@@ -7,16 +7,18 @@ The `grpc` module provides gRPC client/server and protobuf support for Qore, inc
 - Dynamic protobuf schema loading from `.proto` files (no code generation needed)
 - Binary protobuf encoding/decoding via `ProtobufSchema`
 - gRPC client with all four call patterns (unary, server streaming, client streaming, bidirectional)
-- gRPC server with async I/O
-- Built natively on Qore's HTTP/2 infrastructure (no libgrpc++ dependency)
+- gRPC server with handler registration and async I/O
+- TLS/SSL support on client and server
+- Custom metadata passing (request, initial response, trailing)
+- Timeout/deadline enforcement
 - Connection pooling via `Http2ClientConnectionManager`
 
 ## Architecture
 
 The module has two layers:
 
-- **Binary module (`grpc.so`)**: C++ QPP wrapping `libprotobuf` for schema loading and message encoding/decoding
-- **Qore module (`Grpc`)**: Pure Qore implementing the gRPC protocol on top of Qore's HTTP/2 stack
+- **Binary module (`grpc.so`)**: C++ QPP wrapping `libprotobuf` for schema loading and message encoding/decoding. Only dependency is `libprotobuf` (no libgrpc++).
+- **Qore module (`Grpc`)**: Pure Qore implementing the gRPC protocol natively on Qore's HTTP/2 stack.
 
 ## Requirements
 
@@ -24,19 +26,22 @@ The module has two layers:
 - CMake 3.5+
 - C++17 compiler
 - `libprotobuf` (protobuf development libraries)
-- No libgrpc++ dependency
+  - Ubuntu/Debian: `libprotobuf-dev`
+  - Alpine: `protobuf-dev`
+  - Fedora: `protobuf-devel`
 
 ## Building
 
 ```bash
-mkdir build
-cd build
+mkdir build && cd build
 cmake ..
 make
 make install
 ```
 
 ## Quick Start
+
+### Unary Call
 
 ```qore
 #!/usr/bin/env qore
@@ -45,17 +50,145 @@ make install
 %requires grpc
 %requires Grpc
 
-# Load a .proto schema
-ProtobufSchema schema("./", "service.proto");
-
-# Create a channel and client
-GrpcChannel channel("localhost:50051");
+ProtobufSchema schema("./proto/", "service.proto");
+GrpcChannel channel("http://localhost:50051");
 GrpcClient client(channel, schema, "MyService");
 
-# Make a unary call
-hash<GrpcCallResult> result = client.call("MyMethod", {"name": "world"});
+hash<GrpcCallResult> result = client.call("SayHello", {"name": "World"});
 printf("Response: %y\n", result.body);
 printf("Status: %d %s\n", result.status_code, result.status_message);
+
+channel.shutdown();
+```
+
+### Server
+
+```qore
+ProtobufSchema schema("./proto/", "service.proto");
+GrpcServer server(schema);
+
+server.registerHandler("MyService", "SayHello",
+    hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+        return {"message": "Hello, " + request.name, "status": 0};
+    });
+
+int port = server.addInsecurePort("localhost:0");
+server.start();
+server.wait();
+```
+
+### Server Streaming
+
+```qore
+# Client
+GrpcClientStream stream = client.serverStream("ListItems", {"category": "books"});
+while (*hash<auto> item = stream.read(5s)) {
+    printf("Item: %y\n", item);
+}
+hash<GrpcCallResult> result = stream.finish();
+
+# Server handler
+server.registerHandler("MyService", "ListItems",
+    sub(hash<auto> request, GrpcServerStream stream, hash<string, string> metadata) {
+        for (int i = 0; i < 10; ++i) {
+            stream.write({"name": sprintf("item-%d", i)});
+        }
+    });
+```
+
+### Client Streaming
+
+```qore
+# Client
+GrpcClientStream stream = client.clientStream("Upload");
+stream.write({"chunk": "data1"});
+stream.write({"chunk": "data2"});
+hash<GrpcCallResult> result = stream.finish();
+
+# Server handler
+server.registerHandler("MyService", "Upload",
+    hash<auto> sub(GrpcServerStream stream, hash<string, string> metadata) {
+        int count = 0;
+        while (*hash<auto> msg = stream.read()) {
+            ++count;
+        }
+        return {"total": count};
+    });
+```
+
+### Bidirectional Streaming
+
+```qore
+# Client
+GrpcClientStream stream = client.bidiStream("Chat");
+stream.write({"text": "Hello"});
+stream.writesDone();
+while (*hash<auto> msg = stream.read(5s)) {
+    printf("Reply: %s\n", msg.text);
+}
+hash<GrpcCallResult> result = stream.finish();
+
+# Server handler
+server.registerHandler("MyService", "Chat",
+    sub(GrpcServerStream stream, hash<string, string> metadata) {
+        while (*hash<auto> msg = stream.read()) {
+            stream.write({"text": "Echo: " + msg.text});
+        }
+    });
+```
+
+### TLS
+
+```qore
+# Server with TLS
+string cert = ReadOnlyFile::readTextFile("server.crt");
+string key = ReadOnlyFile::readTextFile("server.key");
+int port = server.addSecurePort("localhost:0", <GrpcSslOptions>{
+    "server_cert": cert,
+    "server_key": key,
+});
+
+# Client with HTTPS
+GrpcChannel channel("https://localhost:50051");
+```
+
+### Metadata and Timeouts
+
+```qore
+# Send metadata and set timeout
+hash<GrpcCallOptions> opts = <GrpcCallOptions>{
+    "timeout_ms": 5000,
+    "metadata": {"x-request-id": "abc-123"},
+};
+hash<GrpcCallResult> result = client.call("Method", request, opts);
+
+# Server receives metadata in handler
+server.registerHandler("Service", "Method",
+    hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+        string req_id = metadata."x-request-id";
+        return {"id": req_id};
+    });
+
+# Streaming handlers can set trailing metadata
+server.registerHandler("Service", "Stream",
+    sub(hash<auto> request, GrpcServerStream stream, hash<string, string> metadata) {
+        stream.setTrailingMetadata({"x-count": "5"});
+        # ... write messages ...
+    });
+```
+
+### Standalone Protobuf
+
+```qore
+%requires grpc
+
+ProtobufSchema schema("./proto/", "messages.proto");
+binary data = schema.encode("MyMessage", {"field": "value"});
+hash<auto> msg = schema.decode("MyMessage", data);
+
+# JSON conversion
+string json = schema.toJson("MyMessage", {"field": "value"});
+hash<auto> parsed = schema.fromJson("MyMessage", json);
 ```
 
 ## License

@@ -27,6 +27,8 @@
 #include "grpc-module.h"
 #include "QC_ProtobufSchema.h"
 
+#include <google/protobuf/stubs/common.h>
+
 static void grpc_module_init(QoreModuleInitContext& ctx, ExceptionSink& xsink);
 static void grpc_module_ns_init(QoreNamespace* rns, QoreNamespace* qns, ExceptionSink& xsink);
 static void grpc_module_delete();

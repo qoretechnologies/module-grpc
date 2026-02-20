@@ -28,6 +28,18 @@
 #define _QORE_GRPC_MODULE_H
 
 #include <qore/Qore.h>
+#include <qore/QoreSandboxManager.h>
+
+#include <google/protobuf/stubs/common.h>
+
+// Detect protobuf API version
+// v26+ (C++ 5.x): AddError/AddWarning removed → RecordError/RecordWarning
+// v26+ (C++ 5.x): always_print_primitive_fields removed → always_print_fields_with_no_presence
+// v26+ (C++ 5.x): SourceTree::Open takes absl::string_view
+#if defined(PROTOBUF_VERSION) && PROTOBUF_VERSION >= 5026000
+#define GRPC_PROTOBUF_V26_PLUS 1
+#include <absl/strings/string_view.h>
+#endif
 
 // Forward declarations
 class QoreProtobufSchema;

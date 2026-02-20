@@ -251,6 +251,8 @@ qclass ProtobufSchema [arg=QoreProtobufSchema* schema; ns=Qore::Grpc; dom=FILESY
     @code{.py}
 ProtobufSchema schema("./proto/", "service.proto");
     @endcode
+
+    @since %grpc 1.0
 */
 ProtobufSchema::constructor(string path, string proto_file) {
     self->setPrivate(CID_PROTOBUFSCHEMA,
@@ -268,6 +270,8 @@ ProtobufSchema::constructor(string path, string proto_file) {
 string proto = "syntax = \"proto3\";\nmessage Msg { string text = 1; }";
 ProtobufSchema schema(proto);
     @endcode
+
+    @since %grpc 1.0
 */
 ProtobufSchema::constructor(string proto_content, *string filename) {
     self->setPrivate(CID_PROTOBUFSCHEMA,
@@ -287,6 +291,8 @@ for (hash<GrpcServiceInfo> svc in services) {
     }
 }
     @endcode
+
+    @since %grpc 1.0
 */
 list<hash<GrpcServiceInfo>> ProtobufSchema::services() {
     return schema->getServices(xsink);
@@ -299,6 +305,8 @@ list<hash<GrpcServiceInfo>> ProtobufSchema::services() {
     @code{.py}
 list<string> types = schema.messageTypes();
     @endcode
+
+    @since %grpc 1.0
 */
 list<string> ProtobufSchema::messageTypes() {
     return schema->getMessageTypes(xsink);
@@ -314,6 +322,8 @@ list<string> ProtobufSchema::messageTypes() {
     @code{.py}
 hash<auto> defaults = schema.defaultMessage("helloworld.HelloRequest");
     @endcode
+
+    @since %grpc 1.0
 */
 hash<auto> ProtobufSchema::defaultMessage(string type) {
     return schema->getDefaultMessage(type->c_str(), xsink);
@@ -333,6 +343,8 @@ hash<auto> ProtobufSchema::defaultMessage(string type) {
     @code{.py}
 binary data = schema.encode("helloworld.HelloRequest", {"name": "World"});
     @endcode
+
+    @since %grpc 1.0
 */
 binary ProtobufSchema::encode(string type, hash<auto> data) {
     return schema->encode(type->c_str(), data, xsink);
@@ -351,6 +363,8 @@ binary ProtobufSchema::encode(string type, hash<auto> data) {
     @code{.py}
 hash<auto> msg = schema.decode("helloworld.HelloReply", data);
     @endcode
+
+    @since %grpc 1.0
 */
 hash<auto> ProtobufSchema::decode(string type, binary data) {
     return schema->decode(type->c_str(), data, xsink);
@@ -369,6 +383,8 @@ hash<auto> ProtobufSchema::decode(string type, binary data) {
     @code{.py}
 string json = schema.toJson("helloworld.HelloRequest", {"name": "World"});
     @endcode
+
+    @since %grpc 1.0
 */
 string ProtobufSchema::toJson(string type, hash<auto> data) {
     return schema->toJson(type->c_str(), data, xsink);
@@ -387,6 +403,8 @@ string ProtobufSchema::toJson(string type, hash<auto> data) {
     @code{.py}
 hash<auto> msg = schema.fromJson("helloworld.HelloRequest", "{\"name\": \"World\"}");
     @endcode
+
+    @since %grpc 1.0
 */
 hash<auto> ProtobufSchema::fromJson(string type, string json) {
     return schema->fromJson(type->c_str(), *json, xsink);

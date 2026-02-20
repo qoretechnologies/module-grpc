@@ -24,6 +24,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+#include "grpc-module.h"
 #include "QoreProtobufSchema.h"
 #include "ProtobufHelper.h"
 
@@ -31,6 +32,7 @@
 #include <google/protobuf/util/json_util.h>
 
 // ErrorCollector implementation
+#ifdef GRPC_PROTOBUF_V26_PLUS
 void QoreProtobufSchema::ErrorCollector::RecordError(absl::string_view filename, int line,
         int column, absl::string_view message) {
     errors.push_back(std::string(filename) + ":" + std::to_string(line + 1) + ":" +
@@ -41,6 +43,18 @@ void QoreProtobufSchema::ErrorCollector::RecordWarning(absl::string_view filenam
         int column, absl::string_view message) {
     // Ignore warnings
 }
+#else
+void QoreProtobufSchema::ErrorCollector::AddError(const std::string& filename, int line,
+        int column, const std::string& message) {
+    errors.push_back(filename + ":" + std::to_string(line + 1) + ":" +
+        std::to_string(column + 1) + ": " + message);
+}
+
+void QoreProtobufSchema::ErrorCollector::AddWarning(const std::string& filename, int line,
+        int column, const std::string& message) {
+    // Ignore warnings
+}
+#endif
 
 std::string QoreProtobufSchema::ErrorCollector::getErrors() const {
     std::string result;
@@ -59,6 +73,7 @@ void QoreProtobufSchema::StringSourceTree::addFile(const std::string& filename,
     files[filename] = content;
 }
 
+#ifdef GRPC_PROTOBUF_V26_PLUS
 google::protobuf::io::ZeroCopyInputStream* QoreProtobufSchema::StringSourceTree::Open(
         absl::string_view filename) {
     std::string fname(filename);
@@ -69,6 +84,17 @@ google::protobuf::io::ZeroCopyInputStream* QoreProtobufSchema::StringSourceTree:
     }
     return new google::protobuf::io::ArrayInputStream(it->second.data(), it->second.size());
 }
+#else
+google::protobuf::io::ZeroCopyInputStream* QoreProtobufSchema::StringSourceTree::Open(
+        const std::string& filename) {
+    auto it = files.find(filename);
+    if (it == files.end()) {
+        last_error = "file not found: " + filename;
+        return nullptr;
+    }
+    return new google::protobuf::io::ArrayInputStream(it->second.data(), it->second.size());
+}
+#endif
 
 std::string QoreProtobufSchema::StringSourceTree::GetLastErrorMessage() {
     return last_error;
@@ -77,6 +103,17 @@ std::string QoreProtobufSchema::StringSourceTree::GetLastErrorMessage() {
 // QoreProtobufSchema constructors
 QoreProtobufSchema::QoreProtobufSchema(const char* path, const char* proto_file,
         ExceptionSink* xsink) {
+    // Check sandbox filesystem restrictions before accessing disk
+    QoreSandboxManagerHelper smh;
+    if (smh) {
+        if (!smh->checkFilesystemAccess(path, QSEC_READ, xsink)) {
+            return;
+        }
+        if (smh->checkIOInterrupt(xsink, "loading .proto file")) {
+            return;
+        }
+    }
+
     error_collector = std::make_unique<ErrorCollector>();
     disk_source_tree = std::make_unique<google::protobuf::compiler::DiskSourceTree>();
     disk_source_tree->MapPath("", path);
@@ -234,7 +271,9 @@ BinaryNode* QoreProtobufSchema::encode(const char* type, const QoreHashNode* dat
         return nullptr;
     }
 
-    return new BinaryNode(serialized.data(), serialized.size());
+    SimpleRefHolder<BinaryNode> bin(new BinaryNode);
+    bin->append(serialized.data(), serialized.size());
+    return bin.release();
 }
 
 QoreHashNode* QoreProtobufSchema::decode(const char* type, const BinaryNode* data,
@@ -279,12 +318,16 @@ QoreStringNode* QoreProtobufSchema::toJson(const char* type, const QoreHashNode*
     std::string json;
     google::protobuf::util::JsonPrintOptions opts;
     opts.add_whitespace = false;
+#ifdef GRPC_PROTOBUF_V26_PLUS
     opts.always_print_fields_with_no_presence = true;
+#else
+    opts.always_print_primitive_fields = true;
+#endif
 
     auto status = google::protobuf::util::MessageToJsonString(*msg, &json, opts);
     if (!status.ok()) {
         xsink->raiseException("PROTOBUF-JSON-ERROR", "failed to convert message to JSON: %s",
-            std::string(status.message()).c_str());
+            status.ToString().c_str());
         return nullptr;
     }
 
@@ -312,7 +355,7 @@ QoreHashNode* QoreProtobufSchema::fromJson(const char* type, const QoreString& j
         std::string(json.c_str(), json.size()), msg.get(), opts);
     if (!status.ok()) {
         xsink->raiseException("PROTOBUF-JSON-ERROR", "failed to parse JSON as message type '%s': %s",
-            type, std::string(status.message()).c_str());
+            type, status.ToString().c_str());
         return nullptr;
     }
 

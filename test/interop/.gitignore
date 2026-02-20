@@ -1,0 +1,4 @@
+# Generated Python proto stubs (created at test time)
+test_pb2.py
+test_pb2_grpc.py
+__pycache__/

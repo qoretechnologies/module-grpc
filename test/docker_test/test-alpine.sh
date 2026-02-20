@@ -26,7 +26,24 @@ echo "export QORE_GID=1000" >> ${ENV_FILE}
 export MAKE_JOBS=4
 
 # install protobuf development libraries
-apk add --no-cache protobuf-dev
+apk add --no-cache protobuf-dev python3 py3-pip curl
+
+# install interop test dependencies
+pip3 install --break-system-packages grpcio grpcio-tools 2>/dev/null \
+    || pip3 install grpcio grpcio-tools || true
+
+# install grpcurl for interop testing
+GRPCURL_VERSION=1.9.3
+ARCH=$(uname -m)
+if [ "$ARCH" = "x86_64" ]; then
+    GRPCURL_ARCH="linux_x86_64"
+elif [ "$ARCH" = "aarch64" ]; then
+    GRPCURL_ARCH="linux_arm64"
+fi
+if [ -n "$GRPCURL_ARCH" ]; then
+    curl -sL "https://github.com/fullstorydev/grpcurl/releases/download/v${GRPCURL_VERSION}/grpcurl_${GRPCURL_VERSION}_${GRPCURL_ARCH}.tar.gz" \
+        | tar xz -C /tmp grpcurl && chmod +x /tmp/grpcurl || true
+fi
 
 # build module and install
 echo && echo "-- building module --"
@@ -51,5 +68,5 @@ chown -R qore:qore ${MODULE_SRC_DIR}
 export QORE_MODULE_DIR=${MODULE_SRC_DIR}/qlib:${QORE_MODULE_DIR}
 cd ${MODULE_SRC_DIR}
 for test in test/*.qtest; do
-    gosu qore:qore qore $test -vv
+    gosu qore:qore qore --enable-debug $test -vv
 done

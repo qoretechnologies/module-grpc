@@ -48,7 +48,7 @@ public namespace Grpc {
 
     @tableofcontents
 
-    @section grpcmoduleintro Introduction
+    @section grpcintro Introduction
 
     The %Grpc module provides a pure-Qore implementation of the gRPC protocol
     built on top of Qore's HTTP/2 infrastructure.
@@ -58,4 +58,13 @@ public namespace Grpc {
     @subsection grpcmodule_v1_0 Grpc Module Version 1.0
 
     - initial release
+    - @ref Grpc::GrpcClient "GrpcClient": unary, server streaming, client streaming, bidirectional streaming
+    - @ref Grpc::GrpcServer "GrpcServer": handler registration, async I/O, TLS support
+    - @ref Grpc::GrpcChannel "GrpcChannel": connection pooling via Http2ClientConnectionManager
+    - @ref Grpc::GrpcClientStream "GrpcClientStream": client-side streaming with read/write/cancel
+    - @ref Grpc::GrpcServerStream "GrpcServerStream": server-side streaming with read/write and metadata support
+    - @ref Grpc::GrpcHelper "GrpcHelper": gRPC framing, header utilities, timeout formatting
+    - custom metadata passing (request, initial response, trailing)
+    - timeout/deadline enforcement via \c grpc-timeout header
+    - gRPC status codes and error handling
 */

@@ -143,7 +143,11 @@ QoreValue ProtobufHelper::fieldToQore(const Message& msg, const FieldDescriptor*
             std::string scratch;
             const std::string& val = ref->GetStringReference(msg, field, &scratch);
             if (field->type() == FieldDescriptor::TYPE_BYTES) {
-                return new BinaryNode(val.data(), val.size());
+                {
+                    SimpleRefHolder<BinaryNode> bin(new BinaryNode);
+                    bin->append(val.data(), val.size());
+                    return bin.release();
+                }
             }
             return new QoreStringNode(val);
         }
@@ -197,7 +201,11 @@ QoreValue ProtobufHelper::repeatedElementToQore(const Message& msg,
             std::string scratch;
             const std::string& val = ref->GetRepeatedStringReference(msg, field, index, &scratch);
             if (field->type() == FieldDescriptor::TYPE_BYTES) {
-                return new BinaryNode(val.data(), val.size());
+                {
+                    SimpleRefHolder<BinaryNode> bin(new BinaryNode);
+                    bin->append(val.data(), val.size());
+                    return bin.release();
+                }
             }
             return new QoreStringNode(val);
         }
