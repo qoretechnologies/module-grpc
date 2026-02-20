@@ -89,7 +89,7 @@ private:
     //! Error collector for protobuf parser errors
     class ErrorCollector : public google::protobuf::compiler::MultiFileErrorCollector {
     public:
-#ifdef GRPC_PROTOBUF_V26_PLUS
+#ifdef GRPC_PROTOBUF_V22_PLUS
         void RecordError(absl::string_view filename, int line, int column,
             absl::string_view message) override;
         void RecordWarning(absl::string_view filename, int line, int column,
@@ -112,7 +112,7 @@ private:
     class StringSourceTree : public google::protobuf::compiler::SourceTree {
     public:
         void addFile(const std::string& filename, const std::string& content);
-#ifdef GRPC_PROTOBUF_V26_PLUS
+#ifdef GRPC_PROTOBUF_V22_PLUS
         google::protobuf::io::ZeroCopyInputStream* Open(absl::string_view filename) override;
 #else
         google::protobuf::io::ZeroCopyInputStream* Open(const std::string& filename) override;

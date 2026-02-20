@@ -32,7 +32,7 @@
 #include <google/protobuf/util/json_util.h>
 
 // ErrorCollector implementation
-#ifdef GRPC_PROTOBUF_V26_PLUS
+#ifdef GRPC_PROTOBUF_V22_PLUS
 void QoreProtobufSchema::ErrorCollector::RecordError(absl::string_view filename, int line,
         int column, absl::string_view message) {
     errors.push_back(std::string(filename) + ":" + std::to_string(line + 1) + ":" +
@@ -73,7 +73,7 @@ void QoreProtobufSchema::StringSourceTree::addFile(const std::string& filename,
     files[filename] = content;
 }
 
-#ifdef GRPC_PROTOBUF_V26_PLUS
+#ifdef GRPC_PROTOBUF_V22_PLUS
 google::protobuf::io::ZeroCopyInputStream* QoreProtobufSchema::StringSourceTree::Open(
         absl::string_view filename) {
     std::string fname(filename);
@@ -161,7 +161,7 @@ const google::protobuf::Descriptor* QoreProtobufSchema::findMessageDescriptor(co
     const google::protobuf::Descriptor* desc = importer->pool()->FindMessageTypeByName(type);
     if (!desc) {
         // Try prepending the package name
-        std::string pkg = file_desc->package();
+        std::string pkg(file_desc->package());
         if (!pkg.empty()) {
             desc = importer->pool()->FindMessageTypeByName(pkg + "." + type);
         }
@@ -178,7 +178,7 @@ const google::protobuf::Message* QoreProtobufSchema::getPrototype(
     const google::protobuf::Message* proto = factory->GetPrototype(desc);
     if (!proto) {
         xsink->raiseException("PROTOBUF-ERROR", "failed to create prototype for message type '%s'",
-            desc->full_name().c_str());
+            std::string(desc->full_name()).c_str());
     }
     return proto;
 }
@@ -191,7 +191,7 @@ QoreListNode* QoreProtobufSchema::getServices(ExceptionSink* xsink) const {
         const google::protobuf::ServiceDescriptor* svc = file_desc->service(i);
         ReferenceHolder<QoreHashNode> svc_hash(new QoreHashNode(hashdeclGrpcServiceInfo, xsink), xsink);
 
-        svc_hash->setKeyValue("name", new QoreStringNode(svc->name()), xsink);
+        svc_hash->setKeyValue("name", new QoreStringNode(std::string(svc->name())), xsink);
 
         ReferenceHolder<QoreListNode> methods(
             new QoreListNode(hashdeclGrpcMethodInfo->getTypeInfo()), xsink);
@@ -200,14 +200,15 @@ QoreListNode* QoreProtobufSchema::getServices(ExceptionSink* xsink) const {
             ReferenceHolder<QoreHashNode> method_hash(
                 new QoreHashNode(hashdeclGrpcMethodInfo, xsink), xsink);
 
-            method_hash->setKeyValue("name", new QoreStringNode(method->name()), xsink);
+            method_hash->setKeyValue("name", new QoreStringNode(std::string(method->name())), xsink);
             method_hash->setKeyValue("full_path",
-                new QoreStringNode(std::string("/") + svc->full_name() + "/" + method->name()),
+                new QoreStringNode(std::string("/") + std::string(svc->full_name()) + "/"
+                    + std::string(method->name())),
                 xsink);
             method_hash->setKeyValue("input_type",
-                new QoreStringNode(method->input_type()->full_name()), xsink);
+                new QoreStringNode(std::string(method->input_type()->full_name())), xsink);
             method_hash->setKeyValue("output_type",
-                new QoreStringNode(method->output_type()->full_name()), xsink);
+                new QoreStringNode(std::string(method->output_type()->full_name())), xsink);
             method_hash->setKeyValue("client_streaming", method->client_streaming(), xsink);
             method_hash->setKeyValue("server_streaming", method->server_streaming(), xsink);
 
@@ -226,7 +227,7 @@ QoreListNode* QoreProtobufSchema::getMessageTypes(ExceptionSink* xsink) const {
     ReferenceHolder<QoreListNode> list(new QoreListNode(stringTypeInfo), xsink);
 
     for (int i = 0; i < file_desc->message_type_count(); ++i) {
-        list->push(new QoreStringNode(file_desc->message_type(i)->full_name()), xsink);
+        list->push(new QoreStringNode(std::string(file_desc->message_type(i)->full_name())), xsink);
     }
 
     return list.release();
@@ -318,7 +319,7 @@ QoreStringNode* QoreProtobufSchema::toJson(const char* type, const QoreHashNode*
     std::string json;
     google::protobuf::util::JsonPrintOptions opts;
     opts.add_whitespace = false;
-#ifdef GRPC_PROTOBUF_V26_PLUS
+#ifdef GRPC_PROTOBUF_V22_PLUS
     opts.always_print_fields_with_no_presence = true;
 #else
     opts.always_print_primitive_fields = true;

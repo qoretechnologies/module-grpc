@@ -45,19 +45,19 @@ QoreHashNode* ProtobufHelper::messageToHash(const Message& msg, ExceptionSink* x
             if (*xsink) {
                 return nullptr;
             }
-            hash->setKeyValue(field->name(), map_hash, xsink);
+            hash->setKeyValue(std::string(field->name()), map_hash, xsink);
         } else if (field->is_repeated()) {
             QoreListNode* list = repeatedFieldToList(msg, field, ref, xsink);
             if (*xsink) {
                 return nullptr;
             }
-            hash->setKeyValue(field->name(), list, xsink);
+            hash->setKeyValue(std::string(field->name()), list, xsink);
         } else {
             QoreValue val = fieldToQore(msg, field, ref, xsink);
             if (*xsink) {
                 return nullptr;
             }
-            hash->setKeyValue(field->name(), val, xsink);
+            hash->setKeyValue(std::string(field->name()), val, xsink);
         }
     }
 
@@ -84,7 +84,7 @@ bool ProtobufHelper::hashToMessage(const QoreHashNode* hash, Message* msg, Excep
 
         if (!field) {
             xsink->raiseException("PROTOBUF-FIELD-ERROR",
-                "unknown field '%s' in message type '%s'", key, desc->full_name().c_str());
+                "unknown field '%s' in message type '%s'", key, std::string(desc->full_name()).c_str());
             return false;
         }
 
@@ -159,7 +159,7 @@ QoreValue ProtobufHelper::fieldToQore(const Message& msg, const FieldDescriptor*
         }
         default:
             xsink->raiseException("PROTOBUF-TYPE-ERROR",
-                "unsupported field type for field '%s'", field->name().c_str());
+                "unsupported field type for field '%s'", std::string(field->name()).c_str());
             return QoreValue();
     }
 }
@@ -217,7 +217,7 @@ QoreValue ProtobufHelper::repeatedElementToQore(const Message& msg,
         }
         default:
             xsink->raiseException("PROTOBUF-TYPE-ERROR",
-                "unsupported repeated field type for field '%s'", field->name().c_str());
+                "unsupported repeated field type for field '%s'", std::string(field->name()).c_str());
             return QoreValue();
     }
 }
@@ -272,7 +272,7 @@ bool ProtobufHelper::setFieldFromQore(Message* msg, const FieldDescriptor* field
                 }
                 xsink->raiseException("PROTOBUF-TYPE-ERROR",
                     "expected hash for message field '%s', got %s",
-                    field->name().c_str(), val.getFullTypeName());
+                    std::string(field->name()).c_str(), val.getFullTypeName());
                 return false;
             }
             Message* sub = ref->MutableMessage(msg, field);
@@ -280,7 +280,7 @@ bool ProtobufHelper::setFieldFromQore(Message* msg, const FieldDescriptor* field
         }
         default:
             xsink->raiseException("PROTOBUF-TYPE-ERROR",
-                "unsupported field type for field '%s'", field->name().c_str());
+                "unsupported field type for field '%s'", std::string(field->name()).c_str());
             return false;
     }
 }
@@ -335,7 +335,7 @@ bool ProtobufHelper::setRepeatedFieldFromList(Message* msg, const FieldDescripto
                 if (!sub_hash) {
                     xsink->raiseException("PROTOBUF-TYPE-ERROR",
                         "expected hash for repeated message field '%s' element %d, got %s",
-                        field->name().c_str(), (int)i, val.getFullTypeName());
+                        std::string(field->name()).c_str(), (int)i, val.getFullTypeName());
                     return false;
                 }
                 Message* sub = ref->AddMessage(msg, field);
@@ -346,7 +346,7 @@ bool ProtobufHelper::setRepeatedFieldFromList(Message* msg, const FieldDescripto
             }
             default:
                 xsink->raiseException("PROTOBUF-TYPE-ERROR",
-                    "unsupported repeated field type for field '%s'", field->name().c_str());
+                    "unsupported repeated field type for field '%s'", std::string(field->name()).c_str());
                 return false;
         }
     }
@@ -390,7 +390,7 @@ QoreHashNode* ProtobufHelper::mapFieldToHash(const Message& msg, const FieldDesc
                 break;
             default:
                 xsink->raiseException("PROTOBUF-TYPE-ERROR",
-                    "unsupported map key type for field '%s'", field->name().c_str());
+                    "unsupported map key type for field '%s'", std::string(field->name()).c_str());
                 return nullptr;
         }
 
@@ -440,7 +440,7 @@ bool ProtobufHelper::setMapFieldFromHash(Message* msg, const FieldDescriptor* fi
                 break;
             default:
                 xsink->raiseException("PROTOBUF-TYPE-ERROR",
-                    "unsupported map key type for field '%s'", field->name().c_str());
+                    "unsupported map key type for field '%s'", std::string(field->name()).c_str());
                 return false;
         }
 

@@ -25,9 +25,6 @@ echo "export QORE_GID=999" >> ${ENV_FILE}
 
 export MAKE_JOBS=4
 
-# install protobuf development libraries
-apt-get update -qq && apt-get install -y -qq libprotobuf-dev protobuf-compiler python3-pip curl
-
 # install interop test dependencies
 pip3 install --break-system-packages grpcio grpcio-tools 2>/dev/null \
     || pip3 install grpcio grpcio-tools || true

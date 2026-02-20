@@ -33,11 +33,13 @@
 #include <google/protobuf/stubs/common.h>
 
 // Detect protobuf API version
-// v26+ (C++ 5.x): AddError/AddWarning removed → RecordError/RecordWarning
-// v26+ (C++ 5.x): always_print_primitive_fields removed → always_print_fields_with_no_presence
-// v26+ (C++ 5.x): SourceTree::Open takes absl::string_view
-#if defined(PROTOBUF_VERSION) && PROTOBUF_VERSION >= 5026000
-#define GRPC_PROTOBUF_V26_PLUS 1
+// Protobuf v22+ (GOOGLE_PROTOBUF_VERSION >= 4022000):
+//   - AddError/AddWarning → RecordError/RecordWarning
+//   - always_print_primitive_fields → always_print_fields_with_no_presence
+//   - SourceTree::Open takes absl::string_view
+//   - full_name() returns absl::string_view instead of const std::string&
+#if GOOGLE_PROTOBUF_VERSION >= 4022000
+#define GRPC_PROTOBUF_V22_PLUS 1
 #include <absl/strings/string_view.h>
 #endif
 
