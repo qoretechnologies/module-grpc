@@ -23,8 +23,6 @@
 */
 
 %modern
-%strict-args
-%require-types
 
 %requires grpc
 %requires Http2ClientIo
