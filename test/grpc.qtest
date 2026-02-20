@@ -1,0 +1,349 @@
+#!/usr/bin/env qore
+# -*- mode: qore; indent-tabs-mode: nil -*-
+
+/*
+    Copyright (C) 2026 Qore Technologies, s.r.o., all rights reserved
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+
+    gRPC module test suite
+*/
+
+%modern
+
+%requires QUnit
+
+%requires grpc
+
+%exec-class GrpcTest
+
+public class GrpcTest inherits QUnit::Test {
+    private {
+        string test_dir;
+    }
+
+    constructor() : Test("GrpcTest", "1.0") {
+        # Find the test directory (where test.proto lives)
+        test_dir = get_script_dir();
+
+        addTestCase("schema loading from file", \testSchemaLoadFile());
+        addTestCase("schema loading from string", \testSchemaLoadString());
+        addTestCase("schema load invalid file", \testSchemaLoadInvalidFile());
+        addTestCase("schema load malformed content", \testSchemaLoadMalformed());
+        addTestCase("service discovery", \testServiceDiscovery());
+        addTestCase("message type discovery", \testMessageTypeDiscovery());
+        addTestCase("encode/decode simple message", \testEncodeDecodeSimple());
+        addTestCase("encode/decode all scalar types", \testEncodeDecodeAllTypes());
+        addTestCase("encode/decode nested message", \testEncodeDecodeNested());
+        addTestCase("encode/decode repeated fields", \testEncodeDecodeRepeated());
+        addTestCase("encode/decode map fields", \testEncodeDecodeMap());
+        addTestCase("encode/decode oneof fields", \testEncodeDecodeOneof());
+        addTestCase("encode/decode enum fields", \testEncodeDecodeEnum());
+        addTestCase("encode/decode empty message", \testEncodeDecodeEmpty());
+        addTestCase("encode/decode deep nesting", \testEncodeDecodeDeep());
+        addTestCase("encode/decode unicode strings", \testEncodeDecodeUnicode());
+        addTestCase("encode/decode binary with nulls", \testEncodeDecodeBinaryNulls());
+        addTestCase("encode/decode large message", \testEncodeDecodeLarge());
+        addTestCase("decode invalid type", \testDecodeInvalidType());
+        addTestCase("encode unknown field", \testEncodeUnknownField());
+        addTestCase("default message", \testDefaultMessage());
+        addTestCase("JSON round-trip", \testJsonRoundTrip());
+        addTestCase("JSON invalid input", \testJsonInvalidInput());
+
+        set_return_value(main());
+    }
+
+    testSchemaLoadFile() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        list<string> types = schema.messageTypes();
+        assertTrue(types.size() > 0, "should have message types");
+    }
+
+    testSchemaLoadString() {
+        string proto = "syntax = \"proto3\";\nmessage Msg { string text = 1; int32 count = 2; }";
+        ProtobufSchema schema(proto);
+        list<string> types = schema.messageTypes();
+        assertEq(("Msg",), types, "should find Msg type");
+    }
+
+    testSchemaLoadInvalidFile() {
+        assertThrows("PROTOBUF-SCHEMA-ERROR", sub() {
+            ProtobufSchema schema("/nonexistent/path", "missing.proto");
+        });
+    }
+
+    testSchemaLoadMalformed() {
+        assertThrows("PROTOBUF-SCHEMA-ERROR", sub() {
+            ProtobufSchema schema("this is not valid proto content");
+        });
+    }
+
+    testServiceDiscovery() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        list<hash<GrpcServiceInfo>> services = schema.services();
+        assertEq(1, services.size(), "should have 1 service");
+        assertEq("TestService", services[0].name, "service name");
+        assertEq(4, services[0].methods.size(), "should have 4 methods");
+
+        # Check unary method
+        hash<GrpcMethodInfo> unary = services[0].methods[0];
+        assertEq("UnaryCall", unary.name, "unary method name");
+        assertEq("/test.TestService/UnaryCall", unary.full_path, "unary full path");
+        assertEq("test.SimpleRequest", unary.input_type, "unary input type");
+        assertEq("test.SimpleResponse", unary.output_type, "unary output type");
+        assertFalse(unary.client_streaming, "unary: no client streaming");
+        assertFalse(unary.server_streaming, "unary: no server streaming");
+
+        # Check server streaming
+        hash<GrpcMethodInfo> server_stream = services[0].methods[1];
+        assertFalse(server_stream.client_streaming, "server stream: no client streaming");
+        assertTrue(server_stream.server_streaming, "server stream: server streaming");
+
+        # Check client streaming
+        hash<GrpcMethodInfo> client_stream = services[0].methods[2];
+        assertTrue(client_stream.client_streaming, "client stream: client streaming");
+        assertFalse(client_stream.server_streaming, "client stream: no server streaming");
+
+        # Check bidi streaming
+        hash<GrpcMethodInfo> bidi = services[0].methods[3];
+        assertTrue(bidi.client_streaming, "bidi: client streaming");
+        assertTrue(bidi.server_streaming, "bidi: server streaming");
+    }
+
+    testMessageTypeDiscovery() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        list<string> types = schema.messageTypes();
+        assertTrue(types.size() >= 10, "should have many message types");
+        assertTrue("test.SimpleRequest" in types, "should contain SimpleRequest");
+        assertTrue("test.SimpleResponse" in types, "should contain SimpleResponse");
+        assertTrue("test.AllTypesMessage" in types, "should contain AllTypesMessage");
+    }
+
+    testEncodeDecodeSimple() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        hash<auto> original = {"name": "hello", "id": 42};
+        binary data = schema.encode("test.SimpleRequest", original);
+        assertTrue(data.size() > 0, "encoded data should be non-empty");
+
+        hash<auto> decoded = schema.decode("test.SimpleRequest", data);
+        assertEq("hello", decoded.name, "name field");
+        assertEq(42, decoded.id, "id field");
+    }
+
+    testEncodeDecodeAllTypes() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        hash<auto> original = {
+            "double_val": 3.14159,
+            "float_val": 2.5,
+            "int32_val": -100,
+            "int64_val": -9999999999,
+            "uint32_val": 4000000000,
+            "uint64_val": 18000000000000000000,
+            "sint32_val": -500,
+            "sint64_val": -123456789012,
+            "fixed32_val": 12345,
+            "fixed64_val": 9876543210,
+            "sfixed32_val": -12345,
+            "sfixed64_val": -9876543210,
+            "bool_val": True,
+            "string_val": "test string",
+            "bytes_val": <deadbeef>,
+        };
+
+        binary data = schema.encode("test.AllTypesMessage", original);
+        hash<auto> decoded = schema.decode("test.AllTypesMessage", data);
+
+        # Float comparison with tolerance
+        assertTrue(abs(decoded.double_val - 3.14159) < 0.0001, "double value");
+        assertTrue(abs(decoded.float_val - 2.5) < 0.001, "float value");
+        assertEq(-100, decoded.int32_val, "int32 value");
+        assertEq(-9999999999, decoded.int64_val, "int64 value");
+        assertEq(True, decoded.bool_val, "bool value");
+        assertEq("test string", decoded.string_val, "string value");
+        assertEq(<deadbeef>, decoded.bytes_val, "bytes value");
+    }
+
+    testEncodeDecodeNested() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        hash<auto> original = {
+            "outer_field": "outer",
+            "inner": {
+                "value": "inner_val",
+                "count": 99,
+            },
+        };
+
+        binary data = schema.encode("test.NestedMessage", original);
+        hash<auto> decoded = schema.decode("test.NestedMessage", data);
+
+        assertEq("outer", decoded.outer_field, "outer field");
+        assertEq("inner_val", decoded.inner.value, "nested value");
+        assertEq(99, decoded.inner.count, "nested count");
+    }
+
+    testEncodeDecodeRepeated() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        hash<auto> original = {
+            "tags": ("tag1", "tag2", "tag3"),
+            "numbers": (10, 20, 30),
+            "items": (
+                {"value": "item1", "count": 1},
+                {"value": "item2", "count": 2},
+            ),
+        };
+
+        binary data = schema.encode("test.RepeatedMessage", original);
+        hash<auto> decoded = schema.decode("test.RepeatedMessage", data);
+
+        assertEq(("tag1", "tag2", "tag3"), decoded.tags, "repeated strings");
+        assertEq((10, 20, 30), decoded.numbers, "repeated ints");
+        assertEq(2, decoded.items.size(), "repeated messages count");
+        assertEq("item1", decoded.items[0].value, "repeated message field");
+    }
+
+    testEncodeDecodeMap() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        hash<auto> original = {
+            "string_map": {"key1": "val1", "key2": "val2"},
+            "int_map": {"x": 1, "y": 2},
+        };
+
+        binary data = schema.encode("test.MapMessage", original);
+        hash<auto> decoded = schema.decode("test.MapMessage", data);
+
+        assertEq("val1", decoded.string_map.key1, "map string value");
+        assertEq("val2", decoded.string_map.key2, "map string value 2");
+        assertEq(1, decoded.int_map.x, "map int value");
+    }
+
+    testEncodeDecodeOneof() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        # Test with text variant
+        hash<auto> with_text = {"name": "test", "text": "hello"};
+        binary data = schema.encode("test.OneofMessage", with_text);
+        hash<auto> decoded = schema.decode("test.OneofMessage", data);
+        assertEq("hello", decoded.text, "oneof text value");
+
+        # Test with number variant
+        hash<auto> with_number = {"name": "test", "number": 42};
+        data = schema.encode("test.OneofMessage", with_number);
+        decoded = schema.decode("test.OneofMessage", data);
+        assertEq(42, decoded.number, "oneof number value");
+    }
+
+    testEncodeDecodeEnum() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        hash<auto> original = {"name": "test", "status": 1}; # ACTIVE
+        binary data = schema.encode("test.EnumMessage", original);
+        hash<auto> decoded = schema.decode("test.EnumMessage", data);
+        assertEq(1, decoded.status, "enum value");
+    }
+
+    testEncodeDecodeEmpty() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        hash<auto> original = {};
+        binary data = schema.encode("test.EmptyMessage", original);
+        hash<auto> decoded = schema.decode("test.EmptyMessage", data);
+        assertEq({}, decoded, "empty message");
+    }
+
+    testEncodeDecodeDeep() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        hash<auto> original = {
+            "level1": {
+                "level2": {
+                    "level3": {
+                        "deep_value": "found it",
+                    },
+                },
+            },
+        };
+
+        binary data = schema.encode("test.DeepMessage", original);
+        hash<auto> decoded = schema.decode("test.DeepMessage", data);
+        assertEq("found it", decoded.level1.level2.level3.deep_value, "deep nested value");
+    }
+
+    testEncodeDecodeUnicode() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        hash<auto> original = {"name": "hello"};
+        binary data = schema.encode("test.SimpleRequest", original);
+        hash<auto> decoded = schema.decode("test.SimpleRequest", data);
+        assertEq("hello", decoded.name, "unicode string");
+    }
+
+    testEncodeDecodeBinaryNulls() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        binary bin_with_nulls = <0001020300050607>;
+        hash<auto> original = {"bytes_val": bin_with_nulls};
+        binary data = schema.encode("test.AllTypesMessage", original);
+        hash<auto> decoded = schema.decode("test.AllTypesMessage", data);
+        assertEq(bin_with_nulls, decoded.bytes_val, "binary with null bytes");
+    }
+
+    testEncodeDecodeLarge() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        # Create a large string (>1MB)
+        string large = strmul("x", 1048576);
+        hash<auto> original = {"name": large};
+        binary data = schema.encode("test.SimpleRequest", original);
+        hash<auto> decoded = schema.decode("test.SimpleRequest", data);
+        assertEq(1048576, decoded.name.size(), "large string size preserved");
+    }
+
+    testDecodeInvalidType() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        assertThrows("PROTOBUF-TYPE-ERROR", sub() {
+            schema.decode("test.NonExistentType", <00>);
+        });
+    }
+
+    testEncodeUnknownField() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        assertThrows("PROTOBUF-FIELD-ERROR", sub() {
+            schema.encode("test.SimpleRequest", {"unknown_field": "value"});
+        });
+    }
+
+    testDefaultMessage() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        hash<auto> defaults = schema.defaultMessage("test.SimpleRequest");
+        assertEq("", defaults.name, "default string is empty");
+        assertEq(0, defaults.id, "default int is 0");
+    }
+
+    testJsonRoundTrip() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        hash<auto> original = {"name": "json test", "id": 123};
+        string json = schema.toJson("test.SimpleRequest", original);
+        assertTrue(json.size() > 0, "JSON should be non-empty");
+
+        hash<auto> decoded = schema.fromJson("test.SimpleRequest", json);
+        assertEq("json test", decoded.name, "JSON round-trip name");
+        assertEq(123, decoded.id, "JSON round-trip id");
+    }
+
+    testJsonInvalidInput() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        assertThrows("PROTOBUF-JSON-ERROR", sub() {
+            schema.fromJson("test.SimpleRequest", "not valid json{{{");
+        });
+    }
+}

@@ -1,0 +1,125 @@
+/* -*- mode: c++; indent-tabs-mode: nil -*- */
+/** @file QoreProtobufSchema.h QoreProtobufSchema class definition */
+/*
+    Qore grpc module
+
+    Copyright (C) 2026 Qore Technologies, s.r.o.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+*/
+
+#ifndef _QORE_PROTOBUF_SCHEMA_H
+#define _QORE_PROTOBUF_SCHEMA_H
+
+#include <qore/Qore.h>
+
+#include <google/protobuf/descriptor.h>
+#include <google/protobuf/descriptor.pb.h>
+#include <google/protobuf/dynamic_message.h>
+#include <google/protobuf/compiler/importer.h>
+
+#include <string>
+#include <memory>
+
+//! Wraps protobuf Importer + DynamicMessageFactory for dynamic proto schema handling
+class QoreProtobufSchema : public AbstractPrivateData {
+public:
+    //! Constructor: load .proto file from the filesystem
+    /** @param path directory path for .proto imports
+        @param proto_file the .proto file name to load
+        @param xsink exception sink
+    */
+    DLLLOCAL QoreProtobufSchema(const char* path, const char* proto_file, ExceptionSink* xsink);
+
+    //! Constructor: parse .proto content from a string
+    /** @param proto_content the .proto file content as a string
+        @param filename optional filename for error messages
+        @param xsink exception sink
+    */
+    DLLLOCAL QoreProtobufSchema(const QoreString& proto_content, const char* filename, ExceptionSink* xsink);
+
+    DLLLOCAL ~QoreProtobufSchema();
+
+    //! Get list of service definitions
+    DLLLOCAL QoreListNode* getServices(ExceptionSink* xsink) const;
+
+    //! Get list of message type names
+    DLLLOCAL QoreListNode* getMessageTypes(ExceptionSink* xsink) const;
+
+    //! Get a default (empty) message as a Qore hash
+    DLLLOCAL QoreHashNode* getDefaultMessage(const char* type, ExceptionSink* xsink) const;
+
+    //! Encode a Qore hash to protobuf binary
+    DLLLOCAL BinaryNode* encode(const char* type, const QoreHashNode* data, ExceptionSink* xsink) const;
+
+    //! Decode protobuf binary to a Qore hash
+    DLLLOCAL QoreHashNode* decode(const char* type, const BinaryNode* data, ExceptionSink* xsink) const;
+
+    //! Convert a Qore hash to JSON string representation (via protobuf)
+    DLLLOCAL QoreStringNode* toJson(const char* type, const QoreHashNode* data, ExceptionSink* xsink) const;
+
+    //! Parse JSON string to a Qore hash (via protobuf)
+    DLLLOCAL QoreHashNode* fromJson(const char* type, const QoreString& json, ExceptionSink* xsink) const;
+
+private:
+    //! Find a message descriptor by fully-qualified name
+    DLLLOCAL const google::protobuf::Descriptor* findMessageDescriptor(const char* type,
+        ExceptionSink* xsink) const;
+
+    //! Create a prototype message for a descriptor
+    DLLLOCAL const google::protobuf::Message* getPrototype(const google::protobuf::Descriptor* desc,
+        ExceptionSink* xsink) const;
+
+    //! Error collector for protobuf parser errors
+    class ErrorCollector : public google::protobuf::compiler::MultiFileErrorCollector {
+    public:
+        void RecordError(absl::string_view filename, int line, int column,
+            absl::string_view message) override;
+        void RecordWarning(absl::string_view filename, int line, int column,
+            absl::string_view message) override;
+
+        std::string getErrors() const;
+        bool hasErrors() const { return !errors.empty(); }
+
+    private:
+        std::vector<std::string> errors;
+    };
+
+    //! Source tree for string-based proto loading
+    class StringSourceTree : public google::protobuf::compiler::SourceTree {
+    public:
+        void addFile(const std::string& filename, const std::string& content);
+        google::protobuf::io::ZeroCopyInputStream* Open(absl::string_view filename) override;
+        std::string GetLastErrorMessage() override;
+
+    private:
+        std::map<std::string, std::string> files;
+        std::string last_error;
+    };
+
+    std::unique_ptr<google::protobuf::compiler::DiskSourceTree> disk_source_tree;
+    std::unique_ptr<StringSourceTree> string_source_tree;
+    std::unique_ptr<ErrorCollector> error_collector;
+    std::unique_ptr<google::protobuf::compiler::Importer> importer;
+    std::unique_ptr<google::protobuf::DynamicMessageFactory> factory;
+
+    const google::protobuf::FileDescriptor* file_desc = nullptr;
+};
+
+#endif // _QORE_PROTOBUF_SCHEMA_H

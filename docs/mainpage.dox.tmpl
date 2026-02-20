@@ -1,0 +1,22 @@
+/** @mainpage Qore grpc Module
+
+    @tableofcontents
+
+    @section grpcintro grpc Module Introduction
+
+    The \c grpc module provides gRPC client/server and protobuf support for %Qore using dynamic
+    protobuf schema loading — users load \c .proto files at runtime and work with %Qore hashes,
+    with no code generation required.
+
+    The module is built natively on %Qore's HTTP/2 infrastructure, not wrapping libgrpc++. The
+    only C++ dependency is \c libprotobuf.
+
+    To use this module, use \c "%requires grpc" in your code for the binary protobuf support and
+    \c "%requires Grpc" for the gRPC protocol layer.
+
+    @section grpcrelnotes Release Notes
+
+    @subsection grpc_v1_0 grpc Module Version 1.0
+
+    - initial release
+*/

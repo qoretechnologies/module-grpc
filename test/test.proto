@@ -1,0 +1,116 @@
+syntax = "proto3";
+
+package test;
+
+// Test service with all four RPC patterns
+service TestService {
+    // Unary RPC
+    rpc UnaryCall (SimpleRequest) returns (SimpleResponse);
+
+    // Server streaming RPC
+    rpc ServerStream (SimpleRequest) returns (stream SimpleResponse);
+
+    // Client streaming RPC
+    rpc ClientStream (stream SimpleRequest) returns (SimpleResponse);
+
+    // Bidirectional streaming RPC
+    rpc BidiStream (stream SimpleRequest) returns (stream SimpleResponse);
+}
+
+// Simple request message
+message SimpleRequest {
+    string name = 1;
+    int32 id = 2;
+}
+
+// Simple response message
+message SimpleResponse {
+    string message = 1;
+    int32 status = 2;
+}
+
+// Message with all scalar types
+message AllTypesMessage {
+    double double_val = 1;
+    float float_val = 2;
+    int32 int32_val = 3;
+    int64 int64_val = 4;
+    uint32 uint32_val = 5;
+    uint64 uint64_val = 6;
+    sint32 sint32_val = 7;
+    sint64 sint64_val = 8;
+    fixed32 fixed32_val = 9;
+    fixed64 fixed64_val = 10;
+    sfixed32 sfixed32_val = 11;
+    sfixed64 sfixed64_val = 12;
+    bool bool_val = 13;
+    string string_val = 14;
+    bytes bytes_val = 15;
+}
+
+// Enum definition
+enum Status {
+    UNKNOWN = 0;
+    ACTIVE = 1;
+    INACTIVE = 2;
+    DELETED = 3;
+}
+
+// Message with enum
+message EnumMessage {
+    string name = 1;
+    Status status = 2;
+}
+
+// Nested message
+message NestedMessage {
+    message Inner {
+        string value = 1;
+        int32 count = 2;
+    }
+
+    string outer_field = 1;
+    Inner inner = 2;
+}
+
+// Message with repeated fields
+message RepeatedMessage {
+    repeated string tags = 1;
+    repeated int32 numbers = 2;
+    repeated NestedMessage.Inner items = 3;
+}
+
+// Message with map fields
+message MapMessage {
+    map<string, string> string_map = 1;
+    map<string, int32> int_map = 2;
+    map<int32, string> int_key_map = 3;
+}
+
+// Message with oneof
+message OneofMessage {
+    string name = 1;
+    oneof value {
+        string text = 2;
+        int32 number = 3;
+        bool flag = 4;
+    }
+}
+
+// Empty message
+message EmptyMessage {
+}
+
+// Deeply nested message
+message DeepMessage {
+    message Level1 {
+        message Level2 {
+            message Level3 {
+                string deep_value = 1;
+            }
+            Level3 level3 = 1;
+        }
+        Level2 level2 = 1;
+    }
+    Level1 level1 = 1;
+}
