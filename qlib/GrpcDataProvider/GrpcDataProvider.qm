@@ -1,0 +1,155 @@
+# -*- mode: qore; indent-tabs-mode: nil -*-
+#! @file GrpcDataProvider.qm Qore gRPC data provider module
+
+/*  GrpcDataProvider.qm Copyright 2026 Qore Technologies, s.r.o.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+*/
+
+%modern
+%allow-weak-references
+
+%requires(reexport) DataProvider
+%requires(reexport) ConnectionProvider
+%requires grpc
+%requires Grpc
+
+module GrpcDataProvider {
+    version = "1.0";
+    desc = "user module providing a data provider API for gRPC services";
+    author = "Qore Technologies, s.r.o.";
+    url = "https://github.com/qoretechnologies/module-grpc";
+    license = "MIT";
+    init = sub () {
+        # Register data provider factory
+        DataProvider::registerFactory(new GrpcDataProviderFactory());
+
+        # Register connection schemes
+        ConnectionSchemeCache::registerScheme("grpc", GrpcConnection::ConnectionScheme);
+        ConnectionSchemeCache::registerScheme("grpcs", GrpcConnection::ConnectionScheme);
+
+        # Register app in action catalog
+        DataProviderActionCatalog::registerApp(<DataProviderAppInfo>{
+            "name": GrpcDataProvider::AppName,
+            "display_name": "gRPC Server",
+            "short_desc": "gRPC remote procedure call server",
+            "desc": "Connect to gRPC services using protobuf schemas for "
+                "request/response serialization, supporting all four RPC patterns: "
+                "unary, server streaming, client streaming, and bidirectional streaming",
+            "scheme": "grpc",
+            "groups": (DataProvider::AppGroup::ApiIntegration,),
+            "logo": GrpcLogo,
+            "logo_mime_type": MimeTypeSvg,
+            "logo_file_name": "grpc-logo.svg",
+        });
+
+        # Register generic call action
+        DataProviderActionCatalog::registerAction(<DataProviderActionInfo>{
+            "app": GrpcDataProvider::AppName,
+            "path": "/{service}/{method}",
+            "path_vars": {
+                "service": <DataProviderPathVarInfo>{
+                    "display_name": "Service",
+                    "short_desc": "The gRPC service name",
+                    "desc": "The gRPC service name as defined in the protobuf schema",
+                    "example_value": "MyService",
+                },
+                "method": <DataProviderPathVarInfo>{
+                    "display_name": "Method",
+                    "short_desc": "The gRPC method name",
+                    "desc": "The gRPC method name as defined in the service",
+                    "example_value": "MyMethod",
+                },
+            },
+            "action": "call",
+            "display_name": "Call gRPC Method",
+            "short_desc": "Call a gRPC service method",
+            "desc": "Makes a gRPC call to the specified service method",
+            "action_code": DPAT_API,
+            "options": {
+                "service": <ActionOptionInfo>{
+                    "display_name": "Service",
+                    "short_desc": "The gRPC service name",
+                    "type": AbstractDataProviderTypeMap."string",
+                    "desc": "The gRPC service name",
+                    "required": True,
+                },
+                "method": <ActionOptionInfo>{
+                    "display_name": "Method",
+                    "short_desc": "The gRPC method name",
+                    "type": AbstractDataProviderTypeMap."string",
+                    "desc": "The gRPC method name",
+                    "required": True,
+                },
+            },
+        });
+    };
+}
+
+/** @mainpage GrpcDataProvider Module
+
+    @tableofcontents
+
+    @section grpcdataproviderintro Introduction to the GrpcDataProvider Module
+
+    The %GrpcDataProvider module provides a data provider API for gRPC services.
+    The @ref GrpcDataProvider::GrpcDataProvider "GrpcDataProvider" class allows for
+    introspecting a protobuf schema and navigating gRPC service hierarchies, while the
+    @ref GrpcDataProvider::GrpcMethodDataProvider "GrpcMethodDataProvider" class supports
+    the data provider request-reply API for making gRPC calls.
+
+    gRPC services can be introspected with the following hierarchy:
+    - \c \<service_name\>/\<method_name\>
+      - results in a @ref GrpcDataProvider::GrpcMethodDataProvider "GrpcMethodDataProvider"
+        object where the request and response types can be queried and calls can be made
+
+    The following classes are provided by this module:
+    - @ref GrpcDataProvider::GrpcDataProvider "GrpcDataProvider"
+    - @ref GrpcDataProvider::GrpcDataProviderFactory "GrpcDataProviderFactory"
+    - @ref GrpcDataProvider::GrpcServiceDataProvider "GrpcServiceDataProvider"
+    - @ref GrpcDataProvider::GrpcMethodDataProvider "GrpcMethodDataProvider"
+    - @ref GrpcDataProvider::GrpcStreamEventDataProvider "GrpcStreamEventDataProvider"
+    - @ref GrpcDataProvider::GrpcConnection "GrpcConnection"
+    - @ref GrpcDataProvider::GrpcTypeHelper "GrpcTypeHelper"
+    - @ref GrpcDataProvider::GrpcReflectionClient "GrpcReflectionClient"
+
+    @section grpcdataprovider_relnotes Release Notes
+
+    @subsection grpcdataprovider_v1_0 GrpcDataProvider v1.0
+    - initial release
+    - @ref GrpcDataProvider::GrpcDataProvider "GrpcDataProvider": root provider with schema
+      discovery via proto files, inline content, or server reflection
+    - @ref GrpcDataProvider::GrpcServiceDataProvider "GrpcServiceDataProvider": service-level
+      container provider
+    - @ref GrpcDataProvider::GrpcMethodDataProvider "GrpcMethodDataProvider": method-level
+      provider supporting all 4 RPC patterns (unary, server streaming, client streaming,
+      bidirectional streaming)
+    - @ref GrpcDataProvider::GrpcConnection "GrpcConnection": connection provider with
+      \c grpc:// and \c grpcs:// URL schemes
+    - @ref GrpcDataProvider::GrpcTypeHelper "GrpcTypeHelper": protobuf-to-DataProvider
+      type mapping for all protobuf types
+    - @ref GrpcDataProvider::GrpcReflectionClient "GrpcReflectionClient": gRPC server
+      reflection protocol client
+    - @ref GrpcDataProvider::GrpcStreamEventDataProvider "GrpcStreamEventDataProvider":
+      observable event provider for server-streaming methods
+*/
+
+#! Contains all public definitions in the GrpcDataProvider module
+public namespace GrpcDataProvider {
+}

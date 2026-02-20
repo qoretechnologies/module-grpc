@@ -279,14 +279,14 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
     }
 
     #! Drive a poll operation to completion
-    private drivePoll(AbstractPollOperation op, int max_iterations = 500) {
+    private drivePoll(AbstractPollOperation op, int max_iterations = 5000) {
         int i = 0;
         while (!op.goalReached() && !m_shutdown && i < max_iterations) {
             *hash<SocketPollInfo> info = op.continuePoll();
             if (!info) {
                 break;
             }
-            Socket::poll((info,), 1s);
+            Socket::poll((info,), 100ms);
             ++i;
         }
     }
@@ -296,9 +296,9 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
         on_exit m_accept_threads.dec();
 
         while (!m_shutdown) {
-            Socket client;
+            *Socket client;
             try {
-                client = listener.accept(1s);
+                client = listener.accept(100ms);
             } catch (hash<ExceptionInfo> ex) {
                 if (m_shutdown) {
                     break;

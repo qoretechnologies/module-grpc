@@ -36,6 +36,7 @@
 
 #include <string>
 #include <memory>
+#include <vector>
 
 //! Wraps protobuf Importer + DynamicMessageFactory for dynamic proto schema handling
 class QoreProtobufSchema : public AbstractPrivateData {
@@ -53,6 +54,16 @@ public:
         @param xsink exception sink
     */
     DLLLOCAL QoreProtobufSchema(const QoreString& proto_content, const char* filename, ExceptionSink* xsink);
+
+    //! Constructor: build from serialized FileDescriptorProto data
+    /** Used with gRPC server reflection -- the reflection service returns
+        serialized FileDescriptorProto bytes for discovered services.
+
+        @param serialized_fds a list of binary data, each element containing one
+            serialized FileDescriptorProto message
+        @param xsink exception sink
+    */
+    DLLLOCAL QoreProtobufSchema(const QoreListNode* serialized_fds, ExceptionSink* xsink);
 
     DLLLOCAL ~QoreProtobufSchema();
 
@@ -77,6 +88,35 @@ public:
     //! Parse JSON string to a Qore hash (via protobuf)
     DLLLOCAL QoreHashNode* fromJson(const char* type, const QoreString& json, ExceptionSink* xsink) const;
 
+    //! Returns field-level metadata for a protobuf message type
+    /** @param type the fully-qualified or short message type name
+        @param xsink exception sink
+        @return a hash describing the message fields, or nullptr on error
+    */
+    DLLLOCAL QoreHashNode* getMessageSchema(const char* type, ExceptionSink* xsink) const;
+
+    //! Returns enum value names and numbers
+    /** @param enum_type the fully-qualified enum type name
+        @param xsink exception sink
+        @return a hash mapping enum value names to their integer numbers
+    */
+    DLLLOCAL QoreHashNode* getEnumValues(const char* enum_type, ExceptionSink* xsink) const;
+
+    //! Serializes all file descriptors to a list of binary data
+    /** Returns a list where each element is a serialized FileDescriptorProto.
+        Includes all transitive dependencies.
+
+        @param xsink exception sink
+        @return a list of binary data, each element containing one serialized FileDescriptorProto
+    */
+    DLLLOCAL QoreListNode* serializeFileDescriptors(ExceptionSink* xsink) const;
+
+    //! Returns the type name string for a protobuf field type
+    DLLLOCAL static const char* fieldTypeName(google::protobuf::FieldDescriptor::Type type);
+
+    //! Returns the label string for a protobuf field label
+    DLLLOCAL static const char* fieldLabelName(google::protobuf::FieldDescriptor::Label label);
+
 private:
     //! Find a message descriptor by fully-qualified name
     DLLLOCAL const google::protobuf::Descriptor* findMessageDescriptor(const char* type,
@@ -84,6 +124,17 @@ private:
 
     //! Create a prototype message for a descriptor
     DLLLOCAL const google::protobuf::Message* getPrototype(const google::protobuf::Descriptor* desc,
+        ExceptionSink* xsink) const;
+
+    //! Get the descriptor pool (works for all constructor types)
+    DLLLOCAL const google::protobuf::DescriptorPool* getPool() const;
+
+    //! Build a field info hash for getMessageSchema()
+    DLLLOCAL QoreHashNode* buildFieldInfo(const google::protobuf::FieldDescriptor* field,
+        ExceptionSink* xsink) const;
+
+    //! Build service info for a service descriptor (used by getServices())
+    DLLLOCAL QoreHashNode* buildServiceInfo(const google::protobuf::ServiceDescriptor* svc,
         ExceptionSink* xsink) const;
 
     //! Error collector for protobuf parser errors
@@ -124,11 +175,42 @@ private:
         std::string last_error;
     };
 
+    //! Descriptor database error collector for BuildFile
+    class DescriptorErrorCollector : public google::protobuf::DescriptorPool::ErrorCollector {
+    public:
+#ifdef GRPC_PROTOBUF_V22_PLUS
+        void RecordError(absl::string_view filename, absl::string_view element_name,
+            const google::protobuf::Message* descriptor, ErrorLocation location,
+            absl::string_view message) override;
+#else
+        void AddError(const std::string& filename, const std::string& element_name,
+            const google::protobuf::Message* descriptor, ErrorLocation location,
+            const std::string& message) override;
+#endif
+        std::string getErrors() const;
+        bool hasErrors() const { return !errors.empty(); }
+
+    private:
+        std::vector<std::string> errors;
+    };
+
     std::unique_ptr<google::protobuf::compiler::DiskSourceTree> disk_source_tree;
     std::unique_ptr<StringSourceTree> string_source_tree;
     std::unique_ptr<ErrorCollector> error_collector;
     std::unique_ptr<google::protobuf::compiler::Importer> importer;
+
+    //! Standalone descriptor pool for the descriptor-based constructor
+    /** @note Must be declared before \c factory so that the factory is destroyed
+        first -- the factory's cached DynamicMessage objects reference descriptors
+        in the pool.
+    */
+    std::unique_ptr<google::protobuf::DescriptorPool> standalone_pool;
+    std::unique_ptr<DescriptorErrorCollector> desc_error_collector;
+
     std::unique_ptr<google::protobuf::DynamicMessageFactory> factory;
+
+    //! All file descriptors loaded (for multi-file descriptor constructor)
+    std::vector<const google::protobuf::FileDescriptor*> file_descs;
 
     const google::protobuf::FileDescriptor* file_desc = nullptr;
 };

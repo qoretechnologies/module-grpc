@@ -31,6 +31,8 @@
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <google/protobuf/util/json_util.h>
 
+#include <set>
+
 // ErrorCollector implementation
 #ifdef GRPC_PROTOBUF_V22_PLUS
 void QoreProtobufSchema::ErrorCollector::RecordError(absl::string_view filename, int line,
@@ -100,6 +102,35 @@ std::string QoreProtobufSchema::StringSourceTree::GetLastErrorMessage() {
     return last_error;
 }
 
+// DescriptorErrorCollector implementation
+#ifdef GRPC_PROTOBUF_V22_PLUS
+void QoreProtobufSchema::DescriptorErrorCollector::RecordError(absl::string_view filename,
+        absl::string_view element_name,
+        const google::protobuf::Message* descriptor, ErrorLocation location,
+        absl::string_view message) {
+    errors.push_back(std::string(filename) + ": " + std::string(element_name) + ": "
+        + std::string(message));
+}
+#else
+void QoreProtobufSchema::DescriptorErrorCollector::AddError(const std::string& filename,
+        const std::string& element_name,
+        const google::protobuf::Message* descriptor, ErrorLocation location,
+        const std::string& message) {
+    errors.push_back(filename + ": " + element_name + ": " + message);
+}
+#endif
+
+std::string QoreProtobufSchema::DescriptorErrorCollector::getErrors() const {
+    std::string result;
+    for (const auto& err : errors) {
+        if (!result.empty()) {
+            result += "\n";
+        }
+        result += err;
+    }
+    return result;
+}
+
 // QoreProtobufSchema constructors
 QoreProtobufSchema::QoreProtobufSchema(const char* path, const char* proto_file,
         ExceptionSink* xsink) {
@@ -152,18 +183,135 @@ QoreProtobufSchema::QoreProtobufSchema(const QoreString& proto_content, const ch
     factory = std::make_unique<google::protobuf::DynamicMessageFactory>(importer->pool());
 }
 
+QoreProtobufSchema::QoreProtobufSchema(const QoreListNode* serialized_fds, ExceptionSink* xsink) {
+    if (!serialized_fds || !serialized_fds->size()) {
+        xsink->raiseException("PROTOBUF-SCHEMA-ERROR",
+            "serialized descriptor list is empty");
+        return;
+    }
+
+    desc_error_collector = std::make_unique<DescriptorErrorCollector>();
+    standalone_pool = std::make_unique<google::protobuf::DescriptorPool>(
+        google::protobuf::DescriptorPool::generated_pool());
+
+    // Deserialize all FileDescriptorProto messages first
+    std::vector<google::protobuf::FileDescriptorProto> protos;
+    protos.reserve(serialized_fds->size());
+
+    for (size_t i = 0; i < serialized_fds->size(); ++i) {
+        QoreValue val = serialized_fds->retrieveEntry(i);
+        const BinaryNode* bin = val.get<BinaryNode>();
+        if (!bin) {
+            xsink->raiseException("PROTOBUF-SCHEMA-ERROR",
+                "element %d in descriptor list is not binary (got %s)",
+                (int)i, val.getFullTypeName());
+            return;
+        }
+
+        google::protobuf::FileDescriptorProto fdp;
+        if (!fdp.ParseFromArray(bin->getPtr(), bin->size())) {
+            xsink->raiseException("PROTOBUF-SCHEMA-ERROR",
+                "failed to deserialize FileDescriptorProto at index %d", (int)i);
+            return;
+        }
+        protos.push_back(std::move(fdp));
+    }
+
+    // Build files in dependency order: try to build each proto; if it fails because
+    // a dependency hasn't been built yet, retry after building others.
+    // This handles arbitrary dependency ordering in the input list.
+    std::set<std::string> built;
+    size_t last_built_count = 0;
+
+    while (built.size() < protos.size()) {
+        bool progress = false;
+        for (size_t i = 0; i < protos.size(); ++i) {
+            const std::string& name = protos[i].name();
+            if (built.count(name)) {
+                continue;
+            }
+
+            // Check if all dependencies are built
+            bool deps_ready = true;
+            for (int j = 0; j < protos[i].dependency_size(); ++j) {
+                const std::string& dep = protos[i].dependency(j);
+                // Dependencies in the generated pool (e.g., google/protobuf/*.proto) are always ready
+                if (!built.count(dep)
+                        && !google::protobuf::DescriptorPool::generated_pool()->FindFileByName(dep)) {
+                    deps_ready = false;
+                    break;
+                }
+            }
+
+            if (!deps_ready) {
+                continue;
+            }
+
+            const google::protobuf::FileDescriptor* fd = standalone_pool->BuildFileCollectingErrors(
+                protos[i], desc_error_collector.get());
+            if (!fd) {
+                xsink->raiseException("PROTOBUF-SCHEMA-ERROR",
+                    "failed to build descriptor for '%s': %s",
+                    name.c_str(), desc_error_collector->getErrors().c_str());
+                return;
+            }
+
+            file_descs.push_back(fd);
+            built.insert(name);
+            progress = true;
+        }
+
+        if (!progress) {
+            // No progress means there's a circular or unresolvable dependency
+            std::string missing;
+            for (size_t i = 0; i < protos.size(); ++i) {
+                if (!built.count(protos[i].name())) {
+                    if (!missing.empty()) {
+                        missing += ", ";
+                    }
+                    missing += protos[i].name();
+                }
+            }
+            xsink->raiseException("PROTOBUF-SCHEMA-ERROR",
+                "unresolvable dependencies for: %s", missing.c_str());
+            return;
+        }
+
+        if (built.size() == last_built_count) {
+            break;
+        }
+        last_built_count = built.size();
+    }
+
+    // Use the last file descriptor as the primary one
+    if (!file_descs.empty()) {
+        file_desc = file_descs.back();
+    }
+
+    factory = std::make_unique<google::protobuf::DynamicMessageFactory>(standalone_pool.get());
+}
+
 QoreProtobufSchema::~QoreProtobufSchema() {
+}
+
+const google::protobuf::DescriptorPool* QoreProtobufSchema::getPool() const {
+    if (standalone_pool) {
+        return standalone_pool.get();
+    }
+    assert(importer);
+    return importer->pool();
 }
 
 const google::protobuf::Descriptor* QoreProtobufSchema::findMessageDescriptor(const char* type,
         ExceptionSink* xsink) const {
     assert(file_desc);
-    const google::protobuf::Descriptor* desc = importer->pool()->FindMessageTypeByName(type);
+    const google::protobuf::DescriptorPool* pool = getPool();
+    const google::protobuf::Descriptor* desc = pool->FindMessageTypeByName(type);
     if (!desc) {
         // Try prepending the package name
         std::string pkg(file_desc->package());
         if (!pkg.empty()) {
-            desc = importer->pool()->FindMessageTypeByName(pkg + "." + type);
+            desc = pool->FindMessageTypeByName(pkg + "." + type);
         }
     }
     if (!desc) {
@@ -183,40 +331,62 @@ const google::protobuf::Message* QoreProtobufSchema::getPrototype(
     return proto;
 }
 
+QoreHashNode* QoreProtobufSchema::buildServiceInfo(
+        const google::protobuf::ServiceDescriptor* svc, ExceptionSink* xsink) const {
+    ReferenceHolder<QoreHashNode> svc_hash(new QoreHashNode(hashdeclGrpcServiceInfo, xsink), xsink);
+
+    svc_hash->setKeyValue("name", new QoreStringNode(std::string(svc->name())), xsink);
+
+    ReferenceHolder<QoreListNode> methods(
+        new QoreListNode(hashdeclGrpcMethodInfo->getTypeInfo()), xsink);
+    for (int j = 0; j < svc->method_count(); ++j) {
+        const google::protobuf::MethodDescriptor* method = svc->method(j);
+        ReferenceHolder<QoreHashNode> method_hash(
+            new QoreHashNode(hashdeclGrpcMethodInfo, xsink), xsink);
+
+        method_hash->setKeyValue("name", new QoreStringNode(std::string(method->name())), xsink);
+        method_hash->setKeyValue("full_path",
+            new QoreStringNode(std::string("/") + std::string(svc->full_name()) + "/"
+                + std::string(method->name())),
+            xsink);
+        method_hash->setKeyValue("input_type",
+            new QoreStringNode(std::string(method->input_type()->full_name())), xsink);
+        method_hash->setKeyValue("output_type",
+            new QoreStringNode(std::string(method->output_type()->full_name())), xsink);
+        method_hash->setKeyValue("client_streaming", method->client_streaming(), xsink);
+        method_hash->setKeyValue("server_streaming", method->server_streaming(), xsink);
+
+        methods->push(method_hash.release(), xsink);
+    }
+
+    svc_hash->setKeyValue("methods", methods.release(), xsink);
+    return svc_hash.release();
+}
+
 QoreListNode* QoreProtobufSchema::getServices(ExceptionSink* xsink) const {
     assert(file_desc);
     ReferenceHolder<QoreListNode> list(new QoreListNode(hashdeclGrpcServiceInfo->getTypeInfo()), xsink);
 
-    for (int i = 0; i < file_desc->service_count(); ++i) {
-        const google::protobuf::ServiceDescriptor* svc = file_desc->service(i);
-        ReferenceHolder<QoreHashNode> svc_hash(new QoreHashNode(hashdeclGrpcServiceInfo, xsink), xsink);
-
-        svc_hash->setKeyValue("name", new QoreStringNode(std::string(svc->name())), xsink);
-
-        ReferenceHolder<QoreListNode> methods(
-            new QoreListNode(hashdeclGrpcMethodInfo->getTypeInfo()), xsink);
-        for (int j = 0; j < svc->method_count(); ++j) {
-            const google::protobuf::MethodDescriptor* method = svc->method(j);
-            ReferenceHolder<QoreHashNode> method_hash(
-                new QoreHashNode(hashdeclGrpcMethodInfo, xsink), xsink);
-
-            method_hash->setKeyValue("name", new QoreStringNode(std::string(method->name())), xsink);
-            method_hash->setKeyValue("full_path",
-                new QoreStringNode(std::string("/") + std::string(svc->full_name()) + "/"
-                    + std::string(method->name())),
-                xsink);
-            method_hash->setKeyValue("input_type",
-                new QoreStringNode(std::string(method->input_type()->full_name())), xsink);
-            method_hash->setKeyValue("output_type",
-                new QoreStringNode(std::string(method->output_type()->full_name())), xsink);
-            method_hash->setKeyValue("client_streaming", method->client_streaming(), xsink);
-            method_hash->setKeyValue("server_streaming", method->server_streaming(), xsink);
-
-            methods->push(method_hash.release(), xsink);
+    if (!file_descs.empty()) {
+        // Multi-file descriptor constructor: iterate all files
+        for (const auto* fd : file_descs) {
+            for (int i = 0; i < fd->service_count(); ++i) {
+                QoreHashNode* svc_hash = buildServiceInfo(fd->service(i), xsink);
+                if (*xsink) {
+                    return nullptr;
+                }
+                list->push(svc_hash, xsink);
+            }
         }
-
-        svc_hash->setKeyValue("methods", methods.release(), xsink);
-        list->push(svc_hash.release(), xsink);
+    } else {
+        // Single file descriptor
+        for (int i = 0; i < file_desc->service_count(); ++i) {
+            QoreHashNode* svc_hash = buildServiceInfo(file_desc->service(i), xsink);
+            if (*xsink) {
+                return nullptr;
+            }
+            list->push(svc_hash, xsink);
+        }
     }
 
     return list.release();
@@ -226,8 +396,17 @@ QoreListNode* QoreProtobufSchema::getMessageTypes(ExceptionSink* xsink) const {
     assert(file_desc);
     ReferenceHolder<QoreListNode> list(new QoreListNode(stringTypeInfo), xsink);
 
-    for (int i = 0; i < file_desc->message_type_count(); ++i) {
-        list->push(new QoreStringNode(std::string(file_desc->message_type(i)->full_name())), xsink);
+    if (!file_descs.empty()) {
+        // Multi-file descriptor constructor: iterate all files
+        for (const auto* fd : file_descs) {
+            for (int i = 0; i < fd->message_type_count(); ++i) {
+                list->push(new QoreStringNode(std::string(fd->message_type(i)->full_name())), xsink);
+            }
+        }
+    } else {
+        for (int i = 0; i < file_desc->message_type_count(); ++i) {
+            list->push(new QoreStringNode(std::string(file_desc->message_type(i)->full_name())), xsink);
+        }
     }
 
     return list.release();
@@ -361,4 +540,188 @@ QoreHashNode* QoreProtobufSchema::fromJson(const char* type, const QoreString& j
     }
 
     return ProtobufHelper::messageToHash(*msg, xsink);
+}
+
+QoreListNode* QoreProtobufSchema::serializeFileDescriptors(ExceptionSink* xsink) const {
+    assert(file_desc);
+    ReferenceHolder<QoreListNode> list(new QoreListNode(binaryTypeInfo), xsink);
+
+    // Collect all file descriptors
+    std::set<const google::protobuf::FileDescriptor*> all_fds;
+    if (!file_descs.empty()) {
+        for (auto* fd : file_descs) {
+            all_fds.insert(fd);
+        }
+    } else {
+        all_fds.insert(file_desc);
+    }
+
+    // Add transitive dependencies
+    std::vector<const google::protobuf::FileDescriptor*> work(all_fds.begin(), all_fds.end());
+    for (size_t i = 0; i < work.size(); ++i) {
+        for (int j = 0; j < work[i]->dependency_count(); ++j) {
+            auto* dep = work[i]->dependency(j);
+            if (all_fds.insert(dep).second) {
+                work.push_back(dep);
+            }
+        }
+    }
+
+    // Serialize each descriptor
+    for (auto* fd : all_fds) {
+        google::protobuf::FileDescriptorProto fdp;
+        fd->CopyTo(&fdp);
+        std::string data;
+        if (!fdp.SerializeToString(&data)) {
+            xsink->raiseException("PROTOBUF-SCHEMA-ERROR",
+                "failed to serialize FileDescriptorProto for '%s'", fd->name().c_str());
+            return nullptr;
+        }
+        SimpleRefHolder<BinaryNode> bin(new BinaryNode);
+        bin->append(data.data(), data.size());
+        list->push(bin.release(), xsink);
+    }
+
+    return list.release();
+}
+
+const char* QoreProtobufSchema::fieldTypeName(google::protobuf::FieldDescriptor::Type type) {
+    using FD = google::protobuf::FieldDescriptor;
+    switch (type) {
+        case FD::TYPE_DOUBLE:   return "double";
+        case FD::TYPE_FLOAT:    return "float";
+        case FD::TYPE_INT64:    return "int64";
+        case FD::TYPE_UINT64:   return "uint64";
+        case FD::TYPE_INT32:    return "int32";
+        case FD::TYPE_FIXED64:  return "fixed64";
+        case FD::TYPE_FIXED32:  return "fixed32";
+        case FD::TYPE_BOOL:     return "bool";
+        case FD::TYPE_STRING:   return "string";
+        case FD::TYPE_GROUP:    return "group";
+        case FD::TYPE_MESSAGE:  return "message";
+        case FD::TYPE_BYTES:    return "bytes";
+        case FD::TYPE_UINT32:   return "uint32";
+        case FD::TYPE_ENUM:     return "enum";
+        case FD::TYPE_SFIXED32: return "sfixed32";
+        case FD::TYPE_SFIXED64: return "sfixed64";
+        case FD::TYPE_SINT32:   return "sint32";
+        case FD::TYPE_SINT64:   return "sint64";
+        default:                return "unknown";
+    }
+}
+
+const char* QoreProtobufSchema::fieldLabelName(google::protobuf::FieldDescriptor::Label label) {
+    using FD = google::protobuf::FieldDescriptor;
+    switch (label) {
+        case FD::LABEL_OPTIONAL: return "optional";
+        case FD::LABEL_REQUIRED: return "required";
+        case FD::LABEL_REPEATED: return "repeated";
+        default:                 return "unknown";
+    }
+}
+
+QoreHashNode* QoreProtobufSchema::buildFieldInfo(const google::protobuf::FieldDescriptor* field,
+        ExceptionSink* xsink) const {
+    ReferenceHolder<QoreHashNode> info(new QoreHashNode(autoTypeInfo), xsink);
+
+    if (field->is_map()) {
+        info->setKeyValue("type", new QoreStringNode("map"), xsink);
+        info->setKeyValue("number", (int64)field->number(), xsink);
+
+        // Map key type
+        const google::protobuf::FieldDescriptor* key_field = field->message_type()->map_key();
+        info->setKeyValue("key_type", new QoreStringNode(fieldTypeName(key_field->type())), xsink);
+
+        // Map value type
+        const google::protobuf::FieldDescriptor* value_field = field->message_type()->map_value();
+        info->setKeyValue("value_type", new QoreStringNode(fieldTypeName(value_field->type())), xsink);
+
+        if (value_field->type() == google::protobuf::FieldDescriptor::TYPE_MESSAGE) {
+            info->setKeyValue("value_message_type",
+                new QoreStringNode(std::string(value_field->message_type()->full_name())), xsink);
+        }
+        if (value_field->type() == google::protobuf::FieldDescriptor::TYPE_ENUM) {
+            info->setKeyValue("value_enum_type",
+                new QoreStringNode(std::string(value_field->enum_type()->full_name())), xsink);
+        }
+    } else {
+        info->setKeyValue("type", new QoreStringNode(fieldTypeName(field->type())), xsink);
+        info->setKeyValue("number", (int64)field->number(), xsink);
+        info->setKeyValue("label", new QoreStringNode(fieldLabelName(field->label())), xsink);
+
+        if (field->type() == google::protobuf::FieldDescriptor::TYPE_MESSAGE) {
+            info->setKeyValue("message_type",
+                new QoreStringNode(std::string(field->message_type()->full_name())), xsink);
+        }
+
+        if (field->type() == google::protobuf::FieldDescriptor::TYPE_ENUM) {
+            info->setKeyValue("enum_type",
+                new QoreStringNode(std::string(field->enum_type()->full_name())), xsink);
+
+            // Include enum values inline
+            const google::protobuf::EnumDescriptor* edesc = field->enum_type();
+            ReferenceHolder<QoreHashNode> enum_vals(new QoreHashNode(autoTypeInfo), xsink);
+            for (int i = 0; i < edesc->value_count(); ++i) {
+                const google::protobuf::EnumValueDescriptor* ev = edesc->value(i);
+                enum_vals->setKeyValue(std::string(ev->name()), (int64)ev->number(), xsink);
+            }
+            info->setKeyValue("enum_values", enum_vals.release(), xsink);
+        }
+
+        // oneof info
+        if (field->containing_oneof()) {
+            info->setKeyValue("oneof",
+                new QoreStringNode(std::string(field->containing_oneof()->name())), xsink);
+        }
+    }
+
+    return info.release();
+}
+
+QoreHashNode* QoreProtobufSchema::getMessageSchema(const char* type, ExceptionSink* xsink) const {
+    const google::protobuf::Descriptor* desc = findMessageDescriptor(type, xsink);
+    if (!desc) {
+        return nullptr;
+    }
+
+    ReferenceHolder<QoreHashNode> result(new QoreHashNode(autoTypeInfo), xsink);
+    result->setKeyValue("name", new QoreStringNode(std::string(desc->full_name())), xsink);
+
+    ReferenceHolder<QoreHashNode> fields(new QoreHashNode(autoTypeInfo), xsink);
+    for (int i = 0; i < desc->field_count(); ++i) {
+        const google::protobuf::FieldDescriptor* field = desc->field(i);
+        QoreHashNode* field_info = buildFieldInfo(field, xsink);
+        if (*xsink) {
+            return nullptr;
+        }
+        fields->setKeyValue(std::string(field->name()), field_info, xsink);
+    }
+
+    result->setKeyValue("fields", fields.release(), xsink);
+    return result.release();
+}
+
+QoreHashNode* QoreProtobufSchema::getEnumValues(const char* enum_type, ExceptionSink* xsink) const {
+    assert(file_desc);
+    const google::protobuf::DescriptorPool* pool = getPool();
+    const google::protobuf::EnumDescriptor* edesc = pool->FindEnumTypeByName(enum_type);
+    if (!edesc) {
+        // Try prepending the package name
+        std::string pkg(file_desc->package());
+        if (!pkg.empty()) {
+            edesc = pool->FindEnumTypeByName(pkg + "." + enum_type);
+        }
+    }
+    if (!edesc) {
+        xsink->raiseException("PROTOBUF-TYPE-ERROR", "enum type '%s' not found in schema", enum_type);
+        return nullptr;
+    }
+
+    ReferenceHolder<QoreHashNode> result(new QoreHashNode(autoTypeInfo), xsink);
+    for (int i = 0; i < edesc->value_count(); ++i) {
+        const google::protobuf::EnumValueDescriptor* ev = edesc->value(i);
+        result->setKeyValue(std::string(ev->name()), (int64)ev->number(), xsink);
+    }
+
+    return result.release();
 }

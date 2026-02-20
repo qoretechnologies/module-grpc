@@ -309,6 +309,115 @@ hash<auto> defaults = schema.defaultMessage("Event");
     |repeated T|\c list<auto>|
     |map<K,V>|\c hash<auto>|
 
+    @section grpcdataprovider GrpcDataProvider Module
+
+    The \c GrpcDataProvider module provides a data provider API for gRPC services, enabling
+    low-code integration in Qorus. Use \c "%requires GrpcDataProvider" to load the module.
+
+    @subsection grpcdparch Data Provider Architecture
+
+    The provider hierarchy maps protobuf service definitions to the data provider API:
+    - <b>GrpcDataProvider</b> (root): schema + connection; children are gRPC services
+      - <b>GrpcServiceDataProvider</b>: container for methods in a service
+        - <b>GrpcMethodDataProvider</b>: leaf provider supporting \c doRequest() for all
+          4 RPC patterns
+
+    @subsection grpcdpcreate Creating a Data Provider
+
+    @code{.py}
+%requires GrpcDataProvider
+
+# From a proto file
+GrpcDataProvider provider({
+    "url": "http://localhost:50051",
+    "proto_path": "./proto",
+    "proto_file": "service.proto",
+});
+
+# From inline proto content
+GrpcDataProvider provider({
+    "url": "http://localhost:50051",
+    "proto_content": proto_string,
+});
+
+# Via connection
+GrpcConnection conn("my-grpc", "My gRPC service", "grpc://localhost:50051",
+    {}, {"proto_content": proto_string});
+AbstractDataProvider provider = conn.getDataProvider();
+    @endcode
+
+    @subsection grpcdpcall Making Calls
+
+    @code{.py}
+# Navigate to a method and make a unary call
+auto result = provider
+    .getChildProvider("MyService")
+    .getChildProvider("SayHello")
+    .doRequest({"name": "World"});
+printf("Response: %y\n", result);
+
+# Client streaming: send multiple messages
+auto result = provider
+    .getChildProvider("MyService")
+    .getChildProvider("UploadData")
+    .doRequest({"messages": ({"chunk": "data1"}, {"chunk": "data2"})});
+
+# Server streaming: returns list of responses
+list<auto> results = provider
+    .getChildProvider("MyService")
+    .getChildProvider("ListItems")
+    .doRequest({"category": "books"});
+    @endcode
+
+    @subsection grpcdpstreaming Streaming Pattern Mapping
+
+    |!gRPC Pattern|!Request Format|!Response Format
+    |Unary|Message hash|Response hash
+    |Server streaming|Message hash|List of response hashes
+    |Client streaming|\c {"messages": list}|Response hash
+    |Bidirectional|\c {"messages": list}|List of response hashes
+
+    @subsection grpcdpconnection Connection Provider
+
+    The module registers \c grpc:// and \c grpcs:// connection schemes:
+
+    |!Scheme|!Transport|!Example URL
+    |\c grpc://|Plaintext HTTP/2|\c grpc://localhost:50051
+    |\c grpcs://|TLS HTTPS|\c grpcs://api.example.com:443
+
+    Connection options:
+    - \c proto_path: path to directory containing \c .proto files
+    - \c proto_file: name of the \c .proto file to load
+    - \c proto_content: inline protobuf schema definition
+    - \c use_reflection: use gRPC server reflection for schema discovery
+    - \c timeout_ms: default call timeout in milliseconds (default: 30000)
+
+    @subsection grpcdptypes Protobuf to DataProvider Type Mapping
+
+    |!Protobuf Type|!DataProvider Type
+    |double, float|\c SoftFloatType
+    |int32, sint32, sfixed32, int64, sint64, sfixed64, uint32, fixed32, uint64, fixed64|\c SoftIntType
+    |bool|\c SoftBoolType
+    |string|\c StringType
+    |bytes|\c DataType (binary)
+    |enum|\c SoftIntType
+    |message|\c HashDataType (recursive)
+    |repeated T|\c SoftListDataType wrapping element type
+    |map<K,V>|\c HashDataType with \c setDefaultOtherFieldType()
+
+    @subsection grpcdpreflection Server Reflection
+
+    The module includes a gRPC server reflection client that can dynamically discover services
+    and schemas from a running server:
+
+    @code{.py}
+# Auto-discover services via reflection
+GrpcDataProvider provider({
+    "url": "http://localhost:50051",
+    "use_reflection": True,
+});
+    @endcode
+
     @section grpcrelnotes Release Notes
 
     @subsection grpc_v1_0 grpc Module Version 1.0
@@ -320,8 +429,9 @@ hash<auto> defaults = schema.defaultMessage("Event");
 
     <b>Features</b>:
     - initial release
-    - dynamic protobuf schema loading (file and string)
+    - dynamic protobuf schema loading (file and string) and serialized descriptor loading
     - protobuf encoding/decoding for all field types
+    - protobuf message schema introspection (\c messageSchema(), \c enumValues())
     - JSON conversion via protobuf
     - gRPC client with unary, server streaming, client streaming, bidirectional streaming
     - gRPC server with handler registration and async I/O
@@ -330,6 +440,11 @@ hash<auto> defaults = schema.defaultMessage("Event");
     - timeout/deadline enforcement
     - connection pooling via Http2ClientConnectionManager
     - gRPC status codes and error handling
+    - \c GrpcDataProvider module for data provider API integration
+    - \c GrpcConnection with \c grpc:// and \c grpcs:// connection schemes
+    - \c GrpcDataProviderFactory for factory-based creation
+    - \c GrpcTypeHelper for protobuf-to-DataProvider type mapping
+    - \c GrpcReflectionClient for gRPC server reflection protocol
 
     @section grpclicense License
 

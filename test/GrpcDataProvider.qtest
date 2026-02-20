@@ -1,0 +1,917 @@
+#!/usr/bin/env qore
+# -*- mode: qore; indent-tabs-mode: nil -*-
+
+/*
+    Copyright (C) 2026 Qore Technologies, s.r.o., all rights reserved
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+
+    GrpcDataProvider test suite
+*/
+
+%modern
+
+%requires QUnit
+%requires DataProvider
+%requires ConnectionProvider
+%requires grpc
+%requires Grpc
+%requires GrpcDataProvider
+
+%exec-class GrpcDataProviderTest
+
+public class GrpcDataProviderTest inherits QUnit::Test {
+    private {
+        string test_dir;
+        string proto_content;
+    }
+
+    constructor() : Test("GrpcDataProviderTest", "1.0") {
+        # Find the test directory (where test.proto lives)
+        test_dir = get_script_dir();
+
+        # Load proto content for inline tests
+        proto_content = ReadOnlyFile::readTextFile(test_dir + "/test.proto");
+
+        # Factory tests
+        addTestCase("factory info", \testFactoryInfo());
+        addTestCase("factory create provider", \testFactoryCreateProvider());
+
+        # Connection tests
+        addTestCase("connection scheme info", \testConnectionSchemeInfo());
+        addTestCase("connection url conversion", \testConnectionUrlConversion());
+        addTestCase("connection get data provider", \testConnectionGetDataProvider());
+        addTestCase("connection invalid scheme", \testConnectionInvalidScheme());
+
+        # Root provider tests
+        addTestCase("root provider from file", \testRootProviderFromFile());
+        addTestCase("root provider from string", \testRootProviderFromString());
+        addTestCase("root provider from schema object", \testRootProviderFromSchemaObject());
+        addTestCase("root provider missing schema", \testRootProviderMissingSchema());
+        addTestCase("root provider info", \testRootProviderInfo());
+
+        # Service provider tests
+        addTestCase("service provider children", \testServiceProviderChildren());
+        addTestCase("service provider invalid method", \testServiceProviderInvalidMethod());
+        addTestCase("service provider info", \testServiceProviderInfo());
+
+        # Method provider tests
+        addTestCase("method provider unary info", \testMethodProviderUnaryInfo());
+        addTestCase("method provider streaming info", \testMethodProviderStreamingInfo());
+        addTestCase("method provider request type", \testMethodProviderRequestType());
+        addTestCase("method provider response type", \testMethodProviderResponseType());
+        addTestCase("method provider streaming request type", \testMethodProviderStreamingRequestType());
+        addTestCase("method provider streaming response type", \testMethodProviderStreamingResponseType());
+
+        # Type mapping tests
+        addTestCase("type helper scalar types", \testTypeHelperScalarTypes());
+        addTestCase("type helper nested message", \testTypeHelperNestedMessage());
+        addTestCase("type helper repeated fields", \testTypeHelperRepeatedFields());
+        addTestCase("type helper map fields", \testTypeHelperMapFields());
+        addTestCase("type helper enum fields", \testTypeHelperEnumFields());
+
+        # Hierarchy traversal tests
+        addTestCase("full hierarchy traversal", \testFullHierarchyTraversal());
+
+        # Integration tests (end-to-end via data provider)
+        addTestCase("integration: unary call", \testIntegrationUnaryCall());
+        addTestCase("integration: server stream", \testIntegrationServerStream());
+        addTestCase("integration: client stream", \testIntegrationClientStream());
+        addTestCase("integration: bidi stream", \testIntegrationBidiStream());
+        addTestCase("integration: grpc error", \testIntegrationGrpcError());
+        addTestCase("integration: reflection discovery", \testIntegrationReflection());
+        addTestCase("integration: reflection no server", \testIntegrationReflectionNoServer());
+
+        # Observable tests
+        addTestCase("observable: server stream events", \testObservableServerStream());
+        addTestCase("observable: event types", \testObservableEventTypes());
+        addTestCase("observable: stop events", \testObservableStopEvents());
+        addTestCase("observable: no request", \testObservableNoRequest());
+
+        set_return_value(main());
+    }
+
+    # ---------- Factory Tests ----------
+
+    testFactoryInfo() {
+        GrpcDataProviderFactory factory();
+        hash<DataProviderFactoryInfo> info = factory.getInfo();
+        assertEq("grpc", info.name);
+        assertEq("gRPC data provider factory", info.desc);
+        assertTrue(info.children_can_support_apis);
+        assertTrue(info.children_can_support_observers);
+    }
+
+    testFactoryCreateProvider() {
+        GrpcDataProviderFactory factory();
+        AbstractDataProvider provider = factory.create({
+            "proto_path": test_dir,
+            "proto_file": "test.proto",
+        });
+        assertEq(True, provider instanceof GrpcDataProvider);
+        # Should have the TestService
+        *list<string> children = provider.getChildProviderNames();
+        assertTrue(children.size() > 0);
+        assertTrue(children.contains("TestService"));
+    }
+
+    # ---------- Connection Tests ----------
+
+    testConnectionSchemeInfo() {
+        hash<ConnectionSchemeInfo> scheme = GrpcConnection::ConnectionScheme;
+        assertEq("gRPC Connection", scheme.display_name);
+        assertTrue(scheme.schemes.grpc);
+        assertTrue(scheme.schemes.grpcs);
+        assertEq("http", scheme.base_scheme_map.grpc);
+        assertEq("https", scheme.base_scheme_map.grpcs);
+        assertTrue(scheme.options.hasKey("proto_path"));
+        assertTrue(scheme.options.hasKey("proto_file"));
+        assertTrue(scheme.options.hasKey("proto_content"));
+        assertTrue(scheme.options.hasKey("use_reflection"));
+        assertTrue(scheme.options.hasKey("timeout_ms"));
+    }
+
+    testConnectionUrlConversion() {
+        GrpcConnection conn("test-grpc", "test connection", "grpc://localhost:50051",
+            {}, {"proto_content": proto_content});
+        GrpcChannel channel = conn.get();
+        # Verify channel was created (this confirms URL conversion worked)
+        assertEq(True, channel instanceof GrpcChannel);
+    }
+
+    testConnectionGetDataProvider() {
+        GrpcConnection conn("test-grpc", "test connection", "grpc://localhost:50051",
+            {}, {"proto_content": proto_content});
+        AbstractDataProvider provider = conn.getDataProvider();
+        assertEq(True, provider instanceof GrpcDataProvider);
+        *list<string> children = provider.getChildProviderNames();
+        assertTrue(children.contains("TestService"));
+    }
+
+    testConnectionInvalidScheme() {
+        # grpcs connection should use https internally
+        GrpcConnection conn("test-grpcs", "test TLS connection", "grpcs://api.example.com:443",
+            {}, {"proto_content": proto_content});
+        AbstractDataProvider provider = conn.getDataProvider();
+        assertEq(True, provider instanceof GrpcDataProvider);
+    }
+
+    # ---------- Root Provider Tests ----------
+
+    testRootProviderFromFile() {
+        GrpcDataProvider provider({"proto_path": test_dir, "proto_file": "test.proto"});
+        *list<string> children = provider.getChildProviderNames();
+        assertEq(1, children.size());
+        assertEq("TestService", children[0]);
+    }
+
+    testRootProviderFromString() {
+        GrpcDataProvider provider({"proto_content": proto_content});
+        *list<string> children = provider.getChildProviderNames();
+        assertEq(1, children.size());
+        assertEq("TestService", children[0]);
+    }
+
+    testRootProviderFromSchemaObject() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        GrpcChannel channel("http://localhost:50051");
+        GrpcDataProvider provider(schema, channel);
+        *list<string> children = provider.getChildProviderNames();
+        assertEq(1, children.size());
+        assertEq("TestService", children[0]);
+    }
+
+    testRootProviderMissingSchema() {
+        assertThrows("CONSTRUCTOR-ERROR", sub () {
+            new GrpcDataProvider({});
+        });
+    }
+
+    testRootProviderInfo() {
+        GrpcDataProvider provider({"proto_content": proto_content});
+        hash<DataProviderInfo> info = provider.getInfo();
+        assertEq("GrpcDataProvider", info.type);
+        assertTrue(info.supports_children);
+        assertTrue(info.children_can_support_apis);
+    }
+
+    # ---------- Service Provider Tests ----------
+
+    testServiceProviderChildren() {
+        GrpcDataProvider root({"proto_content": proto_content, "url": "http://localhost:50051"});
+        AbstractDataProvider service_prov = root.getChildProvider("TestService");
+        assertEq(True, service_prov instanceof GrpcServiceDataProvider);
+
+        *list<string> methods = service_prov.getChildProviderNames();
+        assertEq(4, methods.size());
+        assertTrue(methods.contains("UnaryCall"));
+        assertTrue(methods.contains("ServerStream"));
+        assertTrue(methods.contains("ClientStream"));
+        assertTrue(methods.contains("BidiStream"));
+    }
+
+    testServiceProviderInvalidMethod() {
+        GrpcDataProvider root({"proto_content": proto_content, "url": "http://localhost:50051"});
+        AbstractDataProvider service_prov = root.getChildProvider("TestService");
+        *AbstractDataProvider invalid = service_prov.getChildProvider("NonExistentMethod");
+        assertNothing(invalid);
+    }
+
+    testServiceProviderInfo() {
+        GrpcDataProvider root({"proto_content": proto_content, "url": "http://localhost:50051"});
+        AbstractDataProvider service_prov = root.getChildProvider("TestService");
+        hash<DataProviderInfo> info = service_prov.getInfo();
+        assertEq("GrpcServiceDataProvider", info.type);
+        assertTrue(info.supports_children);
+    }
+
+    # ---------- Method Provider Tests ----------
+
+    testMethodProviderUnaryInfo() {
+        GrpcDataProvider root({"proto_content": proto_content, "url": "http://localhost:50051"});
+        AbstractDataProvider method_prov = root.getChildProvider("TestService")
+            .getChildProvider("UnaryCall");
+        assertEq("UnaryCall", method_prov.getName());
+
+        hash<DataProviderInfo> info = method_prov.getInfo();
+        assertEq("GrpcMethodDataProvider", info.type);
+        assertTrue(info.supports_request);
+        # Unary is not observable
+        assertFalse(info.supports_observable ?? False);
+    }
+
+    testMethodProviderStreamingInfo() {
+        GrpcDataProvider root({"proto_content": proto_content, "url": "http://localhost:50051"});
+
+        # Server streaming method should support requests
+        AbstractDataProvider ss_prov = root.getChildProvider("TestService")
+            .getChildProvider("ServerStream");
+        hash<DataProviderInfo> ss_info = ss_prov.getInfo();
+        assertTrue(ss_info.supports_request);
+        assertEq("GrpcMethodDataProvider", ss_info.type);
+
+        # Client streaming method should support requests
+        AbstractDataProvider cs_prov = root.getChildProvider("TestService")
+            .getChildProvider("ClientStream");
+        hash<DataProviderInfo> cs_info = cs_prov.getInfo();
+        assertTrue(cs_info.supports_request);
+
+        # Bidi streaming method should support requests
+        AbstractDataProvider bidi_prov = root.getChildProvider("TestService")
+            .getChildProvider("BidiStream");
+        hash<DataProviderInfo> bidi_info = bidi_prov.getInfo();
+        assertTrue(bidi_info.supports_request);
+    }
+
+    testMethodProviderRequestType() {
+        GrpcDataProvider root({"proto_content": proto_content, "url": "http://localhost:50051"});
+        AbstractDataProvider method_prov = root.getChildProvider("TestService")
+            .getChildProvider("UnaryCall");
+
+        *AbstractDataProviderType req_type = method_prov.getRequestType();
+        assertEq(True, req_type instanceof HashDataType);
+
+        # Verify the request type has the expected fields
+        hash<string, AbstractDataField> fields = req_type.getFields();
+        assertTrue(fields.hasKey("name"));
+        assertTrue(fields.hasKey("id"));
+    }
+
+    testMethodProviderResponseType() {
+        GrpcDataProvider root({"proto_content": proto_content, "url": "http://localhost:50051"});
+        AbstractDataProvider method_prov = root.getChildProvider("TestService")
+            .getChildProvider("UnaryCall");
+
+        *AbstractDataProviderType resp_type = method_prov.getResponseType();
+        assertEq(True, resp_type instanceof HashDataType);
+
+        # Verify the response type has the expected fields
+        hash<string, AbstractDataField> fields = resp_type.getFields();
+        assertTrue(fields.hasKey("message"));
+        assertTrue(fields.hasKey("status"));
+    }
+
+    testMethodProviderStreamingRequestType() {
+        GrpcDataProvider root({"proto_content": proto_content, "url": "http://localhost:50051"});
+
+        # Client streaming: request should be a wrapper with "messages" list
+        AbstractDataProvider cs_prov = root.getChildProvider("TestService")
+            .getChildProvider("ClientStream");
+        *AbstractDataProviderType req_type = cs_prov.getRequestType();
+        assertEq(True, req_type instanceof HashDataType);
+        hash<string, AbstractDataField> fields = req_type.getFields();
+        assertTrue(fields.hasKey("messages"));
+
+        # Bidi streaming: request should also be a wrapper with "messages" list
+        AbstractDataProvider bidi_prov = root.getChildProvider("TestService")
+            .getChildProvider("BidiStream");
+        *AbstractDataProviderType bidi_req_type = bidi_prov.getRequestType();
+        assertEq(True, bidi_req_type instanceof HashDataType);
+        hash<string, AbstractDataField> bidi_fields = bidi_req_type.getFields();
+        assertTrue(bidi_fields.hasKey("messages"));
+    }
+
+    testMethodProviderStreamingResponseType() {
+        GrpcDataProvider root({"proto_content": proto_content, "url": "http://localhost:50051"});
+
+        # Server streaming: response should be a list type
+        AbstractDataProvider ss_prov = root.getChildProvider("TestService")
+            .getChildProvider("ServerStream");
+        *AbstractDataProviderType resp_type = ss_prov.getResponseType();
+        assertEq(True, resp_type instanceof ListDataType || resp_type instanceof SoftListDataType);
+
+        # Bidi streaming: response should also be a list type
+        AbstractDataProvider bidi_prov = root.getChildProvider("TestService")
+            .getChildProvider("BidiStream");
+        *AbstractDataProviderType bidi_resp_type = bidi_prov.getResponseType();
+        assertEq(True, bidi_resp_type instanceof ListDataType
+            || bidi_resp_type instanceof SoftListDataType);
+    }
+
+    # ---------- Type Mapping Tests ----------
+
+    testTypeHelperScalarTypes() {
+        ProtobufSchema schema(proto_content);
+
+        # Test with AllTypesMessage which has all scalar types
+        AbstractDataProviderType dt = GrpcTypeHelper::messageToDataType(schema,
+            "test.AllTypesMessage");
+        assertEq(True, dt instanceof HashDataType);
+
+        hash<string, AbstractDataField> fields = dt.getFields();
+
+        # double
+        assertTrue(fields.hasKey("double_val"));
+        assertEq("float", fields.double_val.getType().getBaseTypeName());
+
+        # float
+        assertTrue(fields.hasKey("float_val"));
+        assertEq("float", fields.float_val.getType().getBaseTypeName());
+
+        # int32
+        assertTrue(fields.hasKey("int32_val"));
+        assertEq("int", fields.int32_val.getType().getBaseTypeName());
+
+        # int64
+        assertTrue(fields.hasKey("int64_val"));
+        assertEq("int", fields.int64_val.getType().getBaseTypeName());
+
+        # bool
+        assertTrue(fields.hasKey("bool_val"));
+        assertEq("bool", fields.bool_val.getType().getBaseTypeName());
+
+        # string
+        assertTrue(fields.hasKey("string_val"));
+        assertEq("string", fields.string_val.getType().getBaseTypeName());
+
+        # bytes (DataType's base type name is "data")
+        assertTrue(fields.hasKey("bytes_val"));
+        assertEq("data", fields.bytes_val.getType().getBaseTypeName());
+    }
+
+    testTypeHelperNestedMessage() {
+        ProtobufSchema schema(proto_content);
+
+        AbstractDataProviderType dt = GrpcTypeHelper::messageToDataType(schema,
+            "test.NestedMessage");
+        assertEq(True, dt instanceof HashDataType);
+
+        hash<string, AbstractDataField> fields = dt.getFields();
+        assertTrue(fields.hasKey("outer_field"));
+        assertTrue(fields.hasKey("inner"));
+
+        # The inner field should be a hash type
+        AbstractDataProviderType inner_type = fields.inner.getType();
+        assertEq("hash", inner_type.getBaseTypeName());
+    }
+
+    testTypeHelperRepeatedFields() {
+        ProtobufSchema schema(proto_content);
+
+        AbstractDataProviderType dt = GrpcTypeHelper::messageToDataType(schema,
+            "test.RepeatedMessage");
+        hash<string, AbstractDataField> fields = dt.getFields();
+
+        assertTrue(fields.hasKey("tags"));
+        assertTrue(fields.hasKey("numbers"));
+        assertTrue(fields.hasKey("items"));
+
+        # Repeated fields should be list types
+        assertEq("list", fields.tags.getType().getBaseTypeName());
+        assertEq("list", fields.numbers.getType().getBaseTypeName());
+        assertEq("list", fields.items.getType().getBaseTypeName());
+    }
+
+    testTypeHelperMapFields() {
+        ProtobufSchema schema(proto_content);
+
+        AbstractDataProviderType dt = GrpcTypeHelper::messageToDataType(schema,
+            "test.MapMessage");
+        hash<string, AbstractDataField> fields = dt.getFields();
+
+        assertTrue(fields.hasKey("string_map"));
+        assertTrue(fields.hasKey("int_map"));
+        assertTrue(fields.hasKey("int_key_map"));
+
+        # Map fields should be hash types
+        assertEq("hash", fields.string_map.getType().getBaseTypeName());
+        assertEq("hash", fields.int_map.getType().getBaseTypeName());
+    }
+
+    testTypeHelperEnumFields() {
+        ProtobufSchema schema(proto_content);
+
+        AbstractDataProviderType dt = GrpcTypeHelper::messageToDataType(schema,
+            "test.EnumMessage");
+        hash<string, AbstractDataField> fields = dt.getFields();
+
+        assertTrue(fields.hasKey("name"));
+        assertTrue(fields.hasKey("status"));
+
+        # Enum fields should be int type
+        assertEq("int", fields.status.getType().getBaseTypeName());
+    }
+
+    # ---------- Hierarchy Traversal Tests ----------
+
+    testFullHierarchyTraversal() {
+        GrpcDataProvider root({"proto_content": proto_content, "url": "http://localhost:50051"});
+
+        # Root -> services
+        *list<string> services = root.getChildProviderNames();
+        assertEq(1, services.size());
+
+        # Service -> methods
+        AbstractDataProvider service_prov = root.getChildProvider("TestService");
+        *list<string> methods = service_prov.getChildProviderNames();
+        assertEq(4, methods.size());
+
+        # Method providers should support request
+        for (int i = 0; i < methods.size(); ++i) {
+            AbstractDataProvider method_prov = service_prov.getChildProvider(methods[i]);
+            hash<DataProviderInfo> info = method_prov.getInfo();
+            assertTrue(info.supports_request);
+            # All methods should have request and response types
+            assertEq(True, method_prov.getRequestType() instanceof AbstractDataProviderType);
+            assertEq(True, method_prov.getResponseType() instanceof AbstractDataProviderType);
+        }
+
+        # Verify non-existent service returns nothing
+        *AbstractDataProvider no_svc = root.getChildProvider("NonExistent");
+        assertNothing(no_svc);
+    }
+
+    # ---------- Integration Tests ----------
+
+    #! Helper: set up a gRPC test server with all 4 handler types
+    private hash<auto> setupIntegrationServer() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        GrpcServer server(schema);
+
+        # Unary: echo name
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                return {
+                    "message": "Hello, " + request.name,
+                    "status": request.id,
+                };
+            });
+
+        # Server streaming: send 3 messages
+        server.registerHandler("TestService", "ServerStream",
+            sub(hash<auto> request, GrpcServerStream stream,
+                    hash<string, string> metadata) {
+                for (int i = 0; i < 3; ++i) {
+                    stream.write({
+                        "message": sprintf("msg %d for %s", i, request.name),
+                        "status": i,
+                    });
+                }
+            });
+
+        # Client streaming: aggregate names
+        server.registerHandler("TestService", "ClientStream",
+            hash<auto> sub(GrpcServerStream stream, hash<string, string> metadata) {
+                list<string> names = ();
+                while (*hash<auto> msg = stream.read()) {
+                    names += msg.name;
+                }
+                return {
+                    "message": names.join(", "),
+                    "status": names.size(),
+                };
+            });
+
+        # Bidi streaming: echo each message
+        server.registerHandler("TestService", "BidiStream",
+            sub(GrpcServerStream stream, hash<string, string> metadata) {
+                while (*hash<auto> msg = stream.read()) {
+                    stream.write({
+                        "message": "echo: " + msg.name,
+                        "status": msg.id,
+                    });
+                }
+            });
+
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+
+        return {
+            "server": server,
+            "schema": schema,
+            "port": port,
+        };
+    }
+
+    testIntegrationUnaryCall() {
+        hash<auto> env = setupIntegrationServer();
+        on_exit env.server.shutdown();
+
+        GrpcDataProvider provider({
+            "url": "http://localhost:" + string(env.port),
+            "schema": env.schema,
+        });
+
+        auto result = provider.getChildProvider("TestService")
+            .getChildProvider("UnaryCall")
+            .doRequest({"name": "World", "id": 42});
+
+        assertEq("Hello, World", result.message);
+        assertEq(42, result.status);
+    }
+
+    testIntegrationServerStream() {
+        hash<auto> env = setupIntegrationServer();
+        on_exit env.server.shutdown();
+
+        GrpcDataProvider provider({
+            "url": "http://localhost:" + string(env.port),
+            "schema": env.schema,
+        });
+
+        auto result = provider.getChildProvider("TestService")
+            .getChildProvider("ServerStream")
+            .doRequest({"name": "World", "id": 1});
+
+        assertEq(True, result instanceof list);
+        assertEq(3, result.size());
+        assertEq("msg 0 for World", result[0].message);
+        assertEq("msg 1 for World", result[1].message);
+        assertEq("msg 2 for World", result[2].message);
+    }
+
+    testIntegrationClientStream() {
+        hash<auto> env = setupIntegrationServer();
+        on_exit env.server.shutdown();
+
+        GrpcDataProvider provider({
+            "url": "http://localhost:" + string(env.port),
+            "schema": env.schema,
+        });
+
+        auto result = provider.getChildProvider("TestService")
+            .getChildProvider("ClientStream")
+            .doRequest({
+                "messages": (
+                    {"name": "Alice", "id": 1},
+                    {"name": "Bob", "id": 2},
+                    {"name": "Charlie", "id": 3},
+                ),
+            });
+
+        assertEq("Alice, Bob, Charlie", result.message);
+        assertEq(3, result.status);
+    }
+
+    testIntegrationBidiStream() {
+        hash<auto> env = setupIntegrationServer();
+        on_exit env.server.shutdown();
+
+        GrpcDataProvider provider({
+            "url": "http://localhost:" + string(env.port),
+            "schema": env.schema,
+        });
+
+        auto result = provider.getChildProvider("TestService")
+            .getChildProvider("BidiStream")
+            .doRequest({
+                "messages": (
+                    {"name": "one", "id": 1},
+                    {"name": "two", "id": 2},
+                ),
+            });
+
+        assertEq(True, result instanceof list);
+        assertEq(2, result.size());
+        assertEq("echo: one", result[0].message);
+        assertEq("echo: two", result[1].message);
+    }
+
+    testIntegrationGrpcError() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "UnaryCall",
+            sub(hash<auto> request, hash<string, string> metadata) {
+                throw "TEST-ERROR", "deliberate error";
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcDataProvider provider({
+            "url": "http://localhost:" + string(port),
+            "schema": schema,
+        });
+
+        assertThrows("GRPC-ERROR", sub () {
+            provider.getChildProvider("TestService")
+                .getChildProvider("UnaryCall")
+                .doRequest({"name": "test", "id": 0});
+        });
+    }
+
+    testIntegrationReflection() {
+        # Build a combined schema from test.proto + reflection proto
+        ProtobufSchema test_schema(test_dir, "test.proto");
+        ProtobufSchema reflection_schema(GrpcReflectionClient::ReflectionProto);
+
+        list<binary> test_descriptors = test_schema.serializeFileDescriptors();
+        list<binary> reflection_descriptors = reflection_schema.serializeFileDescriptors();
+        list<binary> combined_descriptors = test_descriptors + reflection_descriptors;
+        ProtobufSchema combined_schema(combined_descriptors);
+
+        GrpcServer server(combined_schema);
+
+        # Register a handler for the actual TestService
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                return {"message": "reflected: " + request.name, "status": 0};
+            });
+
+        # Register mock reflection service handler
+        # Note: protobuf3 oneof fields all have default values, so we check by
+        # seeing which field has a meaningful (non-empty) value
+        server.registerHandler("ServerReflection", "ServerReflectionInfo",
+            sub(GrpcServerStream stream, hash<string, string> metadata) {
+                while (*hash<auto> req = stream.read()) {
+                    if (req.file_containing_symbol.val()) {
+                        # File containing symbol request
+                        stream.write({
+                            "file_descriptor_response": {
+                                "file_descriptor_proto": test_descriptors,
+                            },
+                        });
+                    } else if (req.list_services.type() == "string") {
+                        # List services request (list_services sends empty string "")
+                        stream.write({
+                            "list_services_response": {
+                                "service": (
+                                    {"name": "test.TestService"},
+                                ),
+                            },
+                        });
+                    }
+                }
+            });
+
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        string url = "http://localhost:" + string(port);
+
+        # Create provider using reflection (uses discoverSchema with single bidi stream)
+        GrpcDataProvider provider({
+            "url": url,
+            "use_reflection": True,
+        });
+
+        # Verify we discovered the TestService
+        *list<string> children = provider.getChildProviderNames();
+        assertTrue(children.size() > 0);
+        assertTrue(children.contains("TestService"));
+
+        # Verify we can make a call through the reflected provider
+        auto result = provider.getChildProvider("TestService")
+            .getChildProvider("UnaryCall")
+            .doRequest({"name": "World", "id": 0});
+        assertEq("reflected: World", result.message);
+    }
+
+    testIntegrationReflectionNoServer() {
+        # Try reflection against a non-existent server -- should throw some connection error
+        bool got_error = False;
+        try {
+            new GrpcDataProvider({
+                "url": "http://localhost:1",
+                "use_reflection": True,
+            });
+        } catch (hash<ExceptionInfo> ex) {
+            got_error = True;
+        }
+        assertTrue(got_error, "reflection against non-existent server should throw");
+    }
+
+    # ---------- Observable Tests ----------
+
+    testObservableServerStream() {
+        hash<auto> env = setupIntegrationServer();
+        on_exit env.server.shutdown();
+
+        GrpcDataProvider provider({
+            "url": "http://localhost:" + string(env.port),
+            "schema": env.schema,
+        });
+
+        AbstractDataProvider method_prov = provider.getChildProvider("TestService")
+            .getChildProvider("ServerStream");
+
+        # Get the events child provider
+        AbstractDataProvider event_prov = method_prov.getChildProvider("events");
+        assertEq(True, event_prov instanceof GrpcStreamEventDataProvider);
+
+        # Set up observer to collect events
+        list<hash<auto>> events = ();
+        Counter done(1);
+
+        TestObserver observer(sub (string event_id, hash<auto> data) {
+            events += {"event_id": event_id, "data": data};
+            if (event_id == EVENT_GRPC_STREAM_COMPLETE || event_id == EVENT_GRPC_STREAM_ERROR) {
+                done.dec();
+            }
+        });
+
+        cast<GrpcStreamEventDataProvider>(event_prov).setObserverRequest(
+            {"name": "World", "id": 1});
+        cast<GrpcStreamEventDataProvider>(event_prov).registerObserver(observer);
+        cast<GrpcStreamEventDataProvider>(event_prov).observersReady();
+
+        # Wait for stream to complete
+        done.waitForZero(10s);
+
+        # Should have 3 message events + 1 complete event
+        assertEq(4, events.size());
+        assertEq(EVENT_GRPC_STREAM_MESSAGE, events[0].event_id);
+        assertEq("msg 0 for World", events[0].data.message);
+        assertEq(EVENT_GRPC_STREAM_MESSAGE, events[1].event_id);
+        assertEq("msg 1 for World", events[1].data.message);
+        assertEq(EVENT_GRPC_STREAM_MESSAGE, events[2].event_id);
+        assertEq("msg 2 for World", events[2].data.message);
+        assertEq(EVENT_GRPC_STREAM_COMPLETE, events[3].event_id);
+    }
+
+    testObservableEventTypes() {
+        GrpcDataProvider provider({"proto_content": proto_content, "url": "http://localhost:50051"});
+
+        AbstractDataProvider event_prov = provider.getChildProvider("TestService")
+            .getChildProvider("ServerStream")
+            .getChildProvider("events");
+
+        hash<DataProviderInfo> info = event_prov.getInfo();
+        assertTrue(info.supports_observable);
+
+        hash<string, hash<DataProviderMessageInfo>> events = event_prov.getEventTypes();
+        assertTrue(events.hasKey(EVENT_GRPC_STREAM_MESSAGE));
+        assertTrue(events.hasKey(EVENT_GRPC_STREAM_COMPLETE));
+        assertTrue(events.hasKey(EVENT_GRPC_STREAM_ERROR));
+
+        # Message event type should have response type fields
+        AbstractDataProviderType msg_type = events{EVENT_GRPC_STREAM_MESSAGE}.type;
+        hash<string, AbstractDataField> fields = msg_type.getFields();
+        assertTrue(fields.hasKey("message"));
+        assertTrue(fields.hasKey("status"));
+    }
+
+    testObservableStopEvents() {
+        # Create a server that sends many messages with delays
+        ProtobufSchema schema(test_dir, "test.proto");
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "ServerStream",
+            sub(hash<auto> request, GrpcServerStream stream,
+                    hash<string, string> metadata) {
+                for (int i = 0; i < 20; ++i) {
+                    stream.write({
+                        "message": sprintf("msg %d", i),
+                        "status": i,
+                    });
+                    usleep(50ms);
+                }
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcDataProvider provider({
+            "url": "http://localhost:" + string(port),
+            "schema": schema,
+        });
+
+        AbstractDataProvider event_prov = provider.getChildProvider("TestService")
+            .getChildProvider("ServerStream")
+            .getChildProvider("events");
+
+        list<hash<auto>> events = ();
+        Counter msg_received(1);
+        Mutex em();
+
+        TestObserver observer(sub (string event_id, hash<auto> data) {
+            AutoLock al(em);
+            events += {"event_id": event_id, "data": data};
+            if (event_id == EVENT_GRPC_STREAM_MESSAGE) {
+                msg_received.dec();
+            }
+        });
+
+        cast<GrpcStreamEventDataProvider>(event_prov).setObserverRequest(
+            {"name": "stop-test", "id": 0});
+        cast<GrpcStreamEventDataProvider>(event_prov).registerObserver(observer);
+        cast<GrpcStreamEventDataProvider>(event_prov).observersReady();
+
+        # Wait for at least one message to arrive
+        msg_received.waitForZero(10s);
+
+        # Stop events
+        cast<GrpcStreamEventDataProvider>(event_prov).stopEvents();
+
+        # Give a moment for the loop to exit
+        usleep(500ms);
+
+        int count;
+        {
+            AutoLock al(em);
+            count = events.size();
+        }
+
+        # Should have received some messages but not all 20
+        assertTrue(count > 0, "should have received some messages");
+        assertTrue(count < 20, "should have stopped before receiving all 20 messages");
+    }
+
+    testObservableNoRequest() {
+        hash<auto> env = setupIntegrationServer();
+        on_exit env.server.shutdown();
+
+        GrpcDataProvider provider({
+            "url": "http://localhost:" + string(env.port),
+            "schema": env.schema,
+        });
+
+        AbstractDataProvider event_prov = provider.getChildProvider("TestService")
+            .getChildProvider("ServerStream")
+            .getChildProvider("events");
+
+        list<hash<auto>> events = ();
+        Counter done(1);
+
+        TestObserver observer(sub (string event_id, hash<auto> data) {
+            events += {"event_id": event_id, "data": data};
+            if (event_id == EVENT_GRPC_STREAM_COMPLETE || event_id == EVENT_GRPC_STREAM_ERROR) {
+                done.dec();
+            }
+        });
+
+        # Don't set observer request -- should use empty request
+        cast<GrpcStreamEventDataProvider>(event_prov).registerObserver(observer);
+        cast<GrpcStreamEventDataProvider>(event_prov).observersReady();
+
+        # Wait for stream to complete
+        done.waitForZero(10s);
+
+        # Should have received 3 messages (server handler uses request.name which will be empty)
+        assertEq(4, events.size());
+        assertEq(EVENT_GRPC_STREAM_MESSAGE, events[0].event_id);
+        assertEq("msg 0 for ", events[0].data.message);
+        assertEq(EVENT_GRPC_STREAM_COMPLETE, events[3].event_id);
+    }
+}
+
+#! Test observer that captures events via a callback
+class TestObserver inherits Observer {
+    private {
+        code callback;
+    }
+
+    constructor(code callback) {
+        self.callback = callback;
+    }
+
+    update(string event_id, hash<auto> data_) {
+        callback(event_id, data_);
+    }
+}

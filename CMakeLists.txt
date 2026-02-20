@@ -60,6 +60,7 @@ set(module_name "grpc")
 
 set(QMOD
     qlib/Grpc
+    qlib/GrpcDataProvider
 )
 
 set(QORE_DOX_TMPL_SRC
@@ -92,6 +93,7 @@ qore_dist(${PROJECT_VERSION})
 
 qore_user_modules("${QMOD}")
 qore_external_user_module("qlib/Grpc" "")
+qore_external_user_module("qlib/GrpcDataProvider" "")
 
 # install qpp metadata files
 if (COMMAND qore_install_qpp_metadata)
