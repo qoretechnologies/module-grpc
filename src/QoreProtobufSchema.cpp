@@ -576,7 +576,7 @@ QoreListNode* QoreProtobufSchema::serializeFileDescriptors(ExceptionSink* xsink)
         std::string data;
         if (!fdp.SerializeToString(&data)) {
             xsink->raiseException("PROTOBUF-SCHEMA-ERROR",
-                "failed to serialize FileDescriptorProto for '%s'", fd->name().c_str());
+                "failed to serialize FileDescriptorProto for '%s'", std::string(fd->name()).c_str());
             return nullptr;
         }
         SimpleRefHolder<BinaryNode> bin(new BinaryNode);
