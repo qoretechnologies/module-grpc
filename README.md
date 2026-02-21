@@ -118,17 +118,25 @@ server.registerHandler("MyService", "Upload",
 
 ### Bidirectional Streaming
 
+The server handler processes messages incrementally -- no pre-buffering of the
+client stream. Both sides can interleave reads and writes for interactive
+communication:
+
 ```qore
-# Client
+# Client - interactive request/response
 GrpcClientStream stream = client.bidiStream("Chat");
 stream.write({"text": "Hello"});
+*hash<auto> reply = stream.read(5s);   # response arrives before next send
+printf("Reply: %s\n", reply.text);
+
+stream.write({"text": "World"});
+reply = stream.read(5s);
+printf("Reply: %s\n", reply.text);
+
 stream.writesDone();
-while (*hash<auto> msg = stream.read(5s)) {
-    printf("Reply: %s\n", msg.text);
-}
 hash<GrpcCallResult> result = stream.finish();
 
-# Server handler
+# Server handler - echo each message immediately
 server.registerHandler("MyService", "Chat",
     sub(GrpcServerStream stream, hash<string, string> metadata) {
         while (*hash<auto> msg = stream.read()) {
@@ -189,6 +197,66 @@ hash<auto> msg = schema.decode("MyMessage", data);
 # JSON conversion
 string json = schema.toJson("MyMessage", {"field": "value"});
 hash<auto> parsed = schema.fromJson("MyMessage", json);
+```
+
+## Data Provider Integration
+
+The `GrpcDataProvider` module integrates gRPC with Qore's data provider framework, enabling
+`qdp` CLI access and Qorus workflow integration.
+
+### Unary Call via `qdp`
+
+```bash
+# Using a proto file
+qdp 'grpc{url=http://localhost:50051,proto_path=./proto,proto_file=service.proto}/MyService/SayHello' dor name=World
+
+# Using server reflection (no proto files needed)
+qdp 'grpc{url=http://localhost:50051,use_reflection=true}/MyService/SayHello' dor name=World
+```
+
+### Observable Server Streaming
+
+Server-streaming methods expose an `events` child provider for event-driven consumption:
+
+```bash
+qdp 'grpc{url=http://localhost:50051,use_reflection=true}/PriceService/WatchPrices/events' listen
+```
+
+### Interactive Bidirectional Streaming
+
+Bidirectional-streaming methods also expose an `events` child that supports both
+receiving events and sending messages, enabling interactive use with `qdp ix`:
+
+```bash
+qdp 'grpc{url=http://localhost:50051,use_reflection=true}/ChatService/Chat/events' ix
+```
+
+Programmatic usage:
+
+```qore
+%modern
+%requires GrpcDataProvider
+
+GrpcDataProvider provider({
+    "url": "http://localhost:50051",
+    "use_reflection": True,
+});
+
+# Navigate to the events child of a bidi method
+AbstractDataProvider events = provider.getChildProvider("ChatService")
+    .getChildProvider("Chat")
+    .getChildProvider("events");
+
+# Register observer and start the stream
+events.registerObserver(my_observer);
+events.observersReady();
+
+# Send messages
+events.sendMessage(MESSAGE_GRPC_STREAM_SEND, {"text": "hello"});
+events.sendMessage(MESSAGE_GRPC_STREAM_SEND, {"text": "world"});
+
+# Signal writes done (server will finish and close the stream)
+events.stopEvents();
 ```
 
 ## License

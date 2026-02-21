@@ -123,9 +123,10 @@ module GrpcDataProvider {
       and types without needing \c .proto files
     - <b>All four RPC patterns</b>: unary, server streaming, client streaming,
       and bidirectional streaming calls through a single \c doRequest() API
-    - <b>Observable server streams</b>: server-streaming methods expose an
-      \c events child provider for event-driven consumption via the DataProvider
-      observer pattern
+    - <b>Observable and interactive streams</b>: server-streaming and
+      bidirectional-streaming methods expose an \c events child provider for
+      event-driven consumption via the DataProvider observer pattern; bidi
+      methods also support sending messages for interactive use (\c qdp \c ix)
     - <b>Connection management</b>: \c grpc:// and \c grpcs:// URL schemes
       integrate with Qore's connection framework for centralized credential and
       endpoint management
@@ -138,14 +139,16 @@ module GrpcDataProvider {
 <root>
   └── <ServiceName>          (GrpcServiceDataProvider)
         └── <MethodName>     (GrpcMethodDataProvider — supports doRequest)
-              └── events     (GrpcStreamEventDataProvider — server-streaming only)
+              └── events     (GrpcStreamEventDataProvider — server-streaming & bidi)
     @endverbatim
 
-    For example, a gRPC server with a \c Greeter service containing \c SayHello
-    and \c ListGreetings methods would appear as:
+    For example, a gRPC server with a \c Greeter service containing \c SayHello,
+    \c ListGreetings, and \c Chat methods would appear as:
     - \c Greeter/SayHello (unary)
     - \c Greeter/ListGreetings (server streaming)
-    - \c Greeter/ListGreetings/events (observable events for the stream)
+    - \c Greeter/ListGreetings/events (observable events — receive only)
+    - \c Greeter/Chat (bidirectional streaming)
+    - \c Greeter/Chat/events (observable events + message sending)
 
     @subsection grpcdataprovider_classes Provided Classes
 
@@ -158,7 +161,8 @@ module GrpcDataProvider {
     - @ref GrpcDataProvider::GrpcMethodDataProvider "GrpcMethodDataProvider":
       method-level provider supporting all 4 RPC patterns
     - @ref GrpcDataProvider::GrpcStreamEventDataProvider "GrpcStreamEventDataProvider":
-      observable event provider for server-streaming methods
+      observable event provider for server-streaming and bidirectional-streaming
+      methods; bidi methods also support sending messages
     - @ref GrpcDataProvider::GrpcConnection "GrpcConnection": connection provider
       with \c grpc:// and \c grpcs:// URL schemes
     - @ref GrpcDataProvider::GrpcTypeHelper "GrpcTypeHelper": protobuf-to-DataProvider
@@ -225,8 +229,18 @@ module GrpcDataProvider {
     Server-streaming methods expose an \c events child provider for event-driven
     consumption:
 
-    @par Example: subscribe to server-streaming events
-    @verbatim qdp -s mygrpc mygrpc/PriceService/WatchPrices/events ix
+    @par Example: subscribe to server-streaming events (listen only)
+    @verbatim qdp -s mygrpc mygrpc/PriceService/WatchPrices/events listen
+    @endverbatim
+
+    @subsection grpcdataprovider_examples_bidi Bidirectional Interactive Streaming
+
+    Bidirectional-streaming methods expose an \c events child provider that
+    supports both observable events and sending messages, enabling interactive
+    use with \c qdp \c ix:
+
+    @par Example: interactive bidirectional streaming
+    @verbatim qdp -s mygrpc mygrpc/ChatService/Chat/events ix
     @endverbatim
 
     @section grpcdataprovider_reflection Server Reflection
@@ -321,6 +335,35 @@ events.registerObserver(my_observer);
 events.observersReady();
     @endcode
 
+    @subsection grpcdataprovider_programmatic_bidi Bidirectional Interactive Stream
+
+    @code{.py}
+%modern
+%requires GrpcDataProvider
+
+GrpcDataProvider provider({
+    "url": "http://localhost:50051",
+    "proto_path": "/path/to/protos",
+    "proto_file": "chat.proto",
+});
+
+# Navigate to the events child of a bidi-streaming method
+AbstractDataProvider events = provider.getChildProvider("ChatService")
+    .getChildProvider("Chat")
+    .getChildProvider("events");
+
+# Register observer for incoming messages
+events.registerObserver(my_observer);
+events.observersReady();
+
+# Send messages on the bidirectional stream
+events.sendMessage(MESSAGE_GRPC_STREAM_SEND, {"text": "hello"});
+events.sendMessage(MESSAGE_GRPC_STREAM_SEND, {"text": "world"});
+
+# Signal that no more messages will be sent
+events.stopEvents();
+    @endcode
+
     @section grpcdataprovider_connections Connection Schemes
 
     The module registers two connection URL schemes:
@@ -348,7 +391,8 @@ events.observersReady();
     - @ref GrpcDataProvider::GrpcReflectionClient "GrpcReflectionClient": gRPC server
       reflection protocol client
     - @ref GrpcDataProvider::GrpcStreamEventDataProvider "GrpcStreamEventDataProvider":
-      observable event provider for server-streaming methods
+      observable event provider for server-streaming and bidirectional-streaming methods;
+      bidi methods support sending messages for interactive use (\c qdp \c ix)
 */
 
 #! Contains all public definitions in the GrpcDataProvider module

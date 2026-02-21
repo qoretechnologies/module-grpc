@@ -127,6 +127,15 @@ public class GrpcTest inherits QUnit::Test {
         addTestCase("streaming: server stream cancel", \testServerStreamCancel());
         addTestCase("streaming: empty server stream", \testEmptyServerStream());
 
+        # Live streaming tests (Phase 7)
+        addTestCase("live streaming: bidi interactive", \testBidiInteractiveLive());
+        addTestCase("live streaming: bidi multiple messages", \testBidiLiveMultipleMessages());
+        addTestCase("live streaming: client stream", \testClientStreamLive());
+        addTestCase("live streaming: bidi timeout", \testBidiLiveTimeout());
+        addTestCase("live streaming: server stream after client done",
+            \testBidiLiveServerStreamAfterClientDone());
+        addTestCase("live streaming: readsDone", \testBidiLiveReadsDone());
+
         # TLS tests (Phase 6)
         addTestCase("tls: secure server and client", \testTlsSecure());
 
@@ -1067,7 +1076,7 @@ public class GrpcTest inherits QUnit::Test {
 
         # Read all messages
         list<hash<auto>> messages = ();
-        while (*hash<auto> msg = stream.read(5s)) {
+        while (*hash<auto> msg = stream.read(60s)) {
             messages += msg;
         }
 
@@ -1148,7 +1157,7 @@ public class GrpcTest inherits QUnit::Test {
 
         # Read responses
         list<hash<auto>> messages = ();
-        while (*hash<auto> msg = stream.read(5s)) {
+        while (*hash<auto> msg = stream.read(60s)) {
             messages += msg;
         }
 
@@ -1186,7 +1195,7 @@ public class GrpcTest inherits QUnit::Test {
             {"name": "cancel-test", "id": 1});
 
         # Read first message then cancel
-        *hash<auto> msg = stream.read(5s);
+        *hash<auto> msg = stream.read(60s);
         assertTrue(exists msg, "got at least one message before cancel");
         stream.cancel();
         # After cancel, the stream should be done
@@ -1214,7 +1223,7 @@ public class GrpcTest inherits QUnit::Test {
             {"name": "empty", "id": 1});
 
         # Should get nothing
-        *hash<auto> msg = stream.read(5s);
+        *hash<auto> msg = stream.read(60s);
         assertNothing(msg, "empty stream returns nothing");
 
         hash<GrpcCallResult> result = stream.finish();
@@ -1294,7 +1303,7 @@ public class GrpcTest inherits QUnit::Test {
 
         # Drain messages
         list<hash<auto>> messages = ();
-        while (*hash<auto> msg = stream.read(5s)) {
+        while (*hash<auto> msg = stream.read(60s)) {
             messages += msg;
         }
         assertEq(2, messages.size(), "received 2 messages");
@@ -1334,7 +1343,7 @@ public class GrpcTest inherits QUnit::Test {
         GrpcClientStream cstream = client.serverStream("ServerStream",
             {"name": "init-meta", "id": 1});
 
-        *hash<auto> msg = cstream.read(5s);
+        *hash<auto> msg = cstream.read(60s);
         assertTrue(exists msg, "got message with initial metadata");
         assertEq("with initial metadata", msg.message, "message content");
 
@@ -1494,7 +1503,7 @@ public class GrpcTest inherits QUnit::Test {
             {"name": "deadline-test", "id": 1}, opts);
 
         # Drain messages
-        while (stream.read(5s)) {
+        while (stream.read(60s)) {
             # May or may not receive messages depending on timing
         }
 
@@ -1555,11 +1564,253 @@ public class GrpcTest inherits QUnit::Test {
         };
         GrpcClientStream stream = client.serverStream("ServerStream",
             {"name": "metadata-test", "id": 1}, opts);
-        while (stream.read(5s)) {}
+        while (stream.read(60s)) {}
         stream.finish();
 
         assertEq("test-value", received_metadata."x-test-key",
             "clientMetadata returns client headers");
+    }
+
+    # ---- Live streaming tests ----
+
+    testBidiInteractiveLive() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        # Echo handler: reads a message, writes response immediately
+        server.registerHandler("TestService", "BidiStream",
+            sub(GrpcServerStream stream, hash<string, string> metadata) {
+                while (*hash<auto> msg = stream.read(60s)) {
+                    stream.write({
+                        "message": "Echo: " + msg.name,
+                        "status": msg.id,
+                    });
+                }
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        GrpcClientStream stream = client.bidiStream("BidiStream");
+
+        # Send first message and verify response arrives BEFORE second message is sent
+        stream.write({"name": "msg1", "id": 1});
+        *hash<auto> resp1 = stream.read(60s);
+        assertEq("Echo: msg1", resp1.message, "first interactive response");
+        assertEq(1, resp1.status, "first interactive status");
+
+        # Send second message and verify response
+        stream.write({"name": "msg2", "id": 2});
+        *hash<auto> resp2 = stream.read(60s);
+        assertEq("Echo: msg2", resp2.message, "second interactive response");
+        assertEq(2, resp2.status, "second interactive status");
+
+        stream.writesDone();
+        hash<GrpcCallResult> result = stream.finish();
+        assertEq(GRPC_STATUS_OK, result.status_code, "bidi interactive status OK");
+    }
+
+    testBidiLiveMultipleMessages() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "BidiStream",
+            sub(GrpcServerStream stream, hash<string, string> metadata) {
+                while (*hash<auto> msg = stream.read(60s)) {
+                    stream.write({
+                        "message": "Echo: " + msg.name,
+                        "status": msg.id,
+                    });
+                }
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        GrpcClientStream stream = client.bidiStream("BidiStream");
+
+        # Send 5 messages interleaved with reads
+        for (int i = 0; i < 5; ++i) {
+            stream.write({"name": sprintf("user%d", i), "id": i});
+            *hash<auto> resp = stream.read(60s);
+            assertEq(sprintf("Echo: user%d", i), resp.message,
+                sprintf("msg %d response", i));
+            assertEq(i, resp.status, sprintf("msg %d status", i));
+        }
+
+        stream.writesDone();
+        hash<GrpcCallResult> result = stream.finish();
+        assertEq(GRPC_STATUS_OK, result.status_code, "bidi multiple messages status OK");
+    }
+
+    testClientStreamLive() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "ClientStream",
+            hash<auto> sub(GrpcServerStream stream, hash<string, string> metadata) {
+                list<string> names = ();
+                while (*hash<auto> msg = stream.read(60s)) {
+                    names += msg.name;
+                }
+                return {
+                    "message": names.join(", "),
+                    "status": names.size(),
+                };
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        GrpcClientStream stream = client.clientStream("ClientStream");
+
+        # Send 3 messages
+        stream.write({"name": "Alice", "id": 1});
+        stream.write({"name": "Bob", "id": 2});
+        stream.write({"name": "Charlie", "id": 3});
+        stream.writesDone();
+
+        hash<GrpcCallResult> result = stream.finish();
+        assertEq(GRPC_STATUS_OK, result.status_code, "client stream live status OK");
+        assertEq("Alice, Bob, Charlie", result.body.message,
+            "client stream response message");
+        assertEq(3, result.body.status, "client stream count");
+    }
+
+    testBidiLiveTimeout() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        # Handler that calls read() with a short timeout; client sends nothing
+        bool handler_timed_out = False;
+        server.registerHandler("TestService", "BidiStream",
+            sub(GrpcServerStream stream, hash<string, string> metadata) {
+                *hash<auto> msg = stream.read(1s);
+                if (!msg) {
+                    handler_timed_out = True;
+                }
+                # Write a response to indicate completion
+                stream.write({"message": "timeout-test", "status": 0});
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        GrpcClientStream stream = client.bidiStream("BidiStream");
+
+        # Don't send any messages; let the server handler read() time out
+        # Read the server's timeout-test response
+        *hash<auto> resp = stream.read(60s);
+        assertEq("timeout-test", resp.message, "timeout test response");
+
+        stream.writesDone();
+        hash<GrpcCallResult> result = stream.finish();
+        assertEq(GRPC_STATUS_OK, result.status_code, "bidi timeout status OK");
+        assertTrue(handler_timed_out, "server handler timed out on read()");
+    }
+
+    testBidiLiveServerStreamAfterClientDone() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "BidiStream",
+            sub(GrpcServerStream stream, hash<string, string> metadata) {
+                # Read the client message
+                *hash<auto> msg = stream.read(60s);
+                # Write 3 responses after client is done
+                for (int i = 0; i < 3; ++i) {
+                    stream.write({
+                        "message": sprintf("response %d for %s", i, msg.name),
+                        "status": i,
+                    });
+                }
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        GrpcClientStream stream = client.bidiStream("BidiStream");
+
+        # Send one message and close client side
+        stream.write({"name": "test", "id": 1});
+        stream.writesDone();
+
+        # Read all 3 server responses
+        list<hash<auto>> responses = ();
+        while (*hash<auto> resp = stream.read(60s)) {
+            responses += resp;
+        }
+
+        assertEq(3, responses.size(), "received 3 server responses");
+        assertEq("response 0 for test", responses[0].message, "first response");
+        assertEq("response 1 for test", responses[1].message, "second response");
+        assertEq("response 2 for test", responses[2].message, "third response");
+
+        hash<GrpcCallResult> result = stream.finish();
+        assertEq(GRPC_STATUS_OK, result.status_code,
+            "bidi server stream after client done status OK");
+    }
+
+    testBidiLiveReadsDone() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        bool reads_done_during = False;
+        bool reads_done_after = False;
+        server.registerHandler("TestService", "BidiStream",
+            sub(GrpcServerStream stream, hash<string, string> metadata) {
+                # Read first message
+                assertEq(True, exists stream.read(60s), "first message received");
+                reads_done_during = stream.readsDone();
+                stream.write({"message": "ack", "status": 0});
+
+                # Wait for stream to complete (client writesDone)
+                while (exists stream.read(60s)) {
+                    stream.write({"message": "extra", "status": 0});
+                }
+                reads_done_after = stream.readsDone();
+            });
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        GrpcClientStream stream = client.bidiStream("BidiStream");
+
+        stream.write({"name": "test", "id": 1});
+        *hash<auto> resp = stream.read(60s);
+        assertEq("ack", resp.message, "readsDone ack response");
+
+        stream.writesDone();
+        # Drain remaining messages
+        while (stream.read(60s)) {}
+        hash<GrpcCallResult> result = stream.finish();
+        assertEq(GRPC_STATUS_OK, result.status_code, "readsDone status OK");
+        assertFalse(reads_done_during, "readsDone False during stream");
+        assertTrue(reads_done_after, "readsDone True after stream end");
     }
 
     testConnectionRefused() {

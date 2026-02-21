@@ -130,7 +130,26 @@ printf("Uploaded %d chunks\n", result.body.total);
 
     @subsection grpc_client_bidi Bidirectional Streaming
 
-    Bidirectional streaming supports concurrent request and response streams:
+    Bidirectional streaming supports concurrent request and response streams.
+    The client can interleave reads and writes for interactive communication:
+
+    @code{.py}
+GrpcClientStream stream = client.bidiStream("Chat");
+# Send a message and read the response before sending the next
+stream.write({"text": "Hello"});
+*hash<auto> reply1 = stream.read(5s);
+printf("Reply: %s\n", reply1.text);
+
+stream.write({"text": "World"});
+*hash<auto> reply2 = stream.read(5s);
+printf("Reply: %s\n", reply2.text);
+
+stream.writesDone();
+hash<GrpcCallResult> result = stream.finish();
+    @endcode
+
+    Use @ref Grpc::GrpcClientStream::readsDone() "readsDone()" to distinguish
+    a read timeout from the server closing its side of the stream:
 
     @code{.py}
 GrpcClientStream stream = client.bidiStream("Chat");
@@ -140,6 +159,8 @@ stream.writesDone();
 while (*hash<auto> msg = stream.read(5s)) {
     printf("Reply: %s\n", msg.text);
 }
+# readsDone() returns True when the server has closed its side
+printf("Stream ended: %y\n", stream.readsDone());
 hash<GrpcCallResult> result = stream.finish();
     @endcode
 
@@ -193,6 +214,38 @@ server.registerHandler("Items", "ListItems",
     });
     @endcode
 
+    @subsection grpc_server_bidi Bidirectional Streaming Handler
+
+    Bidirectional streaming handlers receive a @ref Grpc::GrpcServerStream "GrpcServerStream"
+    for interactive communication. The handler reads client messages incrementally
+    and writes responses immediately -- no pre-buffering of the client stream:
+
+    @code{.py}
+server.registerHandler("Chat", "Send",
+    sub(GrpcServerStream stream, hash<string, string> metadata) {
+        while (*hash<auto> msg = stream.read(30s)) {
+            # Process each message and respond immediately
+            stream.write({"text": "Echo: " + msg.text});
+        }
+    });
+    @endcode
+
+    @subsection grpc_server_clientstream Client Streaming Handler
+
+    Client streaming handlers also use @ref Grpc::GrpcServerStream "GrpcServerStream"
+    but return a response hash instead of writing to the stream:
+
+    @code{.py}
+server.registerHandler("Upload", "Send",
+    hash<auto> sub(GrpcServerStream stream, hash<string, string> metadata) {
+        int count = 0;
+        while (*hash<auto> msg = stream.read()) {
+            ++count;
+        }
+        return {"total": count};
+    });
+    @endcode
+
     @subsection grpc_server_tls TLS Support
 
     @code{.py}
@@ -239,9 +292,13 @@ printf("Fields: %y\n", keys msg_schema.fields);
     - initial release
     - @ref Grpc::GrpcClient "GrpcClient": unary, server streaming, client streaming, bidirectional streaming
     - @ref Grpc::GrpcServer "GrpcServer": handler registration, async I/O, TLS support
+    - true interactive bidirectional streaming: server handlers process client messages
+      incrementally via @ref Grpc::GrpcServerStream "GrpcServerStream" (headers-only dispatch
+      with live HTTP/2 stream reading, no pre-buffering)
     - @ref Grpc::GrpcChannel "GrpcChannel": connection pooling via Http2ClientConnectionManager
-    - @ref Grpc::GrpcClientStream "GrpcClientStream": client-side streaming with read/write/cancel
-    - @ref Grpc::GrpcServerStream "GrpcServerStream": server-side streaming with read/write and metadata support
+    - @ref Grpc::GrpcClientStream "GrpcClientStream": client-side streaming with read/write/cancel/readsDone
+    - @ref Grpc::GrpcServerStream "GrpcServerStream": server-side streaming with
+      read/write, metadata support, and both buffered and live reading modes
     - @ref Grpc::GrpcHelper "GrpcHelper": gRPC framing, header utilities, timeout formatting
     - custom metadata passing (request, initial response, trailing)
     - timeout/deadline enforcement via \c grpc-timeout header

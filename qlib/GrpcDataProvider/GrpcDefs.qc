@@ -48,6 +48,9 @@ public namespace GrpcDataProvider {
     #! Event ID: a gRPC server stream error occurred
     public const EVENT_GRPC_STREAM_ERROR = "grpc-stream-error";
 
+    #! Message ID: send a message on a bidirectional gRPC stream
+    public const MESSAGE_GRPC_STREAM_SEND = "grpc-stream-send";
+
     #! Data type for stream error events
     public const GrpcStreamErrorDataType = new HashDataType("GrpcStreamError", {
         "err": {

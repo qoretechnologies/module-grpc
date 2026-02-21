@@ -37,6 +37,7 @@ public class GrpcDataProviderFactory inherits AbstractDataProviderFactory {
             "desc": "gRPC data provider factory",
             "children_can_support_apis": True,
             "children_can_support_observers": True,
+            "children_can_support_messages": True,
         };
     }
 

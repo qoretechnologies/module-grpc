@@ -231,6 +231,15 @@ public class GrpcClientStream {
         };
     }
 
+    #! Returns True if the stream has received END_STREAM from the server
+    /** @return True if reads are done and no more data will arrive
+
+        @since %Grpc 1.0
+    */
+    bool readsDone() {
+        return m_reads_done;
+    }
+
     #! Cancel the stream
     /** Sends RST_STREAM to abort the stream. Any unread messages are discarded.
 

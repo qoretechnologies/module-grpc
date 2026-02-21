@@ -178,25 +178,29 @@ public class GrpcMethodDataProvider inherits AbstractDataProvider {
     #! Returns static provider info
     private hash<DataProviderInfo> getStaticInfoImpl() {
         hash<DataProviderInfo> info = ProviderInfo;
-        if (method_info.server_streaming && !method_info.client_streaming) {
+        if (method_info.server_streaming) {
             info.supports_children = True;
             info.children_can_support_observers = True;
+            if (method_info.client_streaming) {
+                info.children_can_support_messages = True;
+            }
         }
         return info;
     }
 
     #! Returns child provider names
-    /** Server-streaming methods expose an "events" child provider for observable support
+    /** Server-streaming and bidi-streaming methods expose an "events" child provider
+        for observable support
     */
     private *list<string> getChildProviderNamesImpl() {
-        if (method_info.server_streaming && !method_info.client_streaming) {
+        if (method_info.server_streaming) {
             return ("events",);
         }
     }
 
     #! Returns a child provider by name
     private *AbstractDataProvider getChildProviderImpl(string name) {
-        if (name == "events" && method_info.server_streaming && !method_info.client_streaming) {
+        if (name == "events" && method_info.server_streaming) {
             return new GrpcStreamEventDataProvider(channel, schema, service_info,
                 method_info, default_opts);
         }

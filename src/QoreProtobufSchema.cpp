@@ -134,13 +134,15 @@ std::string QoreProtobufSchema::DescriptorErrorCollector::getErrors() const {
 // QoreProtobufSchema constructors
 QoreProtobufSchema::QoreProtobufSchema(const char* path, const char* proto_file,
         ExceptionSink* xsink) {
+    // Check for thread cancellation / program interrupt before I/O
+    if (qore_check_cancel(xsink, "loading .proto file")) {
+        return;
+    }
+
     // Check sandbox filesystem restrictions before accessing disk
     QoreSandboxManagerHelper smh;
     if (smh) {
         if (!smh->checkFilesystemAccess(path, QSEC_READ, xsink)) {
-            return;
-        }
-        if (smh->checkIOInterrupt(xsink, "loading .proto file")) {
             return;
         }
     }

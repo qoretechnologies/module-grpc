@@ -103,6 +103,14 @@ public class GrpcDataProviderTest inherits QUnit::Test {
         addTestCase("observable: event types", \testObservableEventTypes());
         addTestCase("observable: stop events", \testObservableStopEvents());
         addTestCase("observable: no request", \testObservableNoRequest());
+        addTestCase("observable: server stream isActive", \testServerStreamIsActive());
+
+        # Bidi interactive tests
+        addTestCase("bidi: method has events child", \testBidiMethodHasEventsChild());
+        addTestCase("bidi: message types", \testBidiMessageTypes());
+        addTestCase("bidi: interactive", \testBidiInteractive());
+        addTestCase("bidi: stop events", \testBidiStopEvents());
+        addTestCase("bidi: isActive", \testBidiIsActive());
 
         set_return_value(main());
     }
@@ -863,6 +871,45 @@ public class GrpcDataProviderTest inherits QUnit::Test {
         assertTrue(count < 20, "should have stopped before receiving all 20 messages");
     }
 
+    testServerStreamIsActive() {
+        hash<auto> env = setupIntegrationServer();
+        on_exit env.server.shutdown();
+
+        GrpcDataProvider provider({
+            "url": "http://localhost:" + string(env.port),
+            "schema": env.schema,
+        });
+
+        AbstractDataProvider event_prov = provider.getChildProvider("TestService")
+            .getChildProvider("ServerStream")
+            .getChildProvider("events");
+
+        GrpcStreamEventDataProvider typed_prov = cast<GrpcStreamEventDataProvider>(event_prov);
+
+        # isActive should be True before stream starts
+        assertTrue(typed_prov.isActive());
+
+        Counter done(1);
+        TestObserver observer(sub (string event_id, hash<auto> data) {
+            if (event_id == EVENT_GRPC_STREAM_COMPLETE || event_id == EVENT_GRPC_STREAM_ERROR) {
+                done.dec();
+            }
+        });
+
+        typed_prov.setObserverRequest({"name": "World", "id": 1});
+        typed_prov.registerObserver(observer);
+        typed_prov.observersReady();
+
+        # Wait for stream to complete
+        done.waitForZero(10s);
+
+        # Wait deterministically for stream loop to set active = False
+        assertTrue(typed_prov.waitForInactive(10s), "stream should become inactive");
+
+        # isActive should be False after stream completes
+        assertFalse(typed_prov.isActive());
+    }
+
     testObservableNoRequest() {
         hash<auto> env = setupIntegrationServer();
         on_exit env.server.shutdown();
@@ -898,6 +945,237 @@ public class GrpcDataProviderTest inherits QUnit::Test {
         assertEq(EVENT_GRPC_STREAM_MESSAGE, events[0].event_id);
         assertEq("msg 0 for ", events[0].data.message);
         assertEq(EVENT_GRPC_STREAM_COMPLETE, events[3].event_id);
+    }
+    # ---------- Bidi Interactive Tests ----------
+
+    testBidiMethodHasEventsChild() {
+        GrpcDataProvider root({"proto_content": proto_content, "url": "http://localhost:50051"});
+
+        AbstractDataProvider bidi_prov = root.getChildProvider("TestService")
+            .getChildProvider("BidiStream");
+
+        # Bidi method should have children
+        hash<DataProviderInfo> info = bidi_prov.getInfo();
+        assertTrue(info.supports_children);
+        assertTrue(info.children_can_support_observers);
+        assertTrue(info.children_can_support_messages);
+
+        # Should expose "events" child
+        *list<string> children = bidi_prov.getChildProviderNames();
+        assertEq(1, children.size());
+        assertEq("events", children[0]);
+
+        # Should be able to get events child
+        AbstractDataProvider event_prov = bidi_prov.getChildProvider("events");
+        assertEq(True, event_prov instanceof GrpcStreamEventDataProvider);
+    }
+
+    testBidiMessageTypes() {
+        GrpcDataProvider root({"proto_content": proto_content, "url": "http://localhost:50051"});
+
+        # Bidi method's events provider should support messages
+        AbstractDataProvider bidi_events = root.getChildProvider("TestService")
+            .getChildProvider("BidiStream")
+            .getChildProvider("events");
+
+        hash<DataProviderInfo> bidi_info = bidi_events.getInfo();
+        assertTrue(bidi_info.supports_observable);
+        assertEq(MSG_Async, bidi_info.supports_messages);
+
+        # Should have the send message type
+        hash<string, hash<DataProviderMessageInfo>> msg_types = bidi_events.getMessageTypes();
+        assertTrue(msg_types.hasKey(MESSAGE_GRPC_STREAM_SEND));
+        assertEq(True, msg_types{MESSAGE_GRPC_STREAM_SEND}.type instanceof HashDataType);
+
+        # Verify the message type has the input fields (SimpleRequest)
+        hash<string, AbstractDataField> fields = msg_types{MESSAGE_GRPC_STREAM_SEND}.type.getFields();
+        assertTrue(fields.hasKey("name"));
+        assertTrue(fields.hasKey("id"));
+
+        # Server-streaming events provider should NOT support messages
+        AbstractDataProvider ss_events = root.getChildProvider("TestService")
+            .getChildProvider("ServerStream")
+            .getChildProvider("events");
+
+        hash<DataProviderInfo> ss_info = ss_events.getInfo();
+        assertTrue(ss_info.supports_observable);
+        assertFalse(ss_info.supports_messages != MSG_None);
+    }
+
+    testBidiInteractive() {
+        hash<auto> env = setupIntegrationServer();
+        on_exit env.server.shutdown();
+
+        GrpcDataProvider provider({
+            "url": "http://localhost:" + string(env.port),
+            "schema": env.schema,
+        });
+
+        AbstractDataProvider event_prov = provider.getChildProvider("TestService")
+            .getChildProvider("BidiStream")
+            .getChildProvider("events");
+
+        GrpcStreamEventDataProvider typed_prov = cast<GrpcStreamEventDataProvider>(event_prov);
+
+        # Collect events
+        list<hash<auto>> events = ();
+        Mutex em();
+        Counter done(1);
+
+        TestObserver observer(sub (string event_id, hash<auto> data) {
+            {
+                AutoLock al(em);
+                events += {"event_id": event_id, "data": data};
+            }
+            if (event_id == EVENT_GRPC_STREAM_COMPLETE || event_id == EVENT_GRPC_STREAM_ERROR) {
+                done.dec();
+            }
+        });
+
+        typed_prov.registerObserver(observer);
+        typed_prov.observersReady();
+
+        # Wait deterministically for bidi stream to connect
+        assertTrue(typed_prov.waitForReady(10s), "bidi stream should connect");
+
+        # Send messages via the message API
+        typed_prov.sendMessage(MESSAGE_GRPC_STREAM_SEND, {"name": "hello", "id": 1});
+        typed_prov.sendMessage(MESSAGE_GRPC_STREAM_SEND, {"name": "world", "id": 2});
+
+        # Signal writes done -- server pre-buffers, so echoes arrive after this
+        typed_prov.stopEvents();
+
+        # Wait for stream to complete (server echoes then closes)
+        done.waitForZero(10s);
+
+        {
+            AutoLock al(em);
+            # Should have received the echoed messages + complete event
+            list<hash<auto>> messages = ();
+            for (int i = 0; i < events.size(); ++i) {
+                if (events[i].event_id == EVENT_GRPC_STREAM_MESSAGE) {
+                    messages += events[i].data;
+                }
+            }
+            assertEq(2, messages.size());
+            assertEq("echo: hello", messages[0].message);
+            assertEq(1, messages[0].status);
+            assertEq("echo: world", messages[1].message);
+            assertEq(2, messages[1].status);
+
+            # Verify stream completed successfully
+            assertEq(EVENT_GRPC_STREAM_COMPLETE, events[events.size() - 1].event_id);
+        }
+    }
+
+    testBidiStopEvents() {
+        hash<auto> env = setupIntegrationServer();
+        on_exit env.server.shutdown();
+
+        GrpcDataProvider provider({
+            "url": "http://localhost:" + string(env.port),
+            "schema": env.schema,
+        });
+
+        AbstractDataProvider event_prov = provider.getChildProvider("TestService")
+            .getChildProvider("BidiStream")
+            .getChildProvider("events");
+
+        GrpcStreamEventDataProvider typed_prov = cast<GrpcStreamEventDataProvider>(event_prov);
+
+        list<hash<auto>> events = ();
+        Mutex em();
+        Counter done(1);
+
+        TestObserver observer(sub (string event_id, hash<auto> data) {
+            {
+                AutoLock al(em);
+                events += {"event_id": event_id, "data": data};
+            }
+            if (event_id == EVENT_GRPC_STREAM_COMPLETE || event_id == EVENT_GRPC_STREAM_ERROR) {
+                done.dec();
+            }
+        });
+
+        typed_prov.registerObserver(observer);
+        typed_prov.observersReady();
+
+        # Wait deterministically for bidi stream to connect
+        assertTrue(typed_prov.waitForReady(10s), "bidi stream should connect");
+
+        # Send one message
+        typed_prov.sendMessage(MESSAGE_GRPC_STREAM_SEND, {"name": "test", "id": 1});
+
+        # Stop events (signals writesDone, triggering server processing)
+        typed_prov.stopEvents();
+
+        # Wait for stream to complete
+        done.waitForZero(10s);
+
+        {
+            AutoLock al(em);
+            # Should have received exactly 1 message event
+            int msg_events = 0;
+            for (int i = 0; i < events.size(); ++i) {
+                if (events[i].event_id == EVENT_GRPC_STREAM_MESSAGE) {
+                    ++msg_events;
+                }
+            }
+            assertEq(1, msg_events);
+        }
+
+        # Sending after stop should fail (wrapped as SEND-MESSAGE-ERROR by framework)
+        assertThrows("SEND-MESSAGE-ERROR", sub () {
+            typed_prov.sendMessage(MESSAGE_GRPC_STREAM_SEND, {"name": "fail", "id": 0});
+        });
+    }
+
+    testBidiIsActive() {
+        hash<auto> env = setupIntegrationServer();
+        on_exit env.server.shutdown();
+
+        GrpcDataProvider provider({
+            "url": "http://localhost:" + string(env.port),
+            "schema": env.schema,
+        });
+
+        AbstractDataProvider event_prov = provider.getChildProvider("TestService")
+            .getChildProvider("BidiStream")
+            .getChildProvider("events");
+
+        GrpcStreamEventDataProvider typed_prov = cast<GrpcStreamEventDataProvider>(event_prov);
+
+        # isActive should be True before stream starts
+        assertTrue(typed_prov.isActive());
+
+        Counter done(1);
+        TestObserver observer(sub (string event_id, hash<auto> data) {
+            if (event_id == EVENT_GRPC_STREAM_COMPLETE || event_id == EVENT_GRPC_STREAM_ERROR) {
+                done.dec();
+            }
+        });
+
+        typed_prov.registerObserver(observer);
+        typed_prov.observersReady();
+
+        # Wait deterministically for bidi stream to connect
+        assertTrue(typed_prov.waitForReady(10s), "bidi stream should connect");
+
+        # isActive should be True during stream
+        assertTrue(typed_prov.isActive());
+
+        # Send a message and signal writes done
+        typed_prov.sendMessage(MESSAGE_GRPC_STREAM_SEND, {"name": "test", "id": 1});
+        typed_prov.stopEvents();
+
+        # Wait for stream to complete
+        done.waitForZero(10s);
+
+        # Wait deterministically for stream loop to set active = False
+        assertTrue(typed_prov.waitForInactive(10s), "stream should become inactive");
+
+        # isActive should be False after stream ends
+        assertFalse(typed_prov.isActive());
     }
 }
 

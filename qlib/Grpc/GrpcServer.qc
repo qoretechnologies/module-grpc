@@ -336,15 +336,42 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
 
             # HTTP/2 connection preface + settings exchange happens during first request read
             while (!m_shutdown) {
-                # Read HTTP/2 request
-                AbstractPollOperation read_op = client.startPollReadHttp2Request();
+                # Read HTTP/2 request headers (headers_only mode for streaming support)
+                AbstractPollOperation read_op = client.startPollReadHttp2Request(
+                    {"headers_only": True});
                 drivePoll(read_op);
                 if (!read_op.goalReached()) {
                     break;
                 }
 
                 hash<auto> request = read_op.getOutput();
-                handleRequest(client, request);
+                int stream_id = request.stream_id;
+
+                # Check if this was a headers-only dispatch (stream still in map)
+                bool headers_only = request.hdr ?? False;
+
+                if (headers_only) {
+                    # Headers-only dispatch: determine method type and handle accordingly
+                    string handler_key;
+                    *hash<GrpcMethodInfo> method_info = lookupMethodFromPath(
+                        request.path, \handler_key);
+
+                    if (method_info && method_info.client_streaming) {
+                        # Client-streaming or bidi: dispatch live
+                        handleRequestLive(client, request, method_info, handler_key);
+                    } else {
+                        # Unary / server-streaming: read remaining body, then dispatch
+                        binary body_data = readStreamBody(client, stream_id);
+                        request.body = body_data;
+                        handleRequest(client, request);
+                    }
+
+                    # Clean up dispatched stream from HTTP/2 session
+                    client.cleanupHttp2Stream(stream_id);
+                } else {
+                    # Full request already received (H2S_REQUEST_READY)
+                    handleRequest(client, request);
+                }
             }
         } catch (hash<ExceptionInfo> ex) {
             if (!m_shutdown && ex.err != "SOCKET-CLOSED" && ex.err != "SOCKET-NOT-OPEN") {
@@ -376,7 +403,173 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
         }
     }
 
-    #! Handle a single gRPC request
+    #! Look up method info from request path
+    /** @param path the gRPC request path (e.g., "/package.Service/Method")
+        @return the method info, or NOTHING if not found
+    */
+    private *hash<GrpcMethodInfo> lookupMethodFromPath(string path, reference<string> handler_key) {
+        *list<string> parts = path.split("/");
+        if (!parts || parts.size() < 3) {
+            return NOTHING;
+        }
+        string full_service = parts[1];
+        string method_name = parts[2];
+        string service_name = full_service;
+        int dot_pos = full_service.rfind(".");
+        if (dot_pos >= 0) {
+            service_name = full_service.substr(dot_pos + 1);
+        }
+        handler_key = service_name + "/" + method_name;
+        return m_method_info{handler_key};
+    }
+
+    #! Read remaining body data from an HTTP/2 stream (for non-streaming methods)
+    /** After headers-only dispatch, reads all remaining body data until END_STREAM.
+        @param client the client socket
+        @param stream_id the HTTP/2 stream ID
+        @return the accumulated body data
+    */
+    private binary readStreamBody(Socket client, int stream_id) {
+        binary body = binary();
+        while (!client.isHttp2StreamComplete(stream_id)) {
+            *binary chunk = client.readHttp2StreamDataBlock(stream_id, 5s);
+            if (chunk) {
+                body += chunk;
+            }
+        }
+        # Read any remaining buffered data
+        *binary chunk = client.readHttp2StreamDataBlock(stream_id, 0ms);
+        if (chunk) {
+            body += chunk;
+        }
+        return body;
+    }
+
+    #! Handle a live streaming request (client-streaming or bidi)
+    /** Dispatches the handler immediately with a live GrpcServerStream that reads
+        from the HTTP/2 stream incrementally.
+
+        @param client the client socket
+        @param request the request headers (from headers-only poll)
+        @param method_info the method info from schema
+    */
+    private handleRequestLive(Socket client, hash<auto> request,
+            hash<GrpcMethodInfo> method_info, string handler_key) {
+        int stream_id = request.stream_id;
+        hash<string, string> metadata();
+        if (request.headers) {
+            map metadata{$1.key} = $1.value.toString(),
+                request.headers.pairIterator(),
+                $1.key !~ /^:/ && $1.key != "content-type" && $1.key != "te";
+        }
+
+        *date deadline;
+        if (metadata."grpc-timeout") {
+            *int timeout_ms = GrpcHelper::parseTimeout(metadata."grpc-timeout");
+            if (timeout_ms) {
+                deadline = now_us() + milliseconds(timeout_ms);
+            }
+            remove metadata."grpc-timeout";
+        }
+
+        *code handler = m_handlers{handler_key};
+        if (!handler) {
+            sendErrorResponse(client, stream_id, GRPC_STATUS_UNIMPLEMENTED,
+                sprintf("method not found: %s", handler_key));
+            return;
+        }
+
+        if (method_info.server_streaming && method_info.client_streaming) {
+            handleBidiStreamLive(client, stream_id, handler, method_info, metadata, deadline);
+        } else {
+            handleClientStreamLive(client, stream_id, handler, method_info, metadata, deadline);
+        }
+    }
+
+    #! Handle a live bidirectional-streaming RPC call
+    /** Handler reads and writes messages incrementally via the live GrpcServerStream.
+    */
+    private handleBidiStreamLive(Socket client, int stream_id, code handler,
+            hash<GrpcMethodInfo> method_info, hash<string, string> metadata,
+            *date deadline) {
+        # Create live server stream
+        GrpcServerStream stream(client, stream_id, m_schema,
+            method_info.input_type, method_info.output_type, metadata, True);
+
+        int status_code = GRPC_STATUS_OK;
+        string status_message = "OK";
+
+        try {
+            handler(stream, metadata);
+        } catch (hash<ExceptionInfo> ex) {
+            status_code = GRPC_STATUS_INTERNAL;
+            status_message = sprintf("%s: %s", ex.err, ex.desc);
+        }
+
+        if (status_code == GRPC_STATUS_OK && deadline && now_us() > deadline) {
+            status_code = GRPC_STATUS_DEADLINE_EXCEEDED;
+            status_message = "deadline exceeded";
+        }
+
+        stream.ensureHeadersSent();
+        hash<string, string> trailers = stream.getTrailingMetadata();
+        trailers."grpc-status" = string(status_code);
+        trailers."grpc-message" = status_message;
+        client.sendHttp2Trailers(stream_id, trailers);
+
+        AbstractPollOperation flush_op = client.startPollHttp2Flush();
+        drivePoll(flush_op);
+    }
+
+    #! Handle a live client-streaming RPC call
+    /** Handler reads all messages incrementally via the live GrpcServerStream
+        and returns a single response hash.
+    */
+    private handleClientStreamLive(Socket client, int stream_id, code handler,
+            hash<GrpcMethodInfo> method_info, hash<string, string> metadata,
+            *date deadline) {
+        # Create live server stream
+        GrpcServerStream stream(client, stream_id, m_schema,
+            method_info.input_type, method_info.output_type, metadata, True);
+
+        hash<auto> response_body;
+        int status_code = GRPC_STATUS_OK;
+        string status_message = "OK";
+
+        try {
+            response_body = handler(stream, metadata);
+        } catch (hash<ExceptionInfo> ex) {
+            sendErrorResponse(client, stream_id, GRPC_STATUS_INTERNAL,
+                sprintf("%s: %s", ex.err, ex.desc));
+            return;
+        }
+
+        # Check deadline after handler returns
+        if (deadline && now_us() > deadline) {
+            sendErrorResponse(client, stream_id, GRPC_STATUS_DEADLINE_EXCEEDED,
+                "deadline exceeded");
+            return;
+        }
+
+        # Encode response
+        binary encoded = m_schema.encode(method_info.output_type, response_body);
+        binary framed = GrpcHelper::frameMessage(encoded);
+
+        # Send response with trailers, including custom trailing metadata
+        hash<string, string> trailers = stream.getTrailingMetadata();
+        trailers."grpc-status" = string(status_code);
+        trailers."grpc-message" = status_message;
+
+        client.submitHttp2StreamingResponseHeaders(stream_id, 200,
+            {"content-type": "application/grpc+proto"});
+        client.sendHttp2StreamData(stream_id, framed, False);
+        client.sendHttp2Trailers(stream_id, trailers);
+
+        AbstractPollOperation flush_op = client.startPollHttp2Flush();
+        drivePoll(flush_op);
+    }
+
+    #! Handle a single gRPC request (buffered mode - for unary and server-streaming)
     private handleRequest(Socket client, hash<auto> request) {
         int stream_id = request.stream_id;
         string path = request.path ?? "";

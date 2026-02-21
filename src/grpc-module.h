@@ -29,6 +29,7 @@
 
 #include <qore/Qore.h>
 #include <qore/QoreSandboxManager.h>
+#include <qore/qore_thread.h>
 
 #include <google/protobuf/stubs/common.h>
 
