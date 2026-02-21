@@ -32,7 +32,7 @@
 
 module GrpcDataProvider {
     version = "1.0";
-    desc = "user module providing a data provider API for gRPC services";
+    desc = "User module providing a data provider API for gRPC services";
     author = "Qore Technologies, s.r.o.";
     url = "https://github.com/qoretechnologies/module-grpc";
     license = "MIT";

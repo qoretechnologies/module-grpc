@@ -139,6 +139,29 @@ public class GrpcStreamEventDataProvider inherits AbstractDataProvider, DelayedO
         return ProviderInfo;
     }
 
+    #! Returns example event data for the given event
+    /** @param event_id the event ID
+
+        @return example data for the event
+    */
+    private auto getExampleEventDataImpl(string event_id) {
+        switch (event_id) {
+            case EVENT_GRPC_STREAM_COMPLETE:
+                return {};
+
+            case EVENT_GRPC_STREAM_ERROR:
+                return {
+                    "err": "GRPC_STATUS_13",
+                    "desc": "Internal server error",
+                };
+
+            case EVENT_GRPC_STREAM_MESSAGE: {
+                *AbstractDataProviderType t = getEventTypesImpl(){event_id}.type;
+                return t ? t.getExampleValue() : {};
+            }
+        }
+    }
+
     #! Returns the event types supported by this provider
     private hash<string, hash<DataProviderMessageInfo>> getEventTypesImpl() {
         return {

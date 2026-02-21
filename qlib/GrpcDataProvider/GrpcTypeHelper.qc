@@ -69,7 +69,7 @@ public class GrpcTypeHelper {
             field_type = new SoftListDataType(name, field_type);
         }
 
-        return new QoreDataField(name, sprintf("protobuf %s field", field_info.type), field_type);
+        return new QoreDataField(name, sprintf("Protobuf %s field", field_info.type), field_type);
     }
 
     #! Maps a protobuf field info hash to a DataProvider type
