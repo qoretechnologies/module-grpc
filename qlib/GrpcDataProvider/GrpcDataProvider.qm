@@ -106,28 +106,229 @@ module GrpcDataProvider {
 
     @tableofcontents
 
-    @section grpcdataproviderintro Introduction to the GrpcDataProvider Module
+    @section grpcdataproviderintro GrpcDataProvider Module Introduction
 
-    The %GrpcDataProvider module provides a data provider API for gRPC services.
-    The @ref GrpcDataProvider::GrpcDataProvider "GrpcDataProvider" class allows for
-    introspecting a protobuf schema and navigating gRPC service hierarchies, while the
-    @ref GrpcDataProvider::GrpcMethodDataProvider "GrpcMethodDataProvider" class supports
-    the data provider request-reply API for making gRPC calls.
+    The %GrpcDataProvider module integrates gRPC services into Qore's data provider
+    framework, enabling gRPC calls to be used alongside REST, SOAP, WebSocket, and
+    other protocols through a uniform API. This means gRPC services can be wired
+    into Qorus workflows, data pipelines, and the action catalog without
+    protocol-specific code.
 
-    gRPC services can be introspected with the following hierarchy:
-    - \c \<service_name\>/\<method_name\>
-      - results in a @ref GrpcDataProvider::GrpcMethodDataProvider "GrpcMethodDataProvider"
-        object where the request and response types can be queried and calls can be made
+    Key capabilities:
+    - <b>Schema-driven type safety</b>: protobuf message definitions are
+      automatically mapped to DataProvider types, providing request/response
+      validation and introspection
+    - <b>Zero-config server reflection</b>: connect to any gRPC server that
+      implements the reflection protocol and automatically discover all services
+      and types without needing \c .proto files
+    - <b>All four RPC patterns</b>: unary, server streaming, client streaming,
+      and bidirectional streaming calls through a single \c doRequest() API
+    - <b>Observable server streams</b>: server-streaming methods expose an
+      \c events child provider for event-driven consumption via the DataProvider
+      observer pattern
+    - <b>Connection management</b>: \c grpc:// and \c grpcs:// URL schemes
+      integrate with Qore's connection framework for centralized credential and
+      endpoint management
 
-    The following classes are provided by this module:
-    - @ref GrpcDataProvider::GrpcDataProvider "GrpcDataProvider"
-    - @ref GrpcDataProvider::GrpcDataProviderFactory "GrpcDataProviderFactory"
-    - @ref GrpcDataProvider::GrpcServiceDataProvider "GrpcServiceDataProvider"
-    - @ref GrpcDataProvider::GrpcMethodDataProvider "GrpcMethodDataProvider"
-    - @ref GrpcDataProvider::GrpcStreamEventDataProvider "GrpcStreamEventDataProvider"
-    - @ref GrpcDataProvider::GrpcConnection "GrpcConnection"
-    - @ref GrpcDataProvider::GrpcTypeHelper "GrpcTypeHelper"
-    - @ref GrpcDataProvider::GrpcReflectionClient "GrpcReflectionClient"
+    @subsection grpcdataprovider_hierarchy Provider Hierarchy
+
+    gRPC services are navigated as a two-level hierarchy:
+
+    @verbatim
+<root>
+  └── <ServiceName>          (GrpcServiceDataProvider)
+        └── <MethodName>     (GrpcMethodDataProvider — supports doRequest)
+              └── events     (GrpcStreamEventDataProvider — server-streaming only)
+    @endverbatim
+
+    For example, a gRPC server with a \c Greeter service containing \c SayHello
+    and \c ListGreetings methods would appear as:
+    - \c Greeter/SayHello (unary)
+    - \c Greeter/ListGreetings (server streaming)
+    - \c Greeter/ListGreetings/events (observable events for the stream)
+
+    @subsection grpcdataprovider_classes Provided Classes
+
+    - @ref GrpcDataProvider::GrpcDataProvider "GrpcDataProvider": root provider
+      with schema discovery via proto files, inline content, or server reflection
+    - @ref GrpcDataProvider::GrpcDataProviderFactory "GrpcDataProviderFactory":
+      factory for creating providers from constructor options
+    - @ref GrpcDataProvider::GrpcServiceDataProvider "GrpcServiceDataProvider":
+      service-level container provider
+    - @ref GrpcDataProvider::GrpcMethodDataProvider "GrpcMethodDataProvider":
+      method-level provider supporting all 4 RPC patterns
+    - @ref GrpcDataProvider::GrpcStreamEventDataProvider "GrpcStreamEventDataProvider":
+      observable event provider for server-streaming methods
+    - @ref GrpcDataProvider::GrpcConnection "GrpcConnection": connection provider
+      with \c grpc:// and \c grpcs:// URL schemes
+    - @ref GrpcDataProvider::GrpcTypeHelper "GrpcTypeHelper": protobuf-to-DataProvider
+      type mapping
+    - @ref GrpcDataProvider::GrpcReflectionClient "GrpcReflectionClient": gRPC
+      server reflection protocol client
+
+    @section grpcdataprovider_factory GrpcDataProvider Factory
+
+    The name of the gRPC data provider factory is <b><tt>grpc</tt></b>.
+
+    @subsection grpcdataprovider_factory_options Factory Options
+
+    The factory supports the following constructor options:
+
+    | Option | Type | Description |
+    |--------|------|-------------|
+    | \c url | string | gRPC server URL (\c http://host:port or \c https://host:port) |
+    | \c proto_path | string | Filesystem path to the directory containing \c .proto files |
+    | \c proto_file | string | The \c .proto file name within \c proto_path |
+    | \c proto_content | string | Inline protobuf schema definition as a string |
+    | \c use_reflection | bool | Use gRPC server reflection to discover services (default: \c False) |
+    | \c timeout_ms | int | Default call timeout in milliseconds (default: \c 30000) |
+
+    Exactly one schema source must be provided: \c proto_path + \c proto_file,
+    \c proto_content, or \c use_reflection.
+
+    @section grpcdataprovider_examples GrpcDataProvider Examples
+
+    These examples use \c qdp, the command-line interface to the DataProvider API.
+
+    @subsection grpcdataprovider_examples_unary Unary Call with Proto File
+
+    @par Example: call a unary method with request fields
+    @verbatim qdp 'grpc{url=http://localhost:50051,proto_path=/path/to/protos,proto_file=helloworld.proto}/Greeter/SayHello' dor name=World
+    @endverbatim
+
+    @subsection grpcdataprovider_examples_reflection Server Reflection (No Proto Files)
+
+    @par Example: discover services and call a method using server reflection
+    @verbatim qdp 'grpc{url=http://localhost:50051,use_reflection=true}/Greeter/SayHello' dor name=World
+    @endverbatim
+
+    @subsection grpcdataprovider_examples_connection Named Connection
+
+    When a gRPC connection is configured (e.g., named \c mygrpc with scheme
+    \c grpc://localhost:50051), the connection name replaces the factory options:
+
+    @par Example: call a method via a named connection
+    @verbatim qdp mygrpc/Greeter/SayHello dor name=World
+    @endverbatim
+
+    @subsection grpcdataprovider_examples_streaming Streaming Calls
+
+    For client-streaming and bidirectional methods, the request is a hash with a
+    \c messages key containing the list of messages to send:
+
+    @par Example: client-streaming call
+    @verbatim qdp mygrpc/Ingest/Upload dor 'messages=({chunk=data1},{chunk=data2})'
+    @endverbatim
+
+    @subsection grpcdataprovider_examples_events Observable Events
+
+    Server-streaming methods expose an \c events child provider for event-driven
+    consumption:
+
+    @par Example: subscribe to server-streaming events
+    @verbatim qdp -s mygrpc mygrpc/PriceService/WatchPrices/events ix
+    @endverbatim
+
+    @section grpcdataprovider_reflection Server Reflection
+
+    The @ref GrpcDataProvider::GrpcReflectionClient "GrpcReflectionClient" class
+    implements the gRPC Server Reflection protocol
+    (\c grpc.reflection.v1.ServerReflection), enabling automatic service discovery
+    from a running gRPC server. This eliminates the need to distribute \c .proto
+    files to clients.
+
+    When the \c use_reflection factory option is set to \c True, the provider:
+    -# Connects to the server and lists all available services
+    -# Fetches serialized \c FileDescriptorProto data for each service
+    -# Builds a \c ProtobufSchema from the collected descriptors
+    -# Populates the provider hierarchy with discovered services and methods
+
+    @par Programmatic Example: Reflection-Based Provider
+    @code{.py}
+%modern
+%requires GrpcDataProvider
+
+# Create a provider using server reflection — no proto files needed
+GrpcDataProvider provider({
+    "url": "http://localhost:50051",
+    "use_reflection": True,
+});
+
+# Discover and call a method
+AbstractDataProvider method = provider.getChildProvider("Greeter").getChildProvider("SayHello");
+auto response = method.doRequest({"name": "World"});
+printf("Response: %y\n", response);
+    @endcode
+
+    @section grpcdataprovider_programmatic Programmatic Usage
+
+    @subsection grpcdataprovider_programmatic_proto Provider from Proto File
+
+    @code{.py}
+%modern
+%requires GrpcDataProvider
+
+GrpcDataProvider provider({
+    "url": "http://localhost:50051",
+    "proto_path": "/path/to/protos",
+    "proto_file": "myservice.proto",
+});
+
+# Navigate to a unary method and call it
+auto response = provider.getChildProvider("MyService")
+    .getChildProvider("GetUser")
+    .doRequest({"user_id": 42});
+printf("User: %s\n", response.name);
+    @endcode
+
+    @subsection grpcdataprovider_programmatic_factory Provider from Factory
+
+    @code{.py}
+%modern
+%requires GrpcDataProvider
+
+# Use the factory for dynamic provider creation
+AbstractDataProviderFactory factory = DataProvider::getFactory("grpc");
+AbstractDataProvider provider = factory.create({
+    "url": "http://localhost:50051",
+    "use_reflection": True,
+});
+
+# List available services
+map printf("Service: %s\n", $1), provider.getChildProviderNames();
+    @endcode
+
+    @subsection grpcdataprovider_programmatic_observable Observable Server Stream
+
+    @code{.py}
+%modern
+%requires GrpcDataProvider
+
+GrpcDataProvider provider({
+    "url": "http://localhost:50051",
+    "proto_path": "/path/to/protos",
+    "proto_file": "prices.proto",
+});
+
+# Navigate to the events child of a server-streaming method
+AbstractDataProvider events = provider.getChildProvider("PriceService")
+    .getChildProvider("WatchPrices")
+    .getChildProvider("events");
+
+# Set request data and subscribe
+events.setObserverRequest({"symbol": "AAPL"});
+events.registerObserver(my_observer);
+events.observersReady();
+    @endcode
+
+    @section grpcdataprovider_connections Connection Schemes
+
+    The module registers two connection URL schemes:
+    - \c grpc://host:port — plaintext HTTP/2 (h2c)
+    - \c grpcs://host:port — TLS-encrypted HTTP/2
+
+    Connections require a schema source (\c proto_path + \c proto_file,
+    \c proto_content, or \c use_reflection) configured as connection options.
 
     @section grpcdataprovider_relnotes Release Notes
 

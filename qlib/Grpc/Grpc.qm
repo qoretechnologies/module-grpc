@@ -46,10 +46,191 @@ public namespace Grpc {
 
     @tableofcontents
 
-    @section grpcintro Introduction
+    @section grpcintro Grpc Module Introduction
 
     The %Grpc module provides a pure-Qore implementation of the gRPC protocol
-    built on top of Qore's HTTP/2 infrastructure.
+    built on top of Qore's HTTP/2 infrastructure. gRPC is the standard protocol
+    for high-performance microservice communication used by organizations such as
+    Google, Netflix, and Square, and is the default transport for many cloud-native
+    APIs including Kubernetes, Envoy, and etcd.
+
+    This module enables Qore applications to act as both gRPC clients and servers
+    without any external gRPC library dependency (only \c libprotobuf is required
+    for message serialization). All four gRPC call patterns are supported:
+    - <b>Unary</b>: single request, single response (like a REST call)
+    - <b>Server streaming</b>: single request, stream of responses (e.g., live
+      data feeds, paginated results)
+    - <b>Client streaming</b>: stream of requests, single response (e.g., file
+      upload, batch ingestion)
+    - <b>Bidirectional streaming</b>: concurrent request and response streams
+      (e.g., chat, real-time sync)
+
+    The following classes are provided by this module:
+    - @ref Grpc::GrpcClient "GrpcClient": makes gRPC calls to a remote service
+    - @ref Grpc::GrpcServer "GrpcServer": serves gRPC requests with registered
+      handlers
+    - @ref Grpc::GrpcChannel "GrpcChannel": manages HTTP/2 connections with
+      pooling via \c Http2ClientConnectionManager
+    - @ref Grpc::GrpcClientStream "GrpcClientStream": client-side streaming
+      handle with read/write/cancel
+    - @ref Grpc::GrpcServerStream "GrpcServerStream": server-side streaming
+      handle with read/write and metadata support
+    - @ref Grpc::GrpcHelper "GrpcHelper": gRPC framing, header utilities, and
+      timeout formatting
+
+    For the data provider API integration (factory, connections, action catalog),
+    see the @ref grpcdataproviderintro "GrpcDataProvider module".
+
+    @section grpc_client_usage Client Usage
+
+    @subsection grpc_client_unary Unary Calls
+
+    A unary call sends a single request and receives a single response:
+
+    @code{.py}
+%modern
+%requires grpc
+%requires Grpc
+
+ProtobufSchema schema("./proto/", "helloworld.proto");
+GrpcChannel channel("http://localhost:50051");
+GrpcClient client(channel, schema, "Greeter");
+
+hash<GrpcCallResult> result = client.call("SayHello", {"name": "World"});
+printf("Response: %y\n", result.body);
+printf("Status: %d %s\n", result.status_code, result.status_message);
+
+channel.shutdown();
+    @endcode
+
+    @subsection grpc_client_serverstream Server Streaming
+
+    Server streaming sends a single request and receives a stream of responses:
+
+    @code{.py}
+GrpcClientStream stream = client.serverStream("ListItems", {"category": "books"});
+while (*hash<auto> item = stream.read(5s)) {
+    printf("Item: %y\n", item);
+}
+hash<GrpcCallResult> result = stream.finish();
+    @endcode
+
+    @subsection grpc_client_clientstream Client Streaming
+
+    Client streaming sends a stream of requests and receives a single response:
+
+    @code{.py}
+GrpcClientStream stream = client.clientStream("Upload");
+stream.write({"chunk": "data1"});
+stream.write({"chunk": "data2"});
+stream.writesDone();
+hash<GrpcCallResult> result = stream.finish();
+printf("Uploaded %d chunks\n", result.body.total);
+    @endcode
+
+    @subsection grpc_client_bidi Bidirectional Streaming
+
+    Bidirectional streaming supports concurrent request and response streams:
+
+    @code{.py}
+GrpcClientStream stream = client.bidiStream("Chat");
+stream.write({"text": "Hello"});
+stream.write({"text": "World"});
+stream.writesDone();
+while (*hash<auto> msg = stream.read(5s)) {
+    printf("Reply: %s\n", msg.text);
+}
+hash<GrpcCallResult> result = stream.finish();
+    @endcode
+
+    @subsection grpc_client_metadata Metadata and Timeouts
+
+    Custom metadata and timeouts can be set on any call:
+
+    @code{.py}
+hash<GrpcCallOptions> opts = <GrpcCallOptions>{
+    "timeout_ms": 5000,
+    "metadata": {"x-request-id": "abc-123"},
+};
+hash<GrpcCallResult> result = client.call("GetOrder", {"id": 42}, opts);
+# Access trailing metadata from the response
+*string trace_id = result.trailing_metadata."x-trace-id";
+    @endcode
+
+    @section grpc_server_usage Server Usage
+
+    @subsection grpc_server_basic Basic Server
+
+    @code{.py}
+%modern
+%requires grpc
+%requires Grpc
+
+ProtobufSchema schema("./proto/", "helloworld.proto");
+GrpcServer server(schema);
+
+# Register a unary handler
+server.registerHandler("Greeter", "SayHello",
+    hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+        return {"message": "Hello, " + request.name};
+    });
+
+int port = server.addInsecurePort("localhost:0");
+printf("Server listening on port %d\n", port);
+server.start();
+server.wait();
+    @endcode
+
+    @subsection grpc_server_streaming Server-Streaming Handler
+
+    @code{.py}
+server.registerHandler("Items", "ListItems",
+    sub(hash<auto> request, GrpcServerStream stream, hash<string, string> metadata) {
+        for (int i = 0; i < 10; ++i) {
+            stream.write({"name": sprintf("item-%d", i), "category": request.category});
+        }
+        stream.setTrailingMetadata({"x-count": "10"});
+    });
+    @endcode
+
+    @subsection grpc_server_tls TLS Support
+
+    @code{.py}
+string cert = ReadOnlyFile::readTextFile("server.crt");
+string key = ReadOnlyFile::readTextFile("server.key");
+int port = server.addSecurePort("localhost:0", <GrpcSslOptions>{
+    "server_cert": cert,
+    "server_key": key,
+});
+server.start();
+
+# Client connects via HTTPS
+GrpcChannel channel("https://localhost:" + port);
+    @endcode
+
+    @section grpc_protobuf Standalone Protobuf Usage
+
+    The \c grpc binary module provides \c ProtobufSchema for protobuf
+    encoding/decoding independent of gRPC:
+
+    @code{.py}
+%modern
+%requires grpc
+
+ProtobufSchema schema("./proto/", "messages.proto");
+
+# Binary encoding/decoding
+binary data = schema.encode("MyMessage", {"field": "value", "count": 42});
+hash<auto> msg = schema.decode("MyMessage", data);
+
+# JSON conversion
+string json = schema.toJson("MyMessage", {"field": "value"});
+hash<auto> parsed = schema.fromJson("MyMessage", json);
+
+# Schema introspection
+hash<auto> msg_schema = schema.messageSchema("MyMessage");
+printf("Fields: %y\n", keys msg_schema.fields);
+    @endcode
 
     @section grpcmodulerelnotes Release Notes
 
