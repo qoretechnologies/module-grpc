@@ -24,8 +24,30 @@ endif()
 
 find_package(Qore 2.0 REQUIRED)
 
-# Find protobuf
-find_package(Protobuf REQUIRED)
+# Find protobuf - try config mode first (required for protobuf v5+), fall back to module mode
+# On macOS with MacPorts, protobuf is installed under /opt/local/libexec/protobufN-cpp/
+if(APPLE)
+    file(GLOB _macports_protobuf_dirs "/opt/local/libexec/protobuf*-cpp")
+    if(_macports_protobuf_dirs)
+        # Use the last (highest version) match
+        list(SORT _macports_protobuf_dirs)
+        list(GET _macports_protobuf_dirs -1 _macports_protobuf_dir)
+        list(APPEND CMAKE_PREFIX_PATH "${_macports_protobuf_dir}")
+        message(STATUS "Auto-detected MacPorts protobuf: ${_macports_protobuf_dir}")
+    endif()
+endif()
+
+find_package(Protobuf CONFIG QUIET)
+if(NOT Protobuf_FOUND)
+    find_package(Protobuf REQUIRED)
+endif()
+
+# Config mode provides imported targets but not the legacy variables; set them for uniform usage
+if(TARGET protobuf::libprotobuf AND NOT Protobuf_LIBRARIES)
+    set(Protobuf_LIBRARIES protobuf::libprotobuf)
+    get_target_property(Protobuf_INCLUDE_DIRS protobuf::libprotobuf INTERFACE_INCLUDE_DIRECTORIES)
+endif()
+
 message(STATUS "Found Protobuf: ${Protobuf_VERSION}")
 message(STATUS "Protobuf include dirs: ${Protobuf_INCLUDE_DIRS}")
 message(STATUS "Protobuf libraries: ${Protobuf_LIBRARIES}")
