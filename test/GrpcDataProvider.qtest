@@ -31,7 +31,7 @@
 %requires DataProvider
 %requires ConnectionProvider
 %requires grpc
-%requires Grpc
+%requires GrpcUtil
 %requires GrpcDataProvider
 
 %exec-class GrpcDataProviderTest

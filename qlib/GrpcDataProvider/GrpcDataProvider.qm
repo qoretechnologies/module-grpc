@@ -28,7 +28,7 @@
 %requires(reexport) DataProvider
 %requires(reexport) ConnectionProvider
 %requires grpc
-%requires Grpc
+%requires GrpcUtil
 
 module GrpcDataProvider {
     version = "1.0";
@@ -397,4 +397,6 @@ events.stopEvents();
 
 #! Contains all public definitions in the GrpcDataProvider module
 public namespace GrpcDataProvider {
+    #! gRPC logo in SVG format for the action catalog
+    public const GrpcLogo = File::readTextFile(get_script_dir() + "/grpc-logo.svg");
 }

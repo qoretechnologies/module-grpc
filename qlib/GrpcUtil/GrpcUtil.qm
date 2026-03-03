@@ -1,7 +1,7 @@
 # -*- mode: qore; indent-tabs-mode: nil -*-
-#! @file Grpc.qm Qore gRPC protocol module
+#! @file GrpcUtil.qm Qore gRPC protocol module
 
-/*  Grpc.qm Copyright 2026 Qore Technologies, s.r.o.
+/*  GrpcUtil.qm Copyright 2026 Qore Technologies, s.r.o.
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -25,10 +25,10 @@
 %modern
 
 %requires grpc
-%requires Http2ClientIo
+%requires HttpClientIo
 %requires AsyncSocketIo
 
-module Grpc {
+module GrpcUtil {
     version = "1.0";
     desc = "Qore gRPC protocol module";
     author = "Qore Technologies, s.r.o.";
@@ -37,18 +37,18 @@ module Grpc {
 }
 
 #! Main Grpc namespace
-/** All public declarations in the %Grpc module are defined in this namespace.
+/** All public declarations in the %GrpcUtil module are defined in this namespace.
 */
 public namespace Grpc {
 }
 
-/** @mainpage Grpc Module
+/** @mainpage GrpcUtil Module
 
     @tableofcontents
 
-    @section grpcintro Grpc Module Introduction
+    @section grpcutilintro GrpcUtil Module Introduction
 
-    The %Grpc module provides a pure-Qore implementation of the gRPC protocol
+    The %GrpcUtil module provides a pure-Qore implementation of the gRPC protocol
     built on top of Qore's HTTP/2 infrastructure. gRPC is the standard protocol
     for high-performance microservice communication used by organizations such as
     Google, Netflix, and Square, and is the default transport for many cloud-native
@@ -70,7 +70,7 @@ public namespace Grpc {
     - @ref Grpc::GrpcServer "GrpcServer": serves gRPC requests with registered
       handlers
     - @ref Grpc::GrpcChannel "GrpcChannel": manages HTTP/2 connections with
-      pooling via \c Http2ClientConnectionManager
+      pooling via \c HttpClientConnectionManager
     - @ref Grpc::GrpcClientStream "GrpcClientStream": client-side streaming
       handle with read/write/cancel
     - @ref Grpc::GrpcServerStream "GrpcServerStream": server-side streaming
@@ -81,16 +81,16 @@ public namespace Grpc {
     For the data provider API integration (factory, connections, action catalog),
     see the @ref grpcdataproviderintro "GrpcDataProvider module".
 
-    @section grpc_client_usage Client Usage
+    @section grpcutil_client_usage Client Usage
 
-    @subsection grpc_client_unary Unary Calls
+    @subsection grpcutil_client_unary Unary Calls
 
     A unary call sends a single request and receives a single response:
 
     @code{.py}
 %modern
 %requires grpc
-%requires Grpc
+%requires GrpcUtil
 
 ProtobufSchema schema("./proto/", "helloworld.proto");
 GrpcChannel channel("http://localhost:50051");
@@ -103,7 +103,7 @@ printf("Status: %d %s\n", result.status_code, result.status_message);
 channel.shutdown();
     @endcode
 
-    @subsection grpc_client_serverstream Server Streaming
+    @subsection grpcutil_client_serverstream Server Streaming
 
     Server streaming sends a single request and receives a stream of responses:
 
@@ -115,7 +115,7 @@ while (*hash<auto> item = stream.read(5s)) {
 hash<GrpcCallResult> result = stream.finish();
     @endcode
 
-    @subsection grpc_client_clientstream Client Streaming
+    @subsection grpcutil_client_clientstream Client Streaming
 
     Client streaming sends a stream of requests and receives a single response:
 
@@ -128,7 +128,7 @@ hash<GrpcCallResult> result = stream.finish();
 printf("Uploaded %d chunks\n", result.body.total);
     @endcode
 
-    @subsection grpc_client_bidi Bidirectional Streaming
+    @subsection grpcutil_client_bidi Bidirectional Streaming
 
     Bidirectional streaming supports concurrent request and response streams.
     The client can interleave reads and writes for interactive communication:
@@ -164,7 +164,7 @@ printf("Stream ended: %y\n", stream.readsDone());
 hash<GrpcCallResult> result = stream.finish();
     @endcode
 
-    @subsection grpc_client_metadata Metadata and Timeouts
+    @subsection grpcutil_client_metadata Metadata and Timeouts
 
     Custom metadata and timeouts can be set on any call:
 
@@ -178,14 +178,14 @@ hash<GrpcCallResult> result = client.call("GetOrder", {"id": 42}, opts);
 *string trace_id = result.trailing_metadata."x-trace-id";
     @endcode
 
-    @section grpc_server_usage Server Usage
+    @section grpcutil_server_usage Server Usage
 
-    @subsection grpc_server_basic Basic Server
+    @subsection grpcutil_server_basic Basic Server
 
     @code{.py}
 %modern
 %requires grpc
-%requires Grpc
+%requires GrpcUtil
 
 ProtobufSchema schema("./proto/", "helloworld.proto");
 GrpcServer server(schema);
@@ -202,7 +202,7 @@ server.start();
 server.wait();
     @endcode
 
-    @subsection grpc_server_streaming Server-Streaming Handler
+    @subsection grpcutil_server_streaming Server-Streaming Handler
 
     @code{.py}
 server.registerHandler("Items", "ListItems",
@@ -214,7 +214,7 @@ server.registerHandler("Items", "ListItems",
     });
     @endcode
 
-    @subsection grpc_server_bidi Bidirectional Streaming Handler
+    @subsection grpcutil_server_bidi Bidirectional Streaming Handler
 
     Bidirectional streaming handlers receive a @ref Grpc::GrpcServerStream "GrpcServerStream"
     for interactive communication. The handler reads client messages incrementally
@@ -230,7 +230,7 @@ server.registerHandler("Chat", "Send",
     });
     @endcode
 
-    @subsection grpc_server_clientstream Client Streaming Handler
+    @subsection grpcutil_server_clientstream Client Streaming Handler
 
     Client streaming handlers also use @ref Grpc::GrpcServerStream "GrpcServerStream"
     but return a response hash instead of writing to the stream:
@@ -246,7 +246,7 @@ server.registerHandler("Upload", "Send",
     });
     @endcode
 
-    @subsection grpc_server_tls TLS Support
+    @subsection grpcutil_server_tls TLS Support
 
     @code{.py}
 string cert = ReadOnlyFile::readTextFile("server.crt");
@@ -261,7 +261,7 @@ server.start();
 GrpcChannel channel("https://localhost:" + port);
     @endcode
 
-    @section grpc_protobuf Standalone Protobuf Usage
+    @section grpcutil_protobuf Standalone Protobuf Usage
 
     The \c grpc binary module provides \c ProtobufSchema for protobuf
     encoding/decoding independent of gRPC:
@@ -285,9 +285,9 @@ hash<auto> msg_schema = schema.messageSchema("MyMessage");
 printf("Fields: %y\n", keys msg_schema.fields);
     @endcode
 
-    @section grpcmodulerelnotes Release Notes
+    @section grpcutilrelnotes Release Notes
 
-    @subsection grpcmodule_v1_0 Grpc Module Version 1.0
+    @subsection grpcutil_v1_0 GrpcUtil Module Version 1.0
 
     - initial release
     - @ref Grpc::GrpcClient "GrpcClient": unary, server streaming, client streaming, bidirectional streaming
@@ -295,7 +295,7 @@ printf("Fields: %y\n", keys msg_schema.fields);
     - true interactive bidirectional streaming: server handlers process client messages
       incrementally via @ref Grpc::GrpcServerStream "GrpcServerStream" (headers-only dispatch
       with live HTTP/2 stream reading, no pre-buffering)
-    - @ref Grpc::GrpcChannel "GrpcChannel": connection pooling via Http2ClientConnectionManager
+    - @ref Grpc::GrpcChannel "GrpcChannel": connection pooling via HttpClientConnectionManager
     - @ref Grpc::GrpcClientStream "GrpcClientStream": client-side streaming with read/write/cancel/readsDone
     - @ref Grpc::GrpcServerStream "GrpcServerStream": server-side streaming with
       read/write, metadata support, and both buffered and live reading modes

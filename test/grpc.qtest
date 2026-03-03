@@ -30,7 +30,7 @@
 %requires QUnit
 
 %requires grpc
-%requires Grpc
+%requires GrpcUtil
 
 %exec-class GrpcTest
 

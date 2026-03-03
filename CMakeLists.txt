@@ -81,7 +81,7 @@ endforeach()
 set(module_name "grpc")
 
 set(QMOD
-    qlib/Grpc
+    qlib/GrpcUtil
     qlib/GrpcDataProvider
 )
 
@@ -114,7 +114,7 @@ qore_external_binary_module(${module_name} ${PROJECT_VERSION})
 qore_dist(${PROJECT_VERSION})
 
 qore_user_modules("${QMOD}")
-qore_external_user_module("qlib/Grpc" "")
+qore_external_user_module("qlib/GrpcUtil" "")
 qore_external_user_module("qlib/GrpcDataProvider" "")
 
 # install qpp metadata files
@@ -133,7 +133,7 @@ if (DOXYGEN_FOUND)
     add_dependencies(docs-module QORE_MOD_DOX_FILES)
 
     # Two-phase doc build: the initial pass (docs-module) generates grpc.tag with empty
-    # TAGFILES. User module docs (docs-Grpc, docs-GrpcDataProvider) are then built using
+    # TAGFILES. User module docs (docs-GrpcUtil, docs-GrpcDataProvider) are then built using
     # grpc.tag, generating their own tag files. The final pass (docs-module-final) rebuilds
     # the binary module docs with user module tag files in TAGFILES, enabling @ref
     # cross-references from the mainpage into user module symbols.
@@ -146,7 +146,7 @@ if (DOXYGEN_FOUND)
     file(COPY_FILE ${CMAKE_BINARY_DIR}/Doxyfile ${CMAKE_BINARY_DIR}/Doxyfile.final)
     file(APPEND ${CMAKE_BINARY_DIR}/Doxyfile.final
         "\n# Final pass: enable user module cross-references and re-enable doc error warnings\n"
-        "TAGFILES = ${CMAKE_BINARY_DIR}/Grpc.tag=../Grpc/html "
+        "TAGFILES = ${CMAKE_BINARY_DIR}/GrpcUtil.tag=../GrpcUtil/html "
         "${CMAKE_BINARY_DIR}/GrpcDataProvider.tag=../GrpcDataProvider/html\n"
         "WARN_IF_DOC_ERROR = YES\n")
 
@@ -159,6 +159,6 @@ if (DOXYGEN_FOUND)
         COMMENT "Generating API documentation with Doxygen (final pass with user module cross-references)"
         VERBATIM
     )
-    add_dependencies(docs-module-final docs-Grpc docs-GrpcDataProvider)
+    add_dependencies(docs-module-final docs-GrpcUtil docs-GrpcDataProvider)
     add_dependencies(docs docs-module-final)
 endif()

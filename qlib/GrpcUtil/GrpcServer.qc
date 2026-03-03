@@ -41,7 +41,7 @@ server.start();
 server.shutdown();
     @endcode
 
-    @since Grpc 1.0
+    @since GrpcUtil 1.0
 */
 public class GrpcServer {
     private {
@@ -89,7 +89,7 @@ public class GrpcServer {
     /** @param schema the protobuf schema containing service definitions
         @param opts optional server options
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     constructor(ProtobufSchema schema, *hash<GrpcServerOptions> opts) {
         m_schema = schema;
@@ -118,7 +118,7 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
 
         @throw GRPC-HANDLER-ERROR if the service/method is not found in the schema
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     registerHandler(string service, string method, code handler) {
         string key = service + "/" + method;
@@ -135,7 +135,7 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
 
         @throw GRPC-BIND-ERROR if the address cannot be bound
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     int addInsecurePort(string addr) {
         Socket sock();
@@ -158,7 +158,7 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
 
         @throw GRPC-BIND-ERROR if the address cannot be bound
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     int addSecurePort(string addr, hash<GrpcSslOptions> ssl) {
         Socket sock();
@@ -188,7 +188,7 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
 
         @throw GRPC-SERVER-ERROR if the server is already running
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     start() {
         AutoLock al(m_mutex);
@@ -211,7 +211,7 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
     /** Blocks the calling thread until all accept threads and active connections have
         completed. Typically called after start() in the main thread.
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     wait() {
         m_accept_threads.waitForZero();
@@ -225,7 +225,7 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
         @param timeout_ms optional timeout in milliseconds for graceful shutdown;
         if not provided, waits indefinitely for connections to drain
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     shutdown(*int timeout_ms) {
         {
@@ -263,7 +263,7 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
     #! Check if the server is running
     /** @return True if the server has been started and has not yet been shut down
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     bool isRunning() {
         return m_running;
@@ -431,16 +431,13 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
     */
     private binary readStreamBody(Socket client, int stream_id) {
         binary body = binary();
-        while (!client.isHttp2StreamComplete(stream_id)) {
+        while (True) {
             *binary chunk = client.readHttp2StreamDataBlock(stream_id, 5s);
             if (chunk) {
                 body += chunk;
+            } else if (client.isHttp2StreamComplete(stream_id)) {
+                break;
             }
-        }
-        # Read any remaining buffered data
-        *binary chunk = client.readHttp2StreamDataBlock(stream_id, 0ms);
-        if (chunk) {
-            body += chunk;
         }
         return body;
     }

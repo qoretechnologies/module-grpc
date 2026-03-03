@@ -24,18 +24,6 @@
 
 #! Contains all public definitions in the GrpcDataProvider module
 public namespace GrpcDataProvider {
-    #! gRPC logo in SVG format for the action catalog
-    public const GrpcLogo = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 512 512\">"
-        "<path fill=\"#244c5a\" d=\"M256 48C141.1 48 48 141.1 48 256s93.1 208 208 208 208-93.1 "
-        "208-208S370.9 48 256 48zm115.7 327.7c-31.1 31.1-72.4 48.3-116.3 48.3-43.9 "
-        "0-85.2-17.2-116.3-48.3C108 344.6 90.8 303.3 90.8 259.4c0-43.9 17.2-85.2 "
-        "48.3-116.3 31.1-31.1 72.4-48.3 116.3-48.3s85.2 17.2 116.3 48.3c31.1 31.1 "
-        "48.3 72.4 48.3 116.3-.1 43.9-17.2 85.2-48.3 116.3z\"/>"
-        "<path fill=\"#244c5a\" d=\"M256 120c-75 0-136 61-136 136s61 136 136 136 136-61 "
-        "136-136-61-136-136-136zm0 240c-57.3 0-104-46.7-104-104S198.7 152 256 152s104 "
-        "46.7 104 104-46.7 104-104 104z\"/></svg>";
-
     #! MIME type for SVG images
     public const MimeTypeSvg = "image/svg+xml";
 

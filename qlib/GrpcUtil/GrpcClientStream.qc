@@ -25,7 +25,7 @@
 public namespace Grpc {
 
 #! gRPC client stream for streaming RPC calls
-/** Wraps @ref Http2ClientIo::Http2ClientStreamHandle for gRPC streaming
+/** Wraps @ref HttpClientIo::HttpClientStreamHandle for gRPC streaming
     (server-streaming, client-streaming, and bidirectional).
 
     @par Server-streaming example:
@@ -47,12 +47,12 @@ stream.writesDone();
 hash<GrpcCallResult> result = stream.finish();
     @endcode
 
-    @since Grpc 1.0
+    @since GrpcUtil 1.0
 */
 public class GrpcClientStream {
     private {
         #! The HTTP/2 stream handle
-        Http2ClientIo::Http2ClientStreamHandle m_stream;
+        HttpClientIo::HttpClientStreamHandle m_stream;
 
         #! The protobuf schema
         ProtobufSchema m_schema;
@@ -83,9 +83,9 @@ public class GrpcClientStream {
         @param write_type message type for encoding sent messages
         @param writes_done if True, writes are already complete (server-streaming)
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
-    constructor(Http2ClientIo::Http2ClientStreamHandle stream,
+    constructor(HttpClientIo::HttpClientStreamHandle stream,
             ProtobufSchema schema, string read_type, string write_type,
             bool writes_done = False) {
         m_stream = stream;
@@ -101,7 +101,7 @@ public class GrpcClientStream {
 
         @throw GRPC-STREAM-ERROR if a stream error occurs
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     *hash<auto> read(*timeout timeout) {
         if (m_reads_done) {
@@ -155,7 +155,7 @@ public class GrpcClientStream {
 
         @throw GRPC-STREAM-ERROR if the stream is not writable
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     write(hash<auto> message) {
         binary encoded = m_schema.encode(m_write_type, message);
@@ -169,7 +169,7 @@ public class GrpcClientStream {
 
         Safe to call multiple times; subsequent calls are no-ops.
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     writesDone() {
         if (!m_writes_done) {
@@ -189,7 +189,7 @@ public class GrpcClientStream {
 
         @return a @ref GrpcCallResult with response body and status info
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     hash<GrpcCallResult> finish() {
         # Auto-close writes if needed
@@ -234,7 +234,7 @@ public class GrpcClientStream {
     #! Returns True if the stream has received END_STREAM from the server
     /** @return True if reads are done and no more data will arrive
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     bool readsDone() {
         return m_reads_done;
@@ -243,7 +243,7 @@ public class GrpcClientStream {
     #! Cancel the stream
     /** Sends RST_STREAM to abort the stream. Any unread messages are discarded.
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     cancel() {
         m_reads_done = True;

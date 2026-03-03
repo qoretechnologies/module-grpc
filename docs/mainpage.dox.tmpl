@@ -12,7 +12,7 @@
     only C++ dependency is \c libprotobuf.
 
     To use this module, use \c "%requires grpc" in your code for the binary protobuf support and
-    \c "%requires Grpc" for the gRPC protocol layer.
+    \c "%requires GrpcUtil" for the gRPC protocol layer.
 
     @section grpcarch Architecture
 
@@ -20,7 +20,7 @@
 
     - <b>Binary module (\c grpc.so)</b>: C++ QPP wrapping \c libprotobuf for schema loading
       and message encoding/decoding. Provides the @ref Qore::Grpc::ProtobufSchema class.
-    - <b>Qore module (\c Grpc)</b>: Pure %Qore implementing the gRPC protocol on top of
+    - <b>Qore module (\c GrpcUtil)</b>: Pure %Qore implementing the gRPC protocol on top of
       %Qore's HTTP/2 stack. Provides @ref Qore::Grpc::GrpcClient, @ref Qore::Grpc::GrpcServer,
       @ref Qore::Grpc::GrpcChannel, and streaming classes.
 
@@ -33,7 +33,7 @@
 
 %modern
 %requires grpc
-%requires Grpc
+%requires GrpcUtil
 
 # Load a .proto schema
 ProtobufSchema schema("./proto/", "service.proto");
@@ -438,7 +438,7 @@ GrpcDataProvider provider({
     - TLS/SSL support on client and server
     - custom metadata (request, initial response, trailing)
     - timeout/deadline enforcement
-    - connection pooling via Http2ClientConnectionManager
+    - connection pooling via HttpClientConnectionManager
     - gRPC status codes and error handling
     - \c GrpcDataProvider module for data provider API integration
     - \c GrpcConnection with \c grpc:// and \c grpcs:// connection schemes

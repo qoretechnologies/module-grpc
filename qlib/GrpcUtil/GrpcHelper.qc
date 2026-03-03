@@ -33,7 +33,7 @@ public namespace Grpc {
     - 4 bytes: big-endian message length
     - N bytes: message data
 
-    @since Grpc 1.0
+    @since GrpcUtil 1.0
 */
 public class GrpcHelper {
     #! Frame a binary message with the gRPC 5-byte header
@@ -41,7 +41,7 @@ public class GrpcHelper {
         @param compressed if True, set the compressed flag
         @return the framed message (5-byte header + payload)
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     static binary frameMessage(binary data, bool compressed = False) {
         int len = data.size();
@@ -60,7 +60,7 @@ public class GrpcHelper {
 
         @throw GRPC-FRAMING-ERROR if the data is too short
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     static hash<auto> unframeMessage(binary data) {
         if (data.size() < 5) {
@@ -84,7 +84,7 @@ public class GrpcHelper {
 
         @throw GRPC-FRAMING-ERROR if any frame is malformed
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     static list<hash<auto>> unframeMessages(binary data) {
         list<hash<auto>> messages = ();
@@ -116,7 +116,7 @@ public class GrpcHelper {
     /** @param data the buffer to check
         @return the total frame size (5 + payload), or -1 if incomplete
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     static int nextFrameSize(binary data) {
         if (data.size() < 5) {
@@ -134,7 +134,7 @@ public class GrpcHelper {
     /** @param timeout_ms timeout in milliseconds
         @return the formatted timeout string (e.g., \c "5000m" for 5000ms)
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     static string formatTimeout(int timeout_ms) {
         if (timeout_ms >= 100000000) {
@@ -147,7 +147,7 @@ public class GrpcHelper {
     /** @param value the timeout string (e.g., "5000m", "5S", "100u", "200n")
         @return the timeout in milliseconds, or NOTHING if the format is invalid
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     static *int parseTimeout(string value) {
         if (value.empty()) {
@@ -175,7 +175,7 @@ public class GrpcHelper {
         @param opts optional call options
         @return a hash of HTTP/2 headers for the request
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     static hash<string, string> buildRequestHeaders(string method_path,
             *hash<GrpcCallOptions> opts) {

@@ -56,7 +56,7 @@ server.registerHandler("MyService", "ClientStream",
     });
     @endcode
 
-    @since Grpc 1.0
+    @since GrpcUtil 1.0
 */
 public class GrpcServerStream {
     private {
@@ -95,7 +95,7 @@ public class GrpcServerStream {
         @param metadata the client's request metadata
         @param messages pre-parsed list of client messages (for client-streaming/bidi)
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     constructor(Socket socket, int stream_id, ProtobufSchema schema,
             string input_type, string output_type,
@@ -118,7 +118,7 @@ public class GrpcServerStream {
         @param metadata the client's request metadata
         @param live if True, read from the HTTP/2 stream incrementally
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     constructor(Socket socket, int stream_id, ProtobufSchema schema,
             string input_type, string output_type,
@@ -144,7 +144,7 @@ public class GrpcServerStream {
         @return the next decoded message hash, or NOTHING when all messages have
         been read (buffered mode) or on timeout/end-of-stream (live mode)
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     *hash<auto> read(*timeout timeout) {
         if (!m_live) {
@@ -208,7 +208,7 @@ public class GrpcServerStream {
         returned by read(). In live mode, returns True when END_STREAM has been
         received and there is no more buffered data to parse.
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     bool readsDone() {
         if (!m_live) {
@@ -237,7 +237,7 @@ public class GrpcServerStream {
 
         @param message the message data as a Qore hash
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     write(hash<auto> message) {
         ensureHeadersSent();
@@ -276,7 +276,7 @@ public class GrpcServerStream {
         @note Must be called before the first write() call. If called after write(),
         the metadata is silently ignored since headers have already been sent.
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     sendInitialMetadata(hash<string, string> metadata) {
         if (!m_headers_sent) {
@@ -298,7 +298,7 @@ public class GrpcServerStream {
 stream.setTrailingMetadata({"x-server-timing": "dur=42"});
         @endcode
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     setTrailingMetadata(hash<string, string> metadata) {
         map m_trailing_metadata{$1.key} = $1.value, metadata.pairIterator();
@@ -307,7 +307,7 @@ stream.setTrailingMetadata({"x-server-timing": "dur=42"});
     #! Get the custom trailing metadata set by the handler
     /** @return the custom trailing metadata
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     hash<string, string> getTrailingMetadata() {
         return m_trailing_metadata;
@@ -316,7 +316,7 @@ stream.setTrailingMetadata({"x-server-timing": "dur=42"});
     #! Get the client's request metadata
     /** @return the metadata from the client's request headers
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     hash<string, string> clientMetadata() {
         return m_metadata;
@@ -327,7 +327,7 @@ stream.setTrailingMetadata({"x-server-timing": "dur=42"});
         before sending trailers in case the handler wrote nothing (e.g.,
         an empty server-stream).
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     ensureHeadersSent() {
         if (!m_headers_sent) {

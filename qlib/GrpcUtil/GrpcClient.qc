@@ -38,7 +38,7 @@ printf("Response: %y\n", result.body);
 printf("Status: %d %s\n", result.status_code, result.status_message);
     @endcode
 
-    @since Grpc 1.0
+    @since GrpcUtil 1.0
 */
 public class GrpcClient {
     private {
@@ -61,7 +61,7 @@ public class GrpcClient {
 
         @throw GRPC-SERVICE-ERROR if the service is not found in the schema
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     constructor(GrpcChannel channel, ProtobufSchema schema, string service_name) {
         m_channel = channel;
@@ -101,7 +101,7 @@ public class GrpcClient {
         @throw GRPC-METHOD-ERROR if the method is not found
         @throw GRPC-ERROR if the call fails at the transport level
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     hash<GrpcCallResult> call(string method, hash<auto> request, *hash<GrpcCallOptions> opts) {
         hash<GrpcMethodInfo> method_info = getMethodInfo(method);
@@ -115,7 +115,7 @@ public class GrpcClient {
             opts);
 
         # Send request
-        Http2ClientIo::Http2ClientStreamHandle stream = m_channel.acquireStream();
+        HttpClientIo::HttpClientStreamHandle stream = m_channel.acquireStream();
         hash<auto> response;
         try {
             response = stream.request("POST", method_info.full_path, headers, framed);
@@ -139,7 +139,7 @@ public class GrpcClient {
         @throw GRPC-METHOD-ERROR if the method is not found
         @throw GRPC-ERROR if starting the stream fails
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     GrpcClientStream serverStream(string method, hash<auto> request,
             *hash<GrpcCallOptions> opts) {
@@ -153,10 +153,10 @@ public class GrpcClient {
         hash<string, string> headers = GrpcHelper::buildRequestHeaders(
             method_info.full_path, opts);
 
-        # Start streaming
-        Http2ClientIo::Http2ClientStreamHandle stream = m_channel.acquireStream();
+        # Start streaming with body_streaming=True to keep the request body open
+        HttpClientIo::HttpClientStreamHandle stream = m_channel.acquireStream();
         ensureStreamReady(stream);
-        stream.startStreaming("POST", method_info.full_path, headers);
+        stream.startStreaming("POST", method_info.full_path, headers, True);
 
         # Send request with END_STREAM (client sends one message)
         stream.sendData(framed, True);
@@ -176,7 +176,7 @@ public class GrpcClient {
         @throw GRPC-METHOD-ERROR if the method is not found
         @throw GRPC-ERROR if starting the stream fails
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     GrpcClientStream clientStream(string method, *hash<GrpcCallOptions> opts) {
         hash<GrpcMethodInfo> method_info = getMethodInfo(method);
@@ -185,10 +185,10 @@ public class GrpcClient {
         hash<string, string> headers = GrpcHelper::buildRequestHeaders(
             method_info.full_path, opts);
 
-        # Start streaming (no request body yet)
-        Http2ClientIo::Http2ClientStreamHandle stream = m_channel.acquireStream();
+        # Start streaming with body_streaming=True to keep the request body open
+        HttpClientIo::HttpClientStreamHandle stream = m_channel.acquireStream();
         ensureStreamReady(stream);
-        stream.startStreaming("POST", method_info.full_path, headers);
+        stream.startStreaming("POST", method_info.full_path, headers, True);
 
         return new GrpcClientStream(stream, m_schema,
             method_info.output_type, method_info.input_type);
@@ -205,7 +205,7 @@ public class GrpcClient {
         @throw GRPC-METHOD-ERROR if the method is not found
         @throw GRPC-ERROR if starting the stream fails
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     GrpcClientStream bidiStream(string method, *hash<GrpcCallOptions> opts) {
         # bidi uses same setup as client streaming
@@ -215,7 +215,7 @@ public class GrpcClient {
     #! Get service info
     /** @return the @ref GrpcServiceInfo for the bound service
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     hash<GrpcServiceInfo> getServiceInfo() {
         return m_service_info;
@@ -224,7 +224,7 @@ public class GrpcClient {
     #! Get the schema
     /** @return the protobuf schema
 
-        @since %Grpc 1.0
+        @since %GrpcUtil 1.0
     */
     ProtobufSchema getSchema() {
         return m_schema;
@@ -237,9 +237,9 @@ public class GrpcClient {
         @param stream the stream handle whose connection to wait on
         @param timeout_ms the timeout for connection establishment
     */
-    private ensureStreamReady(Http2ClientIo::Http2ClientStreamHandle stream,
+    private ensureStreamReady(HttpClientIo::HttpClientStreamHandle stream,
             timeout timeout_ms = 30s) {
-        Http2ClientIo::Http2ClientConnection conn = stream.getConnection();
+        HttpClientIo::HttpClientConnection conn = stream.getConnection();
         if (!conn.isReady()) {
             if (conn.isControllerMode()) {
                 if (!conn.waitForReady(timeout_ms)) {

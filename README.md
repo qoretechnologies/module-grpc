@@ -11,14 +11,14 @@ The `grpc` module provides gRPC client/server and protobuf support for Qore, inc
 - TLS/SSL support on client and server
 - Custom metadata passing (request, initial response, trailing)
 - Timeout/deadline enforcement
-- Connection pooling via `Http2ClientConnectionManager`
+- Connection pooling via `HttpClientConnectionManager`
 
 ## Architecture
 
 The module has two layers:
 
 - **Binary module (`grpc.so`)**: C++ QPP wrapping `libprotobuf` for schema loading and message encoding/decoding. Only dependency is `libprotobuf` (no libgrpc++).
-- **Qore module (`Grpc`)**: Pure Qore implementing the gRPC protocol natively on Qore's HTTP/2 stack.
+- **Qore module (`GrpcUtil`)**: Pure Qore implementing the gRPC protocol natively on Qore's HTTP/2 stack.
 
 ## Requirements
 
@@ -48,7 +48,7 @@ make install
 
 %modern
 %requires grpc
-%requires Grpc
+%requires GrpcUtil
 
 ProtobufSchema schema("./proto/", "service.proto");
 GrpcChannel channel("http://localhost:50051");
