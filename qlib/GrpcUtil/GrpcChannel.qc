@@ -55,7 +55,10 @@ public class GrpcChannel {
     constructor(string target, *hash<GrpcChannelOptions> opts) {
         m_target = target;
 
-        hash<HttpClientIo::HttpClientConnectionManagerOptions> mgr_opts();
+        hash<HttpClientIo::HttpClientConnectionManagerOptions> mgr_opts({
+            # gRPC requires HTTP/2; disable QUIC/HTTP/3 auto-negotiation
+            "protocol": "h2",
+        });
 
         # Configure TLS
         if (target =~ /^https:/) {
