@@ -27,11 +27,9 @@
 #include "grpc-module.h"
 #include "QC_ProtobufSchema.h"
 
-#ifdef HAVE_ARROW
 #include "QC_ArrowSchema.h"
 #include "QC_ArrowRecordBatch.h"
 #include "QC_ArrowIpc.h"
-#endif
 
 #include <google/protobuf/stubs/common.h>
 
@@ -63,11 +61,9 @@ const TypedHashDecl* hashdeclGrpcServerOptions = nullptr;
 const TypedHashDecl* hashdeclGrpcServiceInfo = nullptr;
 const TypedHashDecl* hashdeclGrpcMethodInfo = nullptr;
 
-#ifdef HAVE_ARROW
 const TypedHashDecl* hashdeclArrowFieldInfo = nullptr;
 const TypedHashDecl* hashdeclArrowSchemaInfo = nullptr;
 const TypedHashDecl* hashdeclArrowIpcData = nullptr;
-#endif
 
 QoreNamespace GrpcNs("Qore::Grpc");
 
@@ -84,7 +80,6 @@ static void grpc_module_init(QoreModuleInitContext& ctx, ExceptionSink& xsink) {
     // Initialize ProtobufSchema class
     GrpcNs.addSystemClass(initProtobufSchemaClass(GrpcNs));
 
-#ifdef HAVE_ARROW
     // Initialize Arrow hashdecls
     hashdeclArrowFieldInfo = init_hashdecl_ArrowFieldInfo(GrpcNs);
     hashdeclArrowSchemaInfo = init_hashdecl_ArrowSchemaInfo(GrpcNs);
@@ -94,7 +89,6 @@ static void grpc_module_init(QoreModuleInitContext& ctx, ExceptionSink& xsink) {
     GrpcNs.addSystemClass(initArrowSchemaClass(GrpcNs));
     GrpcNs.addSystemClass(initArrowRecordBatchClass(GrpcNs));
     GrpcNs.addSystemClass(initArrowIpcClass(GrpcNs));
-#endif
 }
 
 static void grpc_module_ns_init(QoreNamespace* rns, QoreNamespace* qns, ExceptionSink& xsink) {

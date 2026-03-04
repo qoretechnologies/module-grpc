@@ -71,23 +71,19 @@ set(CPP_SRC
     src/ProtobufHelper.cpp
 )
 
-# Optional Arrow support for Arrow Flight
-find_package(Arrow CONFIG QUIET)
-if(Arrow_FOUND)
-    message(STATUS "Found Apache Arrow: ${ARROW_FULL_SO_VERSION}")
-    message(STATUS "Arrow include dirs: ${ARROW_INCLUDE_DIR}")
+# Apache Arrow is required for Arrow Flight support (IPC, schema, record batches)
+find_package(Arrow CONFIG REQUIRED)
+message(STATUS "Found Apache Arrow: ${ARROW_FULL_SO_VERSION}")
+message(STATUS "Arrow include dirs: ${ARROW_INCLUDE_DIR}")
 
-    list(APPEND QPP_SRC
-        src/QC_ArrowSchema.qpp
-        src/QC_ArrowRecordBatch.qpp
-        src/QC_ArrowIpc.qpp
-    )
-    list(APPEND CPP_SRC
-        src/QoreArrowHelper.cpp
-    )
-else()
-    message(STATUS "Apache Arrow not found -- Arrow Flight support disabled")
-endif()
+list(APPEND QPP_SRC
+    src/QC_ArrowSchema.qpp
+    src/QC_ArrowRecordBatch.qpp
+    src/QC_ArrowIpc.qpp
+)
+list(APPEND CPP_SRC
+    src/QoreArrowHelper.cpp
+)
 
 qore_wrap_qpp_value(QPP_SOURCES METALIST QPP_META_SRC ${QPP_SRC})
 
@@ -101,11 +97,8 @@ set(module_name "grpc")
 set(QMOD
     qlib/GrpcUtil
     qlib/GrpcDataProvider
+    qlib/ArrowFlightDataProvider
 )
-
-if(Arrow_FOUND)
-    list(APPEND QMOD qlib/ArrowFlightDataProvider)
-endif()
 
 set(QORE_DOX_TMPL_SRC
     docs/mainpage.dox.tmpl
@@ -121,12 +114,7 @@ target_include_directories(${module_name} PRIVATE $<BUILD_INTERFACE:${CMAKE_CURR
 add_custom_target(QORE_INC_FILES DEPENDS ${QORE_INC_SRC})
 add_dependencies(${module_name} QORE_INC_FILES)
 
-target_link_libraries(${module_name} ${Protobuf_LIBRARIES} ${QORE_LIBRARY})
-
-if(Arrow_FOUND)
-    target_link_libraries(${module_name} Arrow::arrow_shared)
-    target_compile_definitions(${module_name} PRIVATE HAVE_ARROW)
-endif()
+target_link_libraries(${module_name} ${Protobuf_LIBRARIES} ${QORE_LIBRARY} Arrow::arrow_shared)
 
 set(MODULE_DOX_INPUT ${CMAKE_CURRENT_BINARY_DIR}/mainpage.dox ${QPP_DOX})
 string(REPLACE ";" " " MODULE_DOX_INPUT "${MODULE_DOX_INPUT}")
@@ -143,10 +131,7 @@ qore_dist(${PROJECT_VERSION})
 qore_user_modules("${QMOD}")
 qore_external_user_module("qlib/GrpcUtil" "")
 qore_external_user_module("qlib/GrpcDataProvider" "")
-
-if(Arrow_FOUND)
-    qore_external_user_module("qlib/ArrowFlightDataProvider" "")
-endif()
+qore_external_user_module("qlib/ArrowFlightDataProvider" "")
 
 # install qpp metadata files
 if (COMMAND qore_install_qpp_metadata)
@@ -176,12 +161,9 @@ if (DOXYGEN_FOUND)
     # Create final-pass Doxyfile from the binary module's Doxyfile with user module tag files
     set(_tagfiles "${CMAKE_BINARY_DIR}/GrpcUtil.tag=../GrpcUtil/html "
         "${CMAKE_BINARY_DIR}/GrpcDataProvider.tag=../GrpcDataProvider/html")
-    set(_doc_deps docs-GrpcUtil docs-GrpcDataProvider)
-    if(Arrow_FOUND)
-        string(APPEND _tagfiles
-            " ${CMAKE_BINARY_DIR}/ArrowFlightDataProvider.tag=../ArrowFlightDataProvider/html")
-        list(APPEND _doc_deps docs-ArrowFlightDataProvider)
-    endif()
+    set(_doc_deps docs-GrpcUtil docs-GrpcDataProvider docs-ArrowFlightDataProvider)
+    string(APPEND _tagfiles
+        " ${CMAKE_BINARY_DIR}/ArrowFlightDataProvider.tag=../ArrowFlightDataProvider/html")
 
     file(COPY_FILE ${CMAKE_BINARY_DIR}/Doxyfile ${CMAKE_BINARY_DIR}/Doxyfile.final)
     file(APPEND ${CMAKE_BINARY_DIR}/Doxyfile.final
