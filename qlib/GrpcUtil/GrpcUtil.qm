@@ -290,6 +290,9 @@ printf("Fields: %y\n", keys msg_schema.fields);
     @subsection grpcutil_v1_0 GrpcUtil Module Version 1.0
 
     - initial release
+    - @ref Grpc::GrpcServer "GrpcServer": handler exceptions with \c GRPC-* prefixes
+      (e.g. \c GRPC-NOT-FOUND, \c GRPC-UNIMPLEMENTED, \c GRPC-DEADLINE-EXCEEDED) map
+      to the appropriate gRPC status code; all other exceptions return \c GRPC_STATUS_INTERNAL
     - @ref Grpc::GrpcClient "GrpcClient": unary, server streaming, client streaming, bidirectional streaming
     - @ref Grpc::GrpcServer "GrpcServer": handler registration, async I/O, TLS support
     - true interactive bidirectional streaming: server handlers process client messages
@@ -303,4 +306,18 @@ printf("Fields: %y\n", keys msg_schema.fields);
     - custom metadata passing (request, initial response, trailing)
     - timeout/deadline enforcement via \c grpc-timeout header
     - gRPC status codes and error handling
+    - <b>Arrow Flight protocol</b> (optional, requires Apache Arrow):
+      - @ref Grpc::FlightProto "FlightProto": embedded Arrow Flight protocol schema
+      - @ref Grpc::ArrowFlightClient "ArrowFlightClient": typed Flight RPCs (ListFlights,
+        GetFlightInfo, DoGet, DoPut, DoExchange, DoAction)
+      - @ref Grpc::ArrowFlightServer "ArrowFlightServer": Flight server with dataset and
+        action registration
+      - @ref Grpc::ArrowFlightStreamReader "ArrowFlightStreamReader": DoGet stream reader
+      - @ref Grpc::ArrowFlightStreamWriter "ArrowFlightStreamWriter": DoPut stream writer
+      - @ref Grpc::ArrowFlightExchangeStream "ArrowFlightExchangeStream": bidirectional
+        DoExchange stream
+      - @ref Grpc::ArrowFlightDatasetHandler "ArrowFlightDatasetHandler": abstract base for
+        user-implemented Flight datasets
+      - @ref Grpc::ArrowFlightHelper "ArrowFlightHelper": FlightData to/from Arrow object
+        conversion
 */

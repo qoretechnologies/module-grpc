@@ -1,0 +1,758 @@
+#!/usr/bin/env qore
+# -*- mode: qore; indent-tabs-mode: nil -*-
+
+/*
+    Copyright (C) 2026 Qore Technologies, s.r.o., all rights reserved
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+
+    Arrow Flight protocol test suite -- tests ArrowFlightClient, ArrowFlightServer,
+    ArrowFlightStreamReader/Writer/Exchange, ArrowFlightHelper
+*/
+
+%modern
+
+%requires QUnit
+
+%requires grpc
+%requires GrpcUtil
+
+%exec-class ArrowFlightTest
+
+#! Test dataset handler for sales data
+class SalesDataHandler inherits ArrowFlightDatasetHandler {
+    private {
+        list<hash<auto>> m_data;
+    }
+
+    constructor(list<hash<auto>> data) {
+        m_data = data;
+    }
+
+    ArrowSchema getSchema() {
+        return new ArrowSchema((
+            {"name": "id", "type": "int64"},
+            {"name": "product", "type": "utf8"},
+            {"name": "amount", "type": "float64"},
+        ));
+    }
+
+    hash<auto> getFlightInfo(hash<auto> descriptor) {
+        return {
+            "schema": ArrowIpc::writeSchema(getSchema()),
+            "flight_descriptor": descriptor,
+            "total_records": m_data.size(),
+            "total_bytes": -1,
+        };
+    }
+
+    nothing doGet(hash<auto> ticket, GrpcServerStream stream) {
+        ArrowSchema sch = getSchema();
+        # Send schema first
+        stream.write(ArrowFlightHelper::schemaToFlightData(sch));
+        # Send data in batches
+        if (m_data.size() > 0) {
+            ArrowRecordBatch batch(sch, m_data);
+            stream.write(ArrowFlightHelper::batchToFlightData(batch));
+        }
+    }
+}
+
+#! Test dataset handler that supports DoPut
+class WritableDataHandler inherits ArrowFlightDatasetHandler {
+    public {
+        #! Received batches for verification
+        list<list<hash<auto>>> received_batches = ();
+    }
+
+    ArrowSchema getSchema() {
+        return new ArrowSchema((
+            {"name": "key", "type": "utf8"},
+            {"name": "value", "type": "int64"},
+        ));
+    }
+
+    hash<auto> getFlightInfo(hash<auto> descriptor) {
+        return {
+            "schema": ArrowIpc::writeSchema(getSchema()),
+            "flight_descriptor": descriptor,
+            "total_records": -1,
+            "total_bytes": -1,
+        };
+    }
+
+    nothing doGet(hash<auto> ticket, GrpcServerStream stream) {
+        stream.write(ArrowFlightHelper::schemaToFlightData(getSchema()));
+    }
+
+    hash<auto> doPut(hash<auto> descriptor, GrpcServerStream stream) {
+        # Read remaining FlightData messages (schema was already consumed by server)
+        ArrowSchema sch = getSchema();
+        while (*hash<auto> flight_data = stream.read(5s)) {
+            if (flight_data.data_header && flight_data.data_body
+                    && !flight_data.data_body.empty()) {
+                ArrowRecordBatch batch = ArrowFlightHelper::flightDataToBatch(sch,
+                    flight_data);
+                push received_batches, batch.toRows();
+            }
+        }
+        return {"app_metadata": binary("ok")};
+    }
+}
+
+#! Test dataset handler for DoExchange (transforms data)
+class TransformDataHandler inherits ArrowFlightDatasetHandler {
+    ArrowSchema getSchema() {
+        return new ArrowSchema((
+            {"name": "input", "type": "int64"},
+        ));
+    }
+
+    hash<auto> getFlightInfo(hash<auto> descriptor) {
+        return {
+            "schema": ArrowIpc::writeSchema(getSchema()),
+            "flight_descriptor": descriptor,
+            "total_records": -1,
+            "total_bytes": -1,
+        };
+    }
+
+    nothing doGet(hash<auto> ticket, GrpcServerStream stream) {
+        stream.write(ArrowFlightHelper::schemaToFlightData(getSchema()));
+    }
+
+    nothing doExchange(hash<auto> descriptor, GrpcServerStream stream) {
+        ArrowSchema in_sch = getSchema();
+        ArrowSchema out_sch = new ArrowSchema((
+            {"name": "output", "type": "int64"},
+        ));
+
+        # Send output schema
+        stream.write(ArrowFlightHelper::schemaToFlightData(out_sch));
+
+        # Read input, transform, write output
+        while (*hash<auto> flight_data = stream.read(5s)) {
+            if (flight_data.data_header && flight_data.data_body
+                    && !flight_data.data_body.empty()) {
+                ArrowRecordBatch batch = ArrowFlightHelper::flightDataToBatch(
+                    in_sch, flight_data);
+                list<hash<auto>> rows = batch.toRows();
+                list<hash<auto>> out_rows = ();
+                for (int i = 0; i < rows.size(); ++i) {
+                    out_rows += {"output": rows[i].input * 2};
+                }
+                ArrowRecordBatch out_batch(out_sch, out_rows);
+                stream.write(ArrowFlightHelper::batchToFlightData(out_batch));
+            }
+        }
+    }
+}
+
+#! Test dataset handler with app_metadata support
+class MetadataDataHandler inherits ArrowFlightDatasetHandler {
+    ArrowSchema getSchema() {
+        return new ArrowSchema((
+            {"name": "id", "type": "int64"},
+        ));
+    }
+
+    hash<auto> getFlightInfo(hash<auto> descriptor) {
+        return {
+            "schema": ArrowIpc::writeSchema(getSchema()),
+            "flight_descriptor": descriptor,
+            "total_records": 1,
+            "total_bytes": -1,
+        };
+    }
+
+    nothing doGet(hash<auto> ticket, GrpcServerStream stream) {
+        ArrowSchema sch = getSchema();
+        stream.write(ArrowFlightHelper::schemaToFlightData(sch));
+        ArrowRecordBatch batch(sch, ({"id": 42},));
+        stream.write(ArrowFlightHelper::batchToFlightData(batch,
+            binary("test-metadata")));
+    }
+}
+
+#! Test dataset handler for large data
+class LargeDataHandler inherits ArrowFlightDatasetHandler {
+    private {
+        int m_num_batches;
+        int m_batch_size;
+    }
+
+    constructor(int num_batches, int batch_size) {
+        m_num_batches = num_batches;
+        m_batch_size = batch_size;
+    }
+
+    ArrowSchema getSchema() {
+        return new ArrowSchema((
+            {"name": "seq", "type": "int64"},
+            {"name": "data", "type": "utf8"},
+        ));
+    }
+
+    hash<auto> getFlightInfo(hash<auto> descriptor) {
+        return {
+            "schema": ArrowIpc::writeSchema(getSchema()),
+            "flight_descriptor": descriptor,
+            "total_records": m_num_batches * m_batch_size,
+            "total_bytes": -1,
+        };
+    }
+
+    nothing doGet(hash<auto> ticket, GrpcServerStream stream) {
+        ArrowSchema sch = getSchema();
+        stream.write(ArrowFlightHelper::schemaToFlightData(sch));
+        int seq = 0;
+        for (int b = 0; b < m_num_batches; ++b) {
+            list<hash<auto>> rows = ();
+            for (int r = 0; r < m_batch_size; ++r) {
+                rows += {"seq": seq++, "data": sprintf("row-%d", seq)};
+            }
+            ArrowRecordBatch batch(sch, rows);
+            stream.write(ArrowFlightHelper::batchToFlightData(batch));
+        }
+    }
+}
+
+public class ArrowFlightTest inherits QUnit::Test {
+    private {
+        #! Server port (assigned dynamically)
+        int port;
+
+        #! Flight server
+        ArrowFlightServer server;
+
+        #! Channel to the server
+        GrpcChannel channel;
+
+        #! Sales data for testing
+        list<hash<auto>> sales_data = (
+            {"id": 1, "product": "Widget", "amount": 9.99},
+            {"id": 2, "product": "Gadget", "amount": 24.99},
+            {"id": 3, "product": "Gizmo", "amount": 14.50},
+        );
+
+        #! Writable handler (shared for DoPut verification)
+        WritableDataHandler writable_handler;
+    }
+
+    constructor() : Test("ArrowFlightTest", "1.0") {
+        # Helper tests
+        addTestCase("FlightProto schema", \testFlightProtoSchema());
+        addTestCase("ArrowFlightHelper pathDescriptor", \testPathDescriptor());
+        addTestCase("ArrowFlightHelper cmdDescriptor", \testCmdDescriptor());
+        addTestCase("ArrowFlightHelper schema conversion", \testSchemaConversion());
+        addTestCase("ArrowFlightHelper batch conversion", \testBatchConversion());
+
+        # Integration tests (require server)
+        addTestCase("ListFlights", \testListFlights());
+        addTestCase("GetFlightInfo", \testGetFlightInfo());
+        addTestCase("GetSchema", \testGetSchema());
+        addTestCase("DoGet", \testDoGet());
+        addTestCase("DoPut", \testDoPut());
+        addTestCase("DoExchange", \testDoExchange());
+        addTestCase("DoAction", \testDoAction());
+        addTestCase("ListActions", \testListActions());
+        addTestCase("multiple datasets", \testMultipleDatasets());
+        addTestCase("app metadata", \testAppMetadata());
+        addTestCase("PollFlightInfo", \testPollFlightInfo());
+        addTestCase("removeDataset and removeAction", \testRemoveDatasetAction());
+        addTestCase("server error propagation", \testServerErrorPropagation());
+        addTestCase("errors: invalid ticket", \testErrorInvalidTicket());
+        addTestCase("errors: missing dataset", \testErrorMissingDataset());
+        addTestCase("large dataset", \testLargeDataset());
+
+        set_return_value(main());
+    }
+
+    globalSetUp() {
+        # Set up server with test datasets
+        server = new ArrowFlightServer();
+        server.registerDataset("sales", new SalesDataHandler(sales_data));
+
+        writable_handler = new WritableDataHandler();
+        server.registerDataset("writable", writable_handler);
+
+        server.registerDataset("transform", new TransformDataHandler());
+        server.registerDataset("metadata", new MetadataDataHandler());
+        server.registerDataset("large", new LargeDataHandler(5, 100));
+
+        server.registerAction("health_check", "Check server health",
+            list<hash<auto>> sub(binary body) {
+                return ({"body": binary("healthy")},);
+            });
+
+        server.registerAction("echo", "Echo the input",
+            list<hash<auto>> sub(binary body) {
+                return ({"body": body},);
+            });
+
+        port = server.addInsecurePort("localhost:0");
+        server.start();
+
+        channel = new GrpcChannel("http://localhost:" + port);
+    }
+
+    globalTearDown() {
+        if (channel) {
+            channel.shutdown();
+        }
+        if (server) {
+            server.shutdown();
+        }
+    }
+
+    # ---- Helper tests (no server needed) ----
+
+    testFlightProtoSchema() {
+        ProtobufSchema schema = FlightProto::get();
+        list<hash<GrpcServiceInfo>> services = schema.services();
+        assertEq(1, services.size(), "one service");
+        assertEq("FlightService", services[0].name, "service name");
+
+        # Verify expected methods
+        list<string> method_names = map $1.name, services[0].methods;
+        assertTrue(method_names.contains("Handshake"), "has Handshake");
+        assertTrue(method_names.contains("ListFlights"), "has ListFlights");
+        assertTrue(method_names.contains("GetFlightInfo"), "has GetFlightInfo");
+        assertTrue(method_names.contains("PollFlightInfo"), "has PollFlightInfo");
+        assertTrue(method_names.contains("GetSchema"), "has GetSchema");
+        assertTrue(method_names.contains("DoGet"), "has DoGet");
+        assertTrue(method_names.contains("DoPut"), "has DoPut");
+        assertTrue(method_names.contains("DoExchange"), "has DoExchange");
+        assertTrue(method_names.contains("DoAction"), "has DoAction");
+        assertTrue(method_names.contains("ListActions"), "has ListActions");
+
+        # Verify cached schema is the same instance
+        ProtobufSchema schema2 = FlightProto::get();
+        assertTrue(schema == schema2, "cached schema");
+    }
+
+    testPathDescriptor() {
+        hash<auto> desc = ArrowFlightHelper::pathDescriptor("my-dataset");
+        assertEq(FlightProto::FLIGHT_DESCRIPTOR_PATH, desc.type, "type is PATH");
+        assertEq(("my-dataset",), desc.path, "path element");
+
+        # Multi-element path
+        hash<auto> desc2 = ArrowFlightHelper::pathDescriptor(("db", "schema", "table"));
+        assertEq(FlightProto::FLIGHT_DESCRIPTOR_PATH, desc2.type, "type is PATH");
+        assertEq(("db", "schema", "table"), desc2.path, "path elements");
+    }
+
+    testCmdDescriptor() {
+        hash<auto> desc = ArrowFlightHelper::cmdDescriptor("SELECT 1");
+        assertEq(FlightProto::FLIGHT_DESCRIPTOR_CMD, desc.type, "type is CMD");
+        assertEq(binary("SELECT 1"), desc.cmd, "cmd bytes");
+    }
+
+    testSchemaConversion() {
+        ArrowSchema schema = new ArrowSchema((
+            {"name": "x", "type": "int64"},
+            {"name": "y", "type": "utf8"},
+        ));
+
+        # Schema -> FlightData -> Schema round-trip
+        hash<auto> fd = ArrowFlightHelper::schemaToFlightData(schema);
+        assertTrue(fd.data_header.size() > 0, "data_header not empty");
+
+        ArrowSchema restored = ArrowFlightHelper::flightDataToSchema(fd);
+        assertEq(schema.fieldNames(), restored.fieldNames(), "field names match");
+        assertEq(schema.numFields(), restored.numFields(), "field count matches");
+
+        # With descriptor
+        hash<auto> desc = ArrowFlightHelper::pathDescriptor("test");
+        hash<auto> fd2 = ArrowFlightHelper::schemaToFlightData(schema, desc);
+        assertEq(desc.type, fd2.flight_descriptor.type, "descriptor preserved");
+    }
+
+    testBatchConversion() {
+        ArrowSchema schema = new ArrowSchema((
+            {"name": "val", "type": "int64"},
+        ));
+        ArrowRecordBatch batch(schema, ({"val": 1}, {"val": 2}, {"val": 3}));
+
+        # Batch -> FlightData -> Batch round-trip
+        hash<auto> fd = ArrowFlightHelper::batchToFlightData(batch);
+        assertTrue(fd.data_header.size() > 0, "data_header not empty");
+        assertTrue(fd.data_body.size() > 0, "data_body not empty");
+
+        ArrowRecordBatch restored = ArrowFlightHelper::flightDataToBatch(schema, fd);
+        assertEq(3, restored.numRows(), "row count matches");
+        assertEq(batch.toRows(), restored.toRows(), "data matches");
+
+        # With app_metadata
+        hash<auto> fd2 = ArrowFlightHelper::batchToFlightData(batch, binary("meta"));
+        assertEq(binary("meta"), fd2.app_metadata, "app_metadata preserved");
+    }
+
+    # ---- Integration tests (server required) ----
+
+    testListFlights() {
+        ArrowFlightClient flight(channel);
+        list<hash<auto>> flights = flight.listFlights();
+        assertEq(5, flights.size(), "5 datasets");
+
+        # Find sales dataset
+        bool found_sales = False;
+        for (int i = 0; i < flights.size(); ++i) {
+            if (flights[i].flight_descriptor.path
+                    && flights[i].flight_descriptor.path[0] == "sales") {
+                found_sales = True;
+                assertEq(3, flights[i].total_records, "sales record count");
+                break;
+            }
+        }
+        assertTrue(found_sales, "sales dataset found");
+    }
+
+    testGetFlightInfo() {
+        ArrowFlightClient flight(channel);
+        hash<auto> descriptor = ArrowFlightHelper::pathDescriptor("sales");
+        hash<auto> info = flight.getFlightInfo(descriptor);
+        assertEq(3, info.total_records, "total records");
+        assertTrue(info.schema.size() > 0, "schema bytes present");
+    }
+
+    testGetSchema() {
+        ArrowFlightClient flight(channel);
+        hash<auto> descriptor = ArrowFlightHelper::pathDescriptor("sales");
+        ArrowSchema schema = flight.getSchema(descriptor);
+        assertEq(3, schema.numFields(), "3 fields");
+        assertEq(("id", "product", "amount"), schema.fieldNames(), "field names");
+    }
+
+    testDoGet() {
+        ArrowFlightClient flight(channel);
+        hash<auto> ticket = {"ticket": binary("sales")};
+        ArrowFlightStreamReader reader = flight.doGet(ticket);
+
+        # Read schema
+        ArrowSchema schema = reader.schema();
+        assertEq(3, schema.numFields(), "3 fields");
+
+        # Read batches
+        list<hash<auto>> all_rows = ();
+        while (*ArrowRecordBatch batch = reader.read(10s)) {
+            all_rows += batch.toRows();
+        }
+        assertTrue(reader.readsDone(), "reads done");
+        assertEq(3, all_rows.size(), "3 rows");
+        assertEq("Widget", all_rows[0].product, "first product");
+        assertEq(24.99, all_rows[1].amount, "second amount");
+
+        reader.finish();
+    }
+
+    testDoPut() {
+        ArrowFlightClient flight(channel);
+        ArrowSchema schema = new ArrowSchema((
+            {"name": "key", "type": "utf8"},
+            {"name": "value", "type": "int64"},
+        ));
+        hash<auto> descriptor = ArrowFlightHelper::pathDescriptor("writable");
+        ArrowFlightStreamWriter writer = flight.doPut(descriptor, schema);
+
+        # Write batches
+        ArrowRecordBatch batch1(schema, (
+            {"key": "a", "value": 1},
+            {"key": "b", "value": 2},
+        ));
+        writer.write(batch1);
+
+        ArrowRecordBatch batch2(schema, (
+            {"key": "c", "value": 3},
+        ));
+        writer.write(batch2);
+
+        hash<GrpcCallResult> result = writer.finish();
+        assertEq(GRPC_STATUS_OK, result.status_code, "put succeeded");
+
+        # Verify data was received by the handler
+        assertTrue(writable_handler.received_batches.size() > 0, "batches received");
+        list<hash<auto>> all_received = ();
+        for (int i = 0; i < writable_handler.received_batches.size(); ++i) {
+            all_received += writable_handler.received_batches[i];
+        }
+        assertEq(3, all_received.size(), "3 total rows received");
+        assertEq("a", all_received[0].key, "first row key");
+        assertEq(1, all_received[0].value, "first row value");
+    }
+
+    testDoExchange() {
+        ArrowFlightClient flight(channel);
+        ArrowSchema input_schema = new ArrowSchema((
+            {"name": "input", "type": "int64"},
+        ));
+        hash<auto> descriptor = ArrowFlightHelper::pathDescriptor("transform");
+        ArrowFlightExchangeStream exchange = flight.doExchange(descriptor,
+            input_schema);
+
+        # Send input data
+        ArrowRecordBatch input_batch(input_schema, (
+            {"input": 5},
+            {"input": 10},
+            {"input": 15},
+        ));
+        exchange.write(input_batch);
+        exchange.writesDone();
+
+        # Read output schema
+        ArrowSchema output_schema = exchange.readSchema();
+        assertEq(("output",), output_schema.fieldNames(), "output field");
+
+        # Read transformed data
+        list<hash<auto>> all_rows = ();
+        while (*ArrowRecordBatch batch = exchange.read(10s)) {
+            all_rows += batch.toRows();
+        }
+        assertEq(3, all_rows.size(), "3 output rows");
+        assertEq(10, all_rows[0].output, "5 * 2 = 10");
+        assertEq(20, all_rows[1].output, "10 * 2 = 20");
+        assertEq(30, all_rows[2].output, "15 * 2 = 30");
+
+        exchange.finish();
+    }
+
+    testDoAction() {
+        ArrowFlightClient flight(channel);
+
+        # Health check action
+        list<hash<auto>> results = flight.doAction({
+            "type": "health_check",
+            "body": binary(),
+        });
+        assertEq(1, results.size(), "one result");
+        assertEq(binary("healthy"), results[0].body, "healthy response");
+
+        # Echo action
+        binary echo_data = binary("hello flight");
+        list<hash<auto>> echo_results = flight.doAction({
+            "type": "echo",
+            "body": echo_data,
+        });
+        assertEq(1, echo_results.size(), "one echo result");
+        assertEq(echo_data, echo_results[0].body, "echoed data");
+    }
+
+    testListActions() {
+        ArrowFlightClient flight(channel);
+        list<hash<auto>> actions = flight.listActions();
+        assertEq(2, actions.size(), "2 actions");
+
+        hash<string, string> action_map;
+        for (int i = 0; i < actions.size(); ++i) {
+            action_map{actions[i].type} = actions[i].description;
+        }
+        assertEq("Check server health", action_map.health_check,
+            "health_check description");
+        assertEq("Echo the input", action_map.echo, "echo description");
+    }
+
+    testMultipleDatasets() {
+        ArrowFlightClient flight(channel);
+
+        # Get info for different datasets
+        hash<auto> sales_info = flight.getFlightInfo(
+            ArrowFlightHelper::pathDescriptor("sales"));
+        assertEq(3, sales_info.total_records, "sales records");
+
+        hash<auto> large_info = flight.getFlightInfo(
+            ArrowFlightHelper::pathDescriptor("large"));
+        assertEq(500, large_info.total_records, "large records (5*100)");
+
+        # Get schemas for different datasets
+        ArrowSchema sales_schema = flight.getSchema(
+            ArrowFlightHelper::pathDescriptor("sales"));
+        assertEq(("id", "product", "amount"), sales_schema.fieldNames(),
+            "sales fields");
+
+        ArrowSchema writable_schema = flight.getSchema(
+            ArrowFlightHelper::pathDescriptor("writable"));
+        assertEq(("key", "value"), writable_schema.fieldNames(),
+            "writable fields");
+    }
+
+    testAppMetadata() {
+        ArrowFlightClient flight(channel);
+        hash<auto> ticket = {"ticket": binary("metadata")};
+        ArrowFlightStreamReader reader = flight.doGet(ticket);
+
+        # Read the batch (metadata handler sends app_metadata with the batch)
+        reader.schema();
+        *ArrowRecordBatch batch = reader.read(10s);
+        assertTrue(exists batch, "batch received");
+        assertEq(1, batch.numRows(), "one row");
+        assertEq(42, batch.toRows()[0].id, "id value");
+
+        # app_metadata should have been received
+        *binary meta = reader.appMetadata();
+        assertEq(binary("test-metadata"), meta, "app_metadata round-trip");
+
+        reader.finish();
+    }
+
+    testPollFlightInfo() {
+        ArrowFlightClient flight(channel);
+        hash<auto> descriptor = ArrowFlightHelper::pathDescriptor("sales");
+        hash<auto> poll_info = flight.pollFlightInfo(descriptor);
+        # PollFlightInfo returns a PollInfo wrapper around FlightInfo
+        assertTrue(exists poll_info.info, "poll info has info field");
+        assertEq(3, poll_info.info.total_records, "total records via poll");
+    }
+
+    testRemoveDatasetAction() {
+        # Create a temporary server with a removable dataset
+        ArrowFlightServer temp_server();
+        temp_server.registerDataset("temp", new SalesDataHandler(sales_data));
+        temp_server.registerAction("temp_action", "Temp action",
+            list<hash<auto>> sub(binary body) {
+                return ({"body": binary("temp")},);
+            });
+        int temp_port = temp_server.addInsecurePort("localhost:0");
+        temp_server.start();
+        on_exit temp_server.shutdown();
+
+        GrpcChannel temp_channel("http://localhost:" + temp_port);
+        on_exit temp_channel.shutdown();
+        ArrowFlightClient flight(temp_channel);
+
+        # Verify dataset exists
+        list<hash<auto>> flights = flight.listFlights();
+        assertEq(1, flights.size(), "one dataset before remove");
+
+        # Verify action exists
+        list<hash<auto>> actions = flight.listActions();
+        assertEq(1, actions.size(), "one action before remove");
+
+        # Remove dataset and action
+        temp_server.removeDataset("temp");
+        temp_server.removeAction("temp_action");
+
+        # Verify they're gone
+        flights = flight.listFlights();
+        assertEq(0, flights.size(), "no datasets after remove");
+        actions = flight.listActions();
+        assertEq(0, actions.size(), "no actions after remove");
+
+        # Verify accessing removed dataset throws
+        try {
+            flight.getFlightInfo(ArrowFlightHelper::pathDescriptor("temp"));
+            fail("expected exception");
+        } catch (hash<ExceptionInfo> ex) {
+            assertRegex("not found", ex.desc, "removed dataset not found");
+        }
+    }
+
+    testServerErrorPropagation() {
+        # Create a server with a handler that throws
+        ArrowFlightServer err_server();
+        err_server.registerAction("fail_action", "Action that fails",
+            list<hash<auto>> sub(binary body) {
+                throw "TEST-ERROR", "intentional test failure";
+            });
+        int err_port = err_server.addInsecurePort("localhost:0");
+        err_server.start();
+        on_exit err_server.shutdown();
+
+        GrpcChannel err_channel("http://localhost:" + err_port);
+        on_exit err_channel.shutdown();
+        ArrowFlightClient flight(err_channel);
+
+        # Action that throws should propagate error via gRPC status
+        # Use raw GrpcClient instead of ArrowFlightClient to access the stream
+        # result directly and inspect the gRPC status code and message
+        {
+            GrpcClient gclient(err_channel, FlightProto::get(),
+                "arrow.flight.protocol.FlightService");
+            GrpcClientStream stream = gclient.serverStream("DoAction",
+                {"type": "fail_action", "body": binary()});
+            # Read from stream (should be empty since handler threw)
+            while (stream.read(5s)) {}
+            hash<GrpcCallResult> result = stream.finish();
+            assertTrue(result.status_code != GRPC_STATUS_OK,
+                "error status code");
+            assertRegex("intentional test failure", result.status_message,
+                "error message contains server error");
+        }
+
+        # Non-existent action should fail
+        {
+            GrpcClient gclient(err_channel, FlightProto::get(),
+                "arrow.flight.protocol.FlightService");
+            GrpcClientStream stream = gclient.serverStream("DoAction",
+                {"type": "nonexistent_action", "body": binary()});
+            while (stream.read(5s)) {}
+            hash<GrpcCallResult> result = stream.finish();
+            assertTrue(result.status_code != GRPC_STATUS_OK,
+                "non-existent action returns error status");
+        }
+    }
+
+    testErrorInvalidTicket() {
+        ArrowFlightClient flight(channel);
+        # Try to DoGet with a ticket for a non-existent dataset
+        hash<auto> ticket = {"ticket": binary("nonexistent")};
+        try {
+            ArrowFlightStreamReader reader = flight.doGet(ticket);
+            reader.schema();
+            fail("expected exception");
+        } catch (hash<ExceptionInfo> ex) {
+            if (ex.err == "TEST-EXCEPTION") {
+                rethrow;
+            }
+            # Server sends an error because dataset is not found;
+            # might surface as gRPC error or missing schema
+            assertTrue(ex.err.size() > 0, "got meaningful error code");
+        }
+    }
+
+    testErrorMissingDataset() {
+        ArrowFlightClient flight(channel);
+        hash<auto> descriptor = ArrowFlightHelper::pathDescriptor("no-such-dataset");
+        try {
+            flight.getFlightInfo(descriptor);
+            fail("expected exception");
+        } catch (hash<ExceptionInfo> ex) {
+            assertRegex("not found", ex.desc, "error mentions not found");
+        }
+    }
+
+    testLargeDataset() {
+        ArrowFlightClient flight(channel);
+        hash<auto> ticket = {"ticket": binary("large")};
+        ArrowFlightStreamReader reader = flight.doGet(ticket);
+
+        ArrowSchema schema = reader.schema();
+        assertEq(2, schema.numFields(), "2 fields");
+
+        int total_rows = 0;
+        int batch_count = 0;
+        while (*ArrowRecordBatch batch = reader.read(30s)) {
+            total_rows += batch.numRows();
+            ++batch_count;
+        }
+        assertEq(500, total_rows, "500 total rows (5 batches * 100)");
+        assertEq(5, batch_count, "5 batches");
+
+        reader.finish();
+    }
+}

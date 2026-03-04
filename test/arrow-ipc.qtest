@@ -1,0 +1,1149 @@
+#!/usr/bin/env qore
+# -*- mode: qore; indent-tabs-mode: nil -*-
+
+/*
+    Copyright (C) 2026 Qore Technologies, s.r.o., all rights reserved
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+
+    Arrow IPC test suite -- tests ArrowSchema, ArrowRecordBatch, ArrowIpc classes
+*/
+
+%modern
+
+%requires QUnit
+
+%requires grpc
+
+%exec-class ArrowIpcTest
+
+public class ArrowIpcTest inherits QUnit::Test {
+    constructor() : Test("ArrowIpcTest", "1.0") {
+        # ArrowSchema tests
+        addTestCase("schema from fields", \testSchemaFromFields());
+        addTestCase("schema from IPC round-trip", \testSchemaIpcRoundTrip());
+        addTestCase("schema info", \testSchemaInfo());
+        addTestCase("schema field names", \testSchemaFieldNames());
+        addTestCase("schema with metadata", \testSchemaWithMetadata());
+        addTestCase("schema empty", \testSchemaEmpty());
+
+        # ArrowRecordBatch from columns
+        addTestCase("batch from columns", \testBatchFromColumns());
+        addTestCase("batch from rows", \testBatchFromRows());
+        addTestCase("batch toColumns round-trip", \testBatchToColumns());
+        addTestCase("batch toRows round-trip", \testBatchToRows());
+        addTestCase("batch column by name", \testBatchColumnByName());
+        addTestCase("batch column by index", \testBatchColumnByIndex());
+        addTestCase("batch schema access", \testBatchSchemaAccess());
+
+        # Type conversion tests
+        addTestCase("int types", \testIntTypes());
+        addTestCase("float types", \testFloatTypes());
+        addTestCase("half float type", \testHalfFloatType());
+        addTestCase("string and binary types", \testStringBinaryTypes());
+        addTestCase("bool type", \testBoolType());
+        addTestCase("date types", \testDateTypes());
+        addTestCase("timestamp types", \testTimestampTypes());
+        addTestCase("timestamp with timezone", \testTimestampWithTimezone());
+        addTestCase("decimal types", \testDecimalTypes());
+        addTestCase("time types", \testTimeTypes());
+        addTestCase("duration types", \testDurationTypes());
+        addTestCase("additional duration types", \testAdditionalDurationTypes());
+        addTestCase("additional timestamp types", \testAdditionalTimestampTypes());
+        addTestCase("additional time types", \testAdditionalTimeTypes());
+        addTestCase("large string and binary", \testLargeStringBinaryTypes());
+        addTestCase("large list type", \testLargeListType());
+        addTestCase("fixed size binary type", \testFixedSizeBinaryType());
+        addTestCase("null handling", \testNullHandling());
+
+        # Nested types
+        addTestCase("struct type", \testStructType());
+        addTestCase("list type", \testListType());
+        addTestCase("map type", \testMapType());
+
+        # IPC serialization
+        addTestCase("batch IPC round-trip", \testBatchIpcRoundTrip());
+        addTestCase("nested IPC round-trip", \testNestedIpcRoundTrip());
+        addTestCase("schema metadata IPC round-trip", \testSchemaMetadataIpcRoundTrip());
+        addTestCase("ArrowIpc static methods", \testArrowIpcStatic());
+
+        # Edge cases
+        addTestCase("empty batch", \testEmptyBatch());
+        addTestCase("single row batch", \testSingleRowBatch());
+        addTestCase("large batch", \testLargeBatch());
+        addTestCase("field metadata", \testFieldMetadata());
+
+        # End-to-end workflow tests
+        addTestCase("trade data workflow", \testTradeDataWorkflow());
+        addTestCase("IoT sensor workflow", \testIoTSensorWorkflow());
+
+        # Negative tests
+        addTestCase("invalid IPC data", \testInvalidIpcData());
+        addTestCase("missing column", \testMissingColumn());
+        addTestCase("column count mismatch", \testColumnCountMismatch());
+        addTestCase("invalid column name", \testInvalidColumnName());
+        addTestCase("invalid column index", \testInvalidColumnIndex());
+        addTestCase("negative column index", \testNegativeColumnIndex());
+        addTestCase("invalid type name", \testInvalidTypeName());
+        addTestCase("invalid record batch IPC", \testInvalidRecordBatchIpc());
+
+        set_return_value(main());
+    }
+
+    # --- ArrowSchema tests ---
+
+    testSchemaFromFields() {
+        auto fields = (
+            {"name": "id", "type": "int64", "nullable": False},
+            {"name": "name", "type": "utf8", "nullable": True},
+            {"name": "score", "type": "float64", "nullable": True},
+        );
+        ArrowSchema schema(fields);
+        assertEq(3, schema.numFields());
+        assertEq(("id", "name", "score"), schema.fieldNames());
+    }
+
+    testSchemaIpcRoundTrip() {
+        auto fields = (
+            {"name": "a", "type": "int32", "nullable": False},
+            {"name": "b", "type": "utf8", "nullable": True},
+        );
+        ArrowSchema original(fields);
+        binary ipc = original.toIpc();
+        assertTrue(ipc.size() > 0);
+
+        ArrowSchema restored(ipc);
+        assertEq(original.numFields(), restored.numFields());
+        assertEq(original.fieldNames(), restored.fieldNames());
+    }
+
+    testSchemaInfo() {
+        auto fields = (
+            {"name": "id", "type": "int64", "nullable": False},
+            {"name": "name", "type": "utf8", "nullable": True},
+        );
+        ArrowSchema schema(fields);
+        auto info = schema.info();
+
+        assertEq(2, info.fields.size());
+        assertEq("id", info.fields[0].name);
+        assertEq("int64", info.fields[0].type);
+        assertEq(False, info.fields[0].nullable);
+        assertEq("name", info.fields[1].name);
+        assertEq("utf8", info.fields[1].type);
+        assertEq(True, info.fields[1].nullable);
+    }
+
+    testSchemaFieldNames() {
+        auto fields = (
+            {"name": "x", "type": "float32", "nullable": True},
+            {"name": "y", "type": "float32", "nullable": True},
+            {"name": "z", "type": "float32", "nullable": True},
+        );
+        ArrowSchema schema(fields);
+        assertEq(("x", "y", "z"), schema.fieldNames());
+    }
+
+    testSchemaWithMetadata() {
+        auto fields = (
+            {"name": "id", "type": "int64", "nullable": False},
+        );
+        hash<string, string> metadata = {"key1": "value1", "key2": "value2"};
+        ArrowSchema schema(fields, metadata);
+
+        auto info = schema.info();
+        assertEq("value1", info.metadata.key1);
+        assertEq("value2", info.metadata.key2);
+    }
+
+    testSchemaEmpty() {
+        auto fields = ();
+        ArrowSchema schema(fields);
+        assertEq(0, schema.numFields());
+        assertEq((), schema.fieldNames());
+    }
+
+    # --- ArrowRecordBatch from columns/rows ---
+
+    testBatchFromColumns() {
+        ArrowSchema schema(createSimpleFields());
+        hash<auto> columns = {
+            "id": (1, 2, 3),
+            "name": ("Alice", "Bob", "Charlie"),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        assertEq(3, batch.numRows());
+        assertEq(2, batch.numColumns());
+    }
+
+    testBatchFromRows() {
+        ArrowSchema schema(createSimpleFields());
+        list<hash<auto>> rows = (
+            {"id": 1, "name": "Alice"},
+            {"id": 2, "name": "Bob"},
+            {"id": 3, "name": "Charlie"},
+        );
+        ArrowRecordBatch batch(schema, rows);
+        assertEq(3, batch.numRows());
+        assertEq(2, batch.numColumns());
+    }
+
+    testBatchToColumns() {
+        ArrowSchema schema(createSimpleFields());
+        hash<auto> columns = {
+            "id": (1, 2, 3),
+            "name": ("Alice", "Bob", "Charlie"),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        hash<auto> result = batch.toColumns();
+
+        assertEq((1, 2, 3), result.id);
+        assertEq(("Alice", "Bob", "Charlie"), result.name);
+    }
+
+    testBatchToRows() {
+        ArrowSchema schema(createSimpleFields());
+        hash<auto> columns = {
+            "id": (1, 2, 3),
+            "name": ("Alice", "Bob", "Charlie"),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        list<hash<auto>> rows = batch.toRows();
+
+        assertEq(3, rows.size());
+        assertEq(1, rows[0].id);
+        assertEq("Alice", rows[0].name);
+        assertEq(2, rows[1].id);
+        assertEq("Bob", rows[1].name);
+        assertEq(3, rows[2].id);
+        assertEq("Charlie", rows[2].name);
+    }
+
+    testBatchColumnByName() {
+        ArrowSchema schema(createSimpleFields());
+        hash<auto> columns = {
+            "id": (10, 20, 30),
+            "name": ("X", "Y", "Z"),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        assertEq((10, 20, 30), batch.column("id"));
+        assertEq(("X", "Y", "Z"), batch.column("name"));
+    }
+
+    testBatchColumnByIndex() {
+        ArrowSchema schema(createSimpleFields());
+        hash<auto> columns = {
+            "id": (10, 20, 30),
+            "name": ("X", "Y", "Z"),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        assertEq((10, 20, 30), batch.column(0));
+        assertEq(("X", "Y", "Z"), batch.column(1));
+    }
+
+    testBatchSchemaAccess() {
+        ArrowSchema orig_schema(createSimpleFields());
+        hash<auto> columns = {
+            "id": (1,),
+            "name": ("test",),
+        };
+        ArrowRecordBatch batch(orig_schema, columns);
+        ArrowSchema batch_schema = batch.schema();
+        assertEq(2, batch_schema.numFields());
+        assertEq(("id", "name"), batch_schema.fieldNames());
+    }
+
+    # --- Type conversion tests ---
+
+    testIntTypes() {
+        # Test all integer types
+        auto fields = (
+            {"name": "i8", "type": "int8", "nullable": False},
+            {"name": "i16", "type": "int16", "nullable": False},
+            {"name": "i32", "type": "int32", "nullable": False},
+            {"name": "i64", "type": "int64", "nullable": False},
+            {"name": "u8", "type": "uint8", "nullable": False},
+            {"name": "u16", "type": "uint16", "nullable": False},
+            {"name": "u32", "type": "uint32", "nullable": False},
+            {"name": "u64", "type": "uint64", "nullable": False},
+        );
+        ArrowSchema schema(fields);
+        hash<auto> columns = {
+            "i8": (-128,),
+            "i16": (-32768,),
+            "i32": (-2147483648,),
+            "i64": (MININT,),
+            "u8": (255,),
+            "u16": (65535,),
+            "u32": (4294967295,),
+            "u64": (9223372036854775807,),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        hash<auto> result = batch.toColumns();
+
+        assertEq(-128, result.i8[0]);
+        assertEq(-32768, result.i16[0]);
+        assertEq(-2147483648, result.i32[0]);
+        assertEq(MININT, result.i64[0]);
+        assertEq(255, result.u8[0]);
+        assertEq(65535, result.u16[0]);
+        assertEq(4294967295, result.u32[0]);
+        assertEq(9223372036854775807, result.u64[0]);
+
+        # Test large uint64 values above INT64_MAX are preserved as number type
+        auto u64_fields = (
+            {"name": "u64", "type": "uint64", "nullable": False},
+        );
+        ArrowSchema u64_schema(u64_fields);
+        # 2^63 = 9223372036854775808 (one above INT64_MAX)
+        number large_val = 9223372036854775808n;
+        hash<auto> u64_columns = {
+            "u64": (large_val,),
+        };
+        ArrowRecordBatch u64_batch(u64_schema, u64_columns);
+        hash<auto> u64_result = u64_batch.toColumns();
+        assertEq(large_val, number(u64_result.u64[0]));
+    }
+
+    testFloatTypes() {
+        auto fields = (
+            {"name": "f32", "type": "float32", "nullable": False},
+            {"name": "f64", "type": "float64", "nullable": False},
+        );
+        ArrowSchema schema(fields);
+        hash<auto> columns = {
+            "f32": (3.14,),
+            "f64": (2.718281828459045,),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        hash<auto> result = batch.toColumns();
+
+        # float32 has less precision
+        assertTrue(abs(result.f32[0] - 3.14) < 0.001);
+        assertEq(2.718281828459045, result.f64[0]);
+    }
+
+    testHalfFloatType() {
+        auto fields = (
+            {"name": "f16", "type": "float16", "nullable": False},
+        );
+        ArrowSchema schema(fields);
+        hash<auto> columns = {
+            "f16": (1.0, 0.5, -2.0),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        hash<auto> result = batch.toColumns();
+
+        # float16 has limited precision but exact for these values
+        assertEq(1.0, result.f16[0]);
+        assertEq(0.5, result.f16[1]);
+        assertEq(-2.0, result.f16[2]);
+    }
+
+    testStringBinaryTypes() {
+        auto fields = (
+            {"name": "s", "type": "utf8", "nullable": False},
+            {"name": "b", "type": "binary", "nullable": False},
+        );
+        ArrowSchema schema(fields);
+        binary test_bin = <deadbeef>;
+        hash<auto> columns = {
+            "s": ("hello world", "unicode: \u00e4\u00f6\u00fc"),
+            "b": (test_bin, <cafe>),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        hash<auto> result = batch.toColumns();
+
+        assertEq("hello world", result.s[0]);
+        assertEq("unicode: \u00e4\u00f6\u00fc", result.s[1]);
+        assertEq(test_bin, result.b[0]);
+        assertEq(<cafe>, result.b[1]);
+    }
+
+    testBoolType() {
+        auto fields = (
+            {"name": "flag", "type": "bool", "nullable": False},
+        );
+        ArrowSchema schema(fields);
+        hash<auto> columns = {
+            "flag": (True, False, True),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        hash<auto> result = batch.toColumns();
+        assertEq((True, False, True), result.flag);
+    }
+
+    testDateTypes() {
+        auto fields = (
+            {"name": "d32", "type": "date32", "nullable": False},
+            {"name": "d64", "type": "date64", "nullable": False},
+        );
+        ArrowSchema schema(fields);
+        # Use a known date: 2024-01-15
+        date test_date = 2024-01-15;
+        hash<auto> columns = {
+            "d32": (test_date,),
+            "d64": (test_date,),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        hash<auto> result = batch.toColumns();
+
+        # Verify the dates round-trip (comparing formatted date strings)
+        assertEq(format_date("YYYY-MM-DD", test_date),
+            format_date("YYYY-MM-DD", result.d32[0]));
+        assertEq(format_date("YYYY-MM-DD", test_date),
+            format_date("YYYY-MM-DD", result.d64[0]));
+    }
+
+    testTimestampTypes() {
+        auto fields = (
+            {"name": "ts_us", "type": "timestamp[us]", "nullable": False},
+            {"name": "ts_ms", "type": "timestamp[ms]", "nullable": False},
+            {"name": "ts_s", "type": "timestamp[s]", "nullable": False},
+        );
+        ArrowSchema schema(fields);
+        date now = now_us();
+        hash<auto> columns = {
+            "ts_us": (now,),
+            "ts_ms": (now,),
+            "ts_s": (now,),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        hash<auto> result = batch.toColumns();
+
+        # Microsecond timestamp should preserve microseconds
+        assertEq(now, result.ts_us[0]);
+        # Millisecond timestamp preserves epoch seconds
+        assertEq(now.getEpochSeconds(), result.ts_ms[0].getEpochSeconds());
+        # Second-level timestamp preserves epoch seconds
+        assertEq(now.getEpochSeconds(), result.ts_s[0].getEpochSeconds());
+    }
+
+    testTimestampWithTimezone() {
+        auto fields = (
+            {"name": "ts_utc", "type": "timestamp[us, tz=UTC]", "nullable": False},
+        );
+        ArrowSchema schema(fields);
+        date now = now_us();
+        hash<auto> columns = {
+            "ts_utc": (now,),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        hash<auto> result = batch.toColumns();
+
+        # Compare epoch values to avoid timezone display differences
+        assertEq(now.getEpochSeconds(), result.ts_utc[0].getEpochSeconds());
+        # Verify the schema info preserves the timezone
+        auto info = batch.schema().info();
+        assertRegex("tz=UTC", info.fields[0].type);
+    }
+
+    testDecimalTypes() {
+        auto fields = (
+            {"name": "dec128", "type": "decimal128(38, 10)", "nullable": False},
+            {"name": "dec256", "type": "decimal256(76, 20)", "nullable": False},
+        );
+        ArrowSchema schema(fields);
+        hash<auto> columns = {
+            "dec128": (123.456789n,),
+            "dec256": (987654321.123456789n,),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        hash<auto> result = batch.toColumns();
+
+        assertTrue(result.dec128[0] instanceof number);
+        assertTrue(abs(result.dec128[0] - 123.456789n) < 0.000001n);
+        assertTrue(result.dec256[0] instanceof number);
+        assertTrue(abs(result.dec256[0] - 987654321.123456789n) < 0.000001n);
+    }
+
+    testTimeTypes() {
+        auto fields = (
+            {"name": "t32", "type": "time32[ms]", "nullable": False},
+            {"name": "t64", "type": "time64[us]", "nullable": False},
+        );
+        ArrowSchema schema(fields);
+        # Use a time representing 12:30:45 (45045 seconds from midnight)
+        date time_val = 1970-01-01T12:30:45Z;
+        hash<auto> columns = {
+            "t32": (time_val,),
+            "t64": (time_val,),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        hash<auto> result = batch.toColumns();
+
+        # Compare epoch seconds to avoid timezone display differences
+        assertEq(time_val.getEpochSeconds(), result.t32[0].getEpochSeconds());
+        assertEq(time_val.getEpochSeconds(), result.t64[0].getEpochSeconds());
+
+        # Verify typeName round-trips correctly
+        auto info = batch.schema().info();
+        assertEq("time32[ms]", info.fields[0].type);
+        assertEq("time64[us]", info.fields[1].type);
+    }
+
+    testDurationTypes() {
+        auto fields = (
+            {"name": "dur_us", "type": "duration[us]", "nullable": False},
+            {"name": "dur_s", "type": "duration[s]", "nullable": False},
+        );
+        ArrowSchema schema(fields);
+        # 90 seconds = 1m30s as relative date
+        date dur1 = PT1M30S;
+        date dur2 = PT2H;
+        hash<auto> columns = {
+            "dur_us": (dur1,),
+            "dur_s": (dur2,),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        hash<auto> result = batch.toColumns();
+
+        assertTrue(result.dur_us[0] instanceof date);
+        assertGt(0, result.dur_us[0].durationMilliseconds(), "duration[us] value preserved");
+        assertTrue(result.dur_s[0] instanceof date);
+        assertGt(0, result.dur_s[0].durationMilliseconds(), "duration[s] value preserved");
+
+        # Verify typeName round-trips correctly
+        auto info = batch.schema().info();
+        assertEq("duration[us]", info.fields[0].type);
+        assertEq("duration[s]", info.fields[1].type);
+    }
+
+    testAdditionalDurationTypes() {
+        auto fields = (
+            {"name": "dur_ms", "type": "duration[ms]", "nullable": False},
+            {"name": "dur_ns", "type": "duration[ns]", "nullable": False},
+        );
+        ArrowSchema schema(fields);
+        date dur1 = PT1M30S;
+        date dur2 = PT0.5S;
+        hash<auto> columns = {
+            "dur_ms": (dur1,),
+            "dur_ns": (dur2,),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        hash<auto> result = batch.toColumns();
+
+        assertTrue(result.dur_ms[0] instanceof date);
+        assertGt(0, result.dur_ms[0].durationMilliseconds(), "duration[ms] value preserved");
+        assertTrue(result.dur_ns[0] instanceof date);
+        assertGt(0, result.dur_ns[0].durationMilliseconds(), "duration[ns] value preserved");
+
+        auto info = batch.schema().info();
+        assertEq("duration[ms]", info.fields[0].type);
+        assertEq("duration[ns]", info.fields[1].type);
+    }
+
+    testAdditionalTimestampTypes() {
+        auto fields = (
+            {"name": "ts_ns", "type": "timestamp[ns]", "nullable": False},
+        );
+        ArrowSchema schema(fields);
+        date now = now_us();
+        ArrowRecordBatch batch(schema, {"ts_ns": (now,)});
+        hash<auto> result = batch.toColumns();
+
+        assertEq(now, result.ts_ns[0]);
+        auto info = batch.schema().info();
+        assertEq("timestamp[ns]", info.fields[0].type);
+    }
+
+    testAdditionalTimeTypes() {
+        auto fields = (
+            {"name": "t32s", "type": "time32[s]", "nullable": False},
+            {"name": "t64ns", "type": "time64[ns]", "nullable": False},
+        );
+        ArrowSchema schema(fields);
+        date t1 = 1970-01-01T14:30:00Z;
+        date t2 = 1970-01-01T14:30:00.123456Z;
+        ArrowRecordBatch batch(schema, {"t32s": (t1,), "t64ns": (t2,)});
+        hash<auto> result = batch.toColumns();
+
+        # Compare epoch seconds to avoid timezone display differences
+        assertEq(t1.getEpochSeconds(), result.t32s[0].getEpochSeconds());
+        assertEq(t2.getEpochSeconds(), result.t64ns[0].getEpochSeconds());
+
+        auto info = batch.schema().info();
+        assertEq("time32[s]", info.fields[0].type);
+        assertEq("time64[ns]", info.fields[1].type);
+    }
+
+    testLargeListType() {
+        auto fields = (
+            {"name": "values", "type": "large_list", "nullable": False,
+                "children": (
+                    {"name": "item", "type": "int64", "nullable": False},
+                )},
+        );
+        ArrowSchema schema(fields);
+        hash<auto> columns = {
+            "values": (
+                (1, 2, 3),
+                (10,),
+                (),
+            ),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        assertEq(3, batch.numRows());
+        hash<auto> result = batch.toColumns();
+
+        assertEq((1, 2, 3), result.values[0]);
+        assertEq((10,), result.values[1]);
+        assertEq((), result.values[2]);
+
+        # Verify type name
+        auto info = batch.schema().info();
+        assertEq("large_list", info.fields[0].type);
+
+        # IPC round-trip
+        hash<auto> ipc = batch.toIpc();
+        ArrowRecordBatch restored(schema, ipc.data_header, ipc.data_body);
+        hash<auto> restored_cols = restored.toColumns();
+        assertEq((1, 2, 3), restored_cols.values[0]);
+        assertEq((), restored_cols.values[2]);
+    }
+
+    testFixedSizeBinaryType() {
+        auto fields = (
+            {"name": "hash", "type": "fixed_size_binary[4]", "nullable": False},
+        );
+        ArrowSchema schema(fields);
+        hash<auto> columns = {
+            "hash": (<deadbeef>, <cafebabe>),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        assertEq(2, batch.numRows());
+        hash<auto> result = batch.toColumns();
+        assertEq(<deadbeef>, result.hash[0]);
+        assertEq(<cafebabe>, result.hash[1]);
+
+        # Verify type name
+        auto info = batch.schema().info();
+        assertEq("fixed_size_binary[4]", info.fields[0].type);
+
+        # IPC round-trip
+        hash<auto> ipc = batch.toIpc();
+        ArrowRecordBatch restored(schema, ipc.data_header, ipc.data_body);
+        hash<auto> restored_cols = restored.toColumns();
+        assertEq(<deadbeef>, restored_cols.hash[0]);
+        assertEq(<cafebabe>, restored_cols.hash[1]);
+
+        # Wrong size should throw
+        assertThrows("ARROW-TYPE-ERROR", sub () {
+            ArrowRecordBatch bad(schema, {"hash": (<dead>,)});
+        });
+    }
+
+    testLargeStringBinaryTypes() {
+        auto fields = (
+            {"name": "ls", "type": "large_utf8", "nullable": False},
+            {"name": "lb", "type": "large_binary", "nullable": False},
+        );
+        ArrowSchema schema(fields);
+        hash<auto> columns = {
+            "ls": ("hello", "world"),
+            "lb": (<deadbeef>, <cafe>),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        hash<auto> result = batch.toColumns();
+
+        assertEq("hello", result.ls[0]);
+        assertEq("world", result.ls[1]);
+        assertEq(<deadbeef>, result.lb[0]);
+        assertEq(<cafe>, result.lb[1]);
+    }
+
+    testNullHandling() {
+        auto fields = (
+            {"name": "val", "type": "int64", "nullable": True},
+            {"name": "txt", "type": "utf8", "nullable": True},
+        );
+        ArrowSchema schema(fields);
+        hash<auto> columns = {
+            "val": (1, NOTHING, 3),
+            "txt": ("a", NOTHING, "c"),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        hash<auto> result = batch.toColumns();
+
+        assertEq(1, result.val[0]);
+        assertEq(NOTHING, result.val[1]);
+        assertEq(3, result.val[2]);
+        assertEq("a", result.txt[0]);
+        assertEq(NOTHING, result.txt[1]);
+        assertEq("c", result.txt[2]);
+    }
+
+    # --- Nested types ---
+
+    testStructType() {
+        auto fields = (
+            {"name": "person", "type": "struct", "nullable": False,
+                "children": (
+                    {"name": "name", "type": "utf8", "nullable": False},
+                    {"name": "age", "type": "int32", "nullable": False},
+                )},
+        );
+        ArrowSchema schema(fields);
+        hash<auto> columns = {
+            "person": (
+                {"name": "Alice", "age": 30},
+                {"name": "Bob", "age": 25},
+            ),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        hash<auto> result = batch.toColumns();
+
+        assertEq("Alice", result.person[0].name);
+        assertEq(30, result.person[0].age);
+        assertEq("Bob", result.person[1].name);
+        assertEq(25, result.person[1].age);
+    }
+
+    testListType() {
+        auto fields = (
+            {"name": "tags", "type": "list", "nullable": False,
+                "children": (
+                    {"name": "item", "type": "utf8", "nullable": False},
+                )},
+        );
+        ArrowSchema schema(fields);
+        hash<auto> columns = {
+            "tags": (
+                ("a", "b", "c"),
+                ("x",),
+                (),
+            ),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        hash<auto> result = batch.toColumns();
+
+        assertEq(("a", "b", "c"), result.tags[0]);
+        assertEq(("x",), result.tags[1]);
+        assertEq((), result.tags[2]);
+    }
+
+    testMapType() {
+        auto fields = (
+            {"name": "props", "type": "map", "nullable": False,
+                "children": (
+                    {"name": "key", "type": "utf8", "nullable": False},
+                    {"name": "value", "type": "int32", "nullable": False},
+                )},
+        );
+        ArrowSchema schema(fields);
+        hash<auto> columns = {
+            "props": (
+                {"a": 1, "b": 2},
+                {"x": 10},
+            ),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        hash<auto> result = batch.toColumns();
+
+        assertEq({"a": 1, "b": 2}, result.props[0]);
+        assertEq({"x": 10}, result.props[1]);
+    }
+
+    # --- IPC round-trip ---
+
+    testBatchIpcRoundTrip() {
+        ArrowSchema schema(createSimpleFields());
+        hash<auto> columns = {
+            "id": (100, 200, 300),
+            "name": ("foo", "bar", "baz"),
+        };
+        ArrowRecordBatch original(schema, columns);
+
+        # Serialize to IPC
+        hash<auto> ipc = original.toIpc();
+        assertTrue(ipc.data_header instanceof binary);
+        assertTrue(ipc.data_body instanceof binary);
+
+        # Deserialize back
+        ArrowRecordBatch restored(schema, ipc.data_header, ipc.data_body);
+        assertEq(original.numRows(), restored.numRows());
+        assertEq(original.numColumns(), restored.numColumns());
+
+        hash<auto> result = restored.toColumns();
+        assertEq((100, 200, 300), result.id);
+        assertEq(("foo", "bar", "baz"), result.name);
+    }
+
+    testNestedIpcRoundTrip() {
+        auto fields = (
+            {"name": "person", "type": "struct", "nullable": False,
+                "children": (
+                    {"name": "name", "type": "utf8", "nullable": False},
+                    {"name": "age", "type": "int32", "nullable": False},
+                )},
+            {"name": "tags", "type": "list", "nullable": False,
+                "children": (
+                    {"name": "item", "type": "utf8", "nullable": False},
+                )},
+        );
+        ArrowSchema schema(fields);
+        hash<auto> columns = {
+            "person": ({"name": "Alice", "age": 30},),
+            "tags": (("a", "b"),),
+        };
+        ArrowRecordBatch original(schema, columns);
+
+        # IPC round-trip
+        hash<auto> ipc = original.toIpc();
+        ArrowRecordBatch restored(schema, ipc.data_header, ipc.data_body);
+        hash<auto> result = restored.toColumns();
+
+        assertEq("Alice", result.person[0].name);
+        assertEq(30, result.person[0].age);
+        assertEq(("a", "b"), result.tags[0]);
+    }
+
+    testSchemaMetadataIpcRoundTrip() {
+        auto fields = (
+            {"name": "id", "type": "int64", "nullable": False},
+        );
+        hash<auto> metadata = {"source": "test", "version": "1.0"};
+        ArrowSchema schema(fields, metadata);
+
+        # Serialize and deserialize schema via IPC
+        binary ipc_data = schema.toIpc();
+        ArrowSchema restored(ipc_data);
+
+        auto info = restored.info();
+        assertEq(1, info.fields.size());
+        assertEq("id", info.fields[0].name);
+        # Verify metadata survived the IPC round-trip
+        assertTrue(info.metadata.hasKey("source"));
+        assertEq("test", info.metadata.source);
+        assertEq("1.0", info.metadata.version);
+    }
+
+    testArrowIpcStatic() {
+        # Test static readSchema / writeSchema
+        ArrowSchema orig(createSimpleFields());
+        binary schema_ipc = ArrowIpc::writeSchema(orig);
+        ArrowSchema restored = ArrowIpc::readSchema(schema_ipc);
+        assertEq(orig.numFields(), restored.numFields());
+        assertEq(orig.fieldNames(), restored.fieldNames());
+
+        # Test static writeRecordBatch / readRecordBatch
+        hash<auto> columns = {
+            "id": (1, 2),
+            "name": ("a", "b"),
+        };
+        ArrowRecordBatch batch(orig, columns);
+        hash<auto> ipc = ArrowIpc::writeRecordBatch(batch);
+        ArrowRecordBatch restored_batch = ArrowIpc::readRecordBatch(orig,
+            ipc.data_header, ipc.data_body);
+        assertEq(2, restored_batch.numRows());
+        hash<auto> result = restored_batch.toColumns();
+        assertEq((1, 2), result.id);
+        assertEq(("a", "b"), result.name);
+    }
+
+    # --- Edge cases ---
+
+    testEmptyBatch() {
+        ArrowSchema schema(createSimpleFields());
+        hash<auto> columns = {
+            "id": (),
+            "name": (),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        assertEq(0, batch.numRows());
+        assertEq(2, batch.numColumns());
+
+        hash<auto> result = batch.toColumns();
+        assertEq((), result.id);
+        assertEq((), result.name);
+
+        list<hash<auto>> rows = batch.toRows();
+        assertEq((), rows);
+    }
+
+    testSingleRowBatch() {
+        ArrowSchema schema(createSimpleFields());
+        hash<auto> columns = {
+            "id": (42,),
+            "name": ("single",),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        assertEq(1, batch.numRows());
+
+        list<hash<auto>> rows = batch.toRows();
+        assertEq(1, rows.size());
+        assertEq(42, rows[0].id);
+        assertEq("single", rows[0].name);
+    }
+
+    testLargeBatch() {
+        auto fields = (
+            {"name": "i", "type": "int64", "nullable": False},
+        );
+        ArrowSchema schema(fields);
+        int n = 10000;
+        list<int> values = ();
+        for (int i = 0; i < n; ++i) {
+            values += i;
+        }
+        ArrowRecordBatch batch(schema, {"i": values});
+        assertEq(n, batch.numRows());
+
+        # IPC round-trip with large batch
+        hash<auto> ipc = batch.toIpc();
+        ArrowRecordBatch restored(schema, ipc.data_header, ipc.data_body);
+        assertEq(n, restored.numRows());
+        list<auto> result = restored.column("i");
+        assertEq(0, result[0]);
+        assertEq(n - 1, result[n - 1]);
+    }
+
+    testFieldMetadata() {
+        auto fields = (
+            {"name": "id", "type": "int64", "nullable": False,
+                "metadata": {"description": "primary key", "format": "numeric"}},
+        );
+        ArrowSchema schema(fields);
+        auto info = schema.info();
+
+        assertTrue(info.fields[0].metadata.hasKey("description"));
+        assertEq("primary key", info.fields[0].metadata.description);
+        assertEq("numeric", info.fields[0].metadata.format);
+
+        # Verify field metadata survives IPC round-trip
+        binary ipc_data = schema.toIpc();
+        ArrowSchema restored(ipc_data);
+        auto restored_info = restored.info();
+        assertEq("primary key", restored_info.fields[0].metadata.description);
+        assertEq("numeric", restored_info.fields[0].metadata.format);
+    }
+
+    # --- End-to-end workflow tests ---
+
+    testTradeDataWorkflow() {
+        # Define a trade schema with realistic financial data types
+        ArrowSchema schema((
+            {"name": "trade_id",  "type": "int64",                  "nullable": False},
+            {"name": "symbol",    "type": "utf8",                   "nullable": False},
+            {"name": "price",     "type": "decimal128(18, 4)",      "nullable": False},
+            {"name": "quantity",  "type": "int32",                  "nullable": False},
+            {"name": "side",      "type": "utf8",                   "nullable": False},
+            {"name": "exec_time", "type": "timestamp[us, tz=UTC]",  "nullable": False},
+            {"name": "notes",     "type": "utf8",                   "nullable": True},
+        ), {"source": "trading-engine", "version": "2.1"});
+
+        # Build from columnar data (as from a database query)
+        ArrowRecordBatch batch(schema, {
+            "trade_id":  (10001, 10002, 10003, 10004),
+            "symbol":    ("AAPL", "GOOG", "MSFT", "AAPL"),
+            "price":     (182.5025n, 141.2500n, 378.9075n, 183.0000n),
+            "quantity":  (100, 50, 200, 75),
+            "side":      ("BUY", "SELL", "BUY", "SELL"),
+            "exec_time": (2026-03-04T14:30:00Z, 2026-03-04T14:30:01Z,
+                          2026-03-04T14:30:02Z, 2026-03-04T14:30:03Z),
+            "notes":     ("market order", NOTHING, "limit order", NOTHING),
+        });
+        assertEq(4, batch.numRows());
+        assertEq(7, batch.numColumns());
+
+        # Serialize schema + batch to IPC (simulating Flight transport)
+        binary schema_ipc = schema.toIpc();
+        hash<auto> batch_ipc = batch.toIpc();
+
+        # Deserialize on the receiver side
+        ArrowSchema recv_schema(schema_ipc);
+        assertEq(schema.numFields(), recv_schema.numFields());
+        assertEq(schema.fieldNames(), recv_schema.fieldNames());
+
+        # Verify schema metadata survives transport
+        auto info = recv_schema.info();
+        assertEq("trading-engine", info.metadata.source);
+        assertEq("2.1", info.metadata.version);
+
+        ArrowRecordBatch recv_batch(recv_schema, batch_ipc.data_header, batch_ipc.data_body);
+        assertEq(4, recv_batch.numRows());
+
+        # Verify columnar access for analytics
+        hash<auto> cols = recv_batch.toColumns();
+        assertEq((10001, 10002, 10003, 10004), cols.trade_id);
+        assertEq(("AAPL", "GOOG", "MSFT", "AAPL"), cols.symbol);
+        assertEq(NOTHING, cols.notes[1]);  # null preserved
+
+        # Verify row-oriented access for per-trade processing
+        list<hash<auto>> trades = recv_batch.toRows();
+        assertEq(10001, trades[0].trade_id);
+        assertEq("AAPL", trades[0].symbol);
+        assertEq("BUY", trades[0].side);
+        assertEq("market order", trades[0].notes);
+        assertEq(NOTHING, trades[3].notes);
+
+        # Verify decimal precision survives round-trip
+        assertTrue(abs(cols.price[0] - 182.5025n) < 0.0001n);
+        assertTrue(abs(cols.price[2] - 378.9075n) < 0.0001n);
+
+        # Verify static API equivalence
+        ArrowSchema static_schema = ArrowIpc::readSchema(schema_ipc);
+        assertEq(schema.fieldNames(), static_schema.fieldNames());
+
+        ArrowRecordBatch static_batch = ArrowIpc::readRecordBatch(
+            recv_schema, batch_ipc.data_header, batch_ipc.data_body);
+        assertEq(4, static_batch.numRows());
+    }
+
+    testIoTSensorWorkflow() {
+        # IoT schema with nested types: struct location, list of readings
+        ArrowSchema schema((
+            {"name": "device_id",   "type": "utf8",                     "nullable": False},
+            {"name": "readings",    "type": "list",                     "nullable": False,
+                "children": (
+                    {"name": "item", "type": "float64", "nullable": False},
+                )},
+            {"name": "location",    "type": "struct",                   "nullable": True,
+                "children": (
+                    {"name": "lat",  "type": "float64", "nullable": False},
+                    {"name": "lon",  "type": "float64", "nullable": False},
+                )},
+            {"name": "recorded_at", "type": "timestamp[us, tz=UTC]",    "nullable": False},
+        ));
+
+        # Build from row-oriented data (as from sensor events)
+        ArrowRecordBatch batch(schema, (
+            {"device_id": "sensor-001", "readings": (23.5, 24.1, 23.8),
+                "location": {"lat": 48.1486, "lon": 17.1077},
+                "recorded_at": 2026-03-04T08:00:00Z},
+            {"device_id": "sensor-002", "readings": (18.2, 18.5),
+                "location": {"lat": 48.2082, "lon": 16.3738},
+                "recorded_at": 2026-03-04T08:00:01Z},
+            {"device_id": "sensor-003", "readings": (30.0,),
+                "location": NOTHING,
+                "recorded_at": 2026-03-04T08:00:02Z},
+        ));
+        assertEq(3, batch.numRows());
+        assertEq(4, batch.numColumns());
+
+        # IPC round-trip
+        binary schema_ipc = schema.toIpc();
+        hash<auto> batch_ipc = batch.toIpc();
+        ArrowSchema recv_schema(schema_ipc);
+        ArrowRecordBatch recv_batch(recv_schema, batch_ipc.data_header, batch_ipc.data_body);
+
+        # Verify nested data survived
+        hash<auto> cols = recv_batch.toColumns();
+        assertEq("sensor-001", cols.device_id[0]);
+        assertEq((23.5, 24.1, 23.8), cols.readings[0]);
+        assertEq((18.2, 18.5), cols.readings[1]);
+        assertTrue(abs(cols.location[0].lat - 48.1486) < 0.0001);
+        assertTrue(abs(cols.location[0].lon - 17.1077) < 0.0001);
+        assertEq(NOTHING, cols.location[2]);  # null struct preserved
+        assertEq((30.0,), cols.readings[2]);
+
+        # Verify row access
+        list<hash<auto>> rows = recv_batch.toRows();
+        assertEq("sensor-002", rows[1].device_id);
+        assertEq(2, rows[1].readings.size());
+    }
+
+    # --- Negative tests ---
+
+    testInvalidIpcData() {
+        assertThrows("ARROW-IPC-ERROR", sub () {
+            ArrowSchema schema(<deadbeef>);
+        });
+    }
+
+    testMissingColumn() {
+        ArrowSchema schema(createSimpleFields());
+        assertThrows("ARROW-SCHEMA-ERROR", sub () {
+            ArrowRecordBatch batch(schema, {"id": (1, 2, 3)});
+        });
+    }
+
+    testColumnCountMismatch() {
+        ArrowSchema schema(createSimpleFields());
+        assertThrows("ARROW-SCHEMA-ERROR", sub () {
+            ArrowRecordBatch batch(schema, {
+                "id": (1, 2, 3),
+                "name": ("a", "b"),
+            });
+        });
+    }
+
+    testInvalidColumnName() {
+        ArrowSchema schema(createSimpleFields());
+        hash<auto> columns = {
+            "id": (1,),
+            "name": ("a",),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        assertThrows("ARROW-COLUMN-ERROR", sub () {
+            batch.column("nonexistent");
+        });
+    }
+
+    testInvalidColumnIndex() {
+        ArrowSchema schema(createSimpleFields());
+        hash<auto> columns = {
+            "id": (1,),
+            "name": ("a",),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        assertThrows("ARROW-COLUMN-ERROR", sub () {
+            batch.column(99);
+        });
+    }
+
+    testNegativeColumnIndex() {
+        ArrowSchema schema(createSimpleFields());
+        hash<auto> columns = {
+            "id": (1,),
+            "name": ("a",),
+        };
+        ArrowRecordBatch batch(schema, columns);
+        assertThrows("ARROW-COLUMN-ERROR", sub () {
+            batch.column(-1);
+        });
+    }
+
+    testInvalidTypeName() {
+        assertThrows("ARROW-TYPE-ERROR", sub () {
+            auto fields = (
+                {"name": "x", "type": "invalid_type_xyz", "nullable": False},
+            );
+            ArrowSchema schema(fields);
+        });
+    }
+
+    testInvalidRecordBatchIpc() {
+        ArrowSchema schema(createSimpleFields());
+        # Invalid IPC data should throw when creating a record batch
+        assertThrows("ARROW-IPC-ERROR", sub () {
+            ArrowRecordBatch batch(schema, <deadbeef>, <cafebabe>);
+        });
+    }
+
+    # --- Helpers ---
+
+    private auto createSimpleFields() {
+        return (
+            {"name": "id", "type": "int64", "nullable": False},
+            {"name": "name", "type": "utf8", "nullable": True},
+        );
+    }
+}

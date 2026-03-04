@@ -1,0 +1,167 @@
+/* -*- mode: c++; indent-tabs-mode: nil -*- */
+/** @file QC_ArrowIpc.qpp defines the %Qore ArrowIpc static utility class */
+/*
+    Qore grpc module
+
+    Copyright (C) 2026 Qore Technologies, s.r.o.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+*/
+
+#include "grpc-module.h"
+#include "QC_ArrowIpc.h"
+#include "QC_ArrowSchema.h"
+#include "QC_ArrowRecordBatch.h"
+#include "QoreArrowHelper.h"
+
+//! Static utility class for Arrow IPC serialization and deserialization
+/**
+    Provides static methods equivalent to the instance methods on @ref ArrowSchema and
+    @ref ArrowRecordBatch.  Use these when you need to deserialize IPC data without first
+    constructing an object, or when you prefer a functional style.
+
+    @par Example: Deserialize a schema received from Arrow Flight
+    @code{.py}
+%requires grpc
+
+# Read the schema from the first FlightData message in a DoGet stream
+ArrowSchema schema = ArrowIpc::readSchema(flight_data_list[0].data_header);
+printf("Columns: %y\n", schema.fieldNames());
+    @endcode
+
+    @par Example: Deserialize record batches from Arrow Flight data
+    @code{.py}
+# Process subsequent FlightData messages as record batches
+for (int i = 1; i < flight_data_list.size(); ++i) {
+    ArrowRecordBatch batch = ArrowIpc::readRecordBatch(
+        schema, flight_data_list[i].data_header, flight_data_list[i].data_body);
+    list<hash<auto>> rows = batch.toRows();
+    for (hash<auto> row in rows) {
+        printf("Order %d: %s %n\n", row.order_id, row.customer, row.total);
+    }
+}
+    @endcode
+
+    @par Example: Serialize a record batch for Arrow Flight transport
+    @code{.py}
+hash<ArrowIpcData> ipc = ArrowIpc::writeRecordBatch(batch);
+# Use ipc.data_header and ipc.data_body in FlightData.data_header / FlightData.data_body
+    @endcode
+
+    @note This class is only available when the grpc module is built with Apache Arrow support.
+
+    @since %grpc 1.0
+*/
+qclass ArrowIpc [arg=void* dummy; ns=Qore::Grpc];
+
+//! Deserializes an ArrowSchema from IPC bytes
+/** @param ipc_data the IPC-serialized schema bytes (from \c SchemaResult.schema or the
+        first \c FlightData.data_header in a \c DoGet / \c DoPut stream)
+    @return an ArrowSchema object
+
+    @throw ARROW-IPC-ERROR if the IPC data cannot be deserialized
+
+    Equivalent to calling \c new \c ArrowSchema(ipc_data).
+
+    @par Example:
+    @code{.py}
+ArrowSchema schema = ArrowIpc::readSchema(schema_bytes);
+hash<ArrowSchemaInfo> info = schema.info();
+    @endcode
+
+    @since %grpc 1.0
+*/
+static ArrowSchema ArrowIpc::readSchema(binary ipc_data) {
+    auto schema = QoreArrowHelper::deserializeSchema(ipc_data, xsink);
+    if (!schema) {
+        return QoreValue();
+    }
+    QoreObject* obj = new QoreObject(QC_ARROWSCHEMA, getProgram());
+    obj->setPrivate(CID_ARROWSCHEMA, new QoreArrowSchemaHolder(schema));
+    return obj;
+}
+
+//! Deserializes an ArrowRecordBatch from IPC data_header + data_body
+/** @param schema the Arrow schema needed to interpret the columnar data
+    @param data_header the IPC message header (flatbuffer metadata describing column layout)
+    @param data_body the IPC message body (raw column buffer data)
+    @return an ArrowRecordBatch object
+
+    @throw ARROW-IPC-ERROR if the IPC data cannot be deserialized or does not match the schema
+
+    Equivalent to calling \c new \c ArrowRecordBatch(schema, data_header, data_body).
+
+    @par Example:
+    @code{.py}
+ArrowRecordBatch batch = ArrowIpc::readRecordBatch(schema, data_header, data_body);
+hash<auto> cols = batch.toColumns();
+    @endcode
+
+    @since %grpc 1.0
+*/
+static ArrowRecordBatch ArrowIpc::readRecordBatch(ArrowSchema[QoreArrowSchemaHolder] schema, binary data_header, binary data_body) {
+    auto batch = QoreArrowHelper::ipcToRecordBatch(
+        schema->schema, data_header, data_body, xsink);
+    if (!batch) {
+        return QoreValue();
+    }
+    QoreObject* obj = new QoreObject(QC_ARROWRECORDBATCH, getProgram());
+    obj->setPrivate(CID_ARROWRECORDBATCH, new QoreArrowRecordBatchHolder(batch));
+    return obj;
+}
+
+//! Serializes an ArrowSchema to IPC bytes
+/** @param schema the Arrow schema to serialize
+    @return the IPC-serialized schema bytes
+
+    @throw ARROW-IPC-ERROR if serialization fails
+
+    Equivalent to calling \c schema.toIpc().
+
+    @par Example:
+    @code{.py}
+binary ipc_bytes = ArrowIpc::writeSchema(schema);
+# Send as SchemaResult.schema or first FlightData.data_header
+    @endcode
+
+    @since %grpc 1.0
+*/
+static binary ArrowIpc::writeSchema(ArrowSchema[QoreArrowSchemaHolder] schema) {
+    return QoreArrowHelper::serializeSchema(schema->schema, xsink);
+}
+
+//! Serializes an ArrowRecordBatch to IPC data_header + data_body pair
+/** @param batch the record batch to serialize
+    @return an @ref ArrowIpcData hash with \c data_header and \c data_body binary fields
+
+    @throw ARROW-IPC-ERROR if serialization fails
+
+    Equivalent to calling \c batch.toIpc().
+
+    @par Example:
+    @code{.py}
+hash<ArrowIpcData> ipc = ArrowIpc::writeRecordBatch(batch);
+# Use ipc.data_header and ipc.data_body in FlightData messages
+    @endcode
+
+    @since %grpc 1.0
+*/
+static hash<ArrowIpcData> ArrowIpc::writeRecordBatch(ArrowRecordBatch[QoreArrowRecordBatchHolder] batch) {
+    return QoreArrowHelper::recordBatchToIpc(batch->batch, xsink);
+}

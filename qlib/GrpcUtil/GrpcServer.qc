@@ -499,7 +499,7 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
         try {
             handler(stream, metadata);
         } catch (hash<ExceptionInfo> ex) {
-            status_code = GRPC_STATUS_INTERNAL;
+            status_code = exceptionToStatusCode(ex.err);
             status_message = sprintf("%s: %s", ex.err, ex.desc);
         }
 
@@ -536,7 +536,7 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
         try {
             response_body = handler(stream, metadata);
         } catch (hash<ExceptionInfo> ex) {
-            sendErrorResponse(client, stream_id, GRPC_STATUS_INTERNAL,
+            sendErrorResponse(client, stream_id, exceptionToStatusCode(ex.err),
                 sprintf("%s: %s", ex.err, ex.desc));
             return;
         }
@@ -669,7 +669,7 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
         try {
             response_body = handler(request_body, metadata);
         } catch (hash<ExceptionInfo> ex) {
-            sendErrorResponse(client, stream_id, GRPC_STATUS_INTERNAL,
+            sendErrorResponse(client, stream_id, exceptionToStatusCode(ex.err),
                 sprintf("%s: %s", ex.err, ex.desc));
             return;
         }
@@ -723,7 +723,7 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
         try {
             handler(request_body, stream, metadata);
         } catch (hash<ExceptionInfo> ex) {
-            status_code = GRPC_STATUS_INTERNAL;
+            status_code = exceptionToStatusCode(ex.err);
             status_message = sprintf("%s: %s", ex.err, ex.desc);
         }
 
@@ -774,7 +774,7 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
         try {
             response_body = handler(stream, metadata);
         } catch (hash<ExceptionInfo> ex) {
-            sendErrorResponse(client, stream_id, GRPC_STATUS_INTERNAL,
+            sendErrorResponse(client, stream_id, exceptionToStatusCode(ex.err),
                 sprintf("%s: %s", ex.err, ex.desc));
             return;
         }
@@ -831,7 +831,7 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
         try {
             handler(stream, metadata);
         } catch (hash<ExceptionInfo> ex) {
-            status_code = GRPC_STATUS_INTERNAL;
+            status_code = exceptionToStatusCode(ex.err);
             status_message = sprintf("%s: %s", ex.err, ex.desc);
         }
 
@@ -852,6 +852,37 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
 
         AbstractPollOperation flush_op = client.startPollHttp2Flush();
         drivePoll(flush_op);
+    }
+
+    #! Maps a Qore exception error string to a gRPC status code
+    /** Known prefixes: \c "GRPC-NOT-FOUND", \c "GRPC-INVALID-ARGUMENT",
+        \c "GRPC-UNIMPLEMENTED", \c "GRPC-PERMISSION-DENIED",
+        \c "GRPC-UNAUTHENTICATED", \c "GRPC-ALREADY-EXISTS",
+        \c "GRPC-RESOURCE-EXHAUSTED", \c "GRPC-FAILED-PRECONDITION",
+        \c "GRPC-ABORTED", \c "GRPC-OUT-OF-RANGE", \c "GRPC-UNAVAILABLE",
+        \c "GRPC-DATA-LOSS", \c "GRPC-CANCELLED",
+        \c "GRPC-DEADLINE-EXCEEDED".
+
+        All other exceptions map to @ref GRPC_STATUS_INTERNAL.
+    */
+    private static int exceptionToStatusCode(string err) {
+        switch (err) {
+            case /^GRPC-NOT-FOUND/:          return GRPC_STATUS_NOT_FOUND;
+            case /^GRPC-INVALID-ARGUMENT/:   return GRPC_STATUS_INVALID_ARGUMENT;
+            case /^GRPC-UNIMPLEMENTED/:      return GRPC_STATUS_UNIMPLEMENTED;
+            case /^GRPC-PERMISSION-DENIED/:  return GRPC_STATUS_PERMISSION_DENIED;
+            case /^GRPC-UNAUTHENTICATED/:    return GRPC_STATUS_UNAUTHENTICATED;
+            case /^GRPC-ALREADY-EXISTS/:     return GRPC_STATUS_ALREADY_EXISTS;
+            case /^GRPC-RESOURCE-EXHAUSTED/: return GRPC_STATUS_RESOURCE_EXHAUSTED;
+            case /^GRPC-FAILED-PRECONDITION/:return GRPC_STATUS_FAILED_PRECONDITION;
+            case /^GRPC-ABORTED/:            return GRPC_STATUS_ABORTED;
+            case /^GRPC-OUT-OF-RANGE/:       return GRPC_STATUS_OUT_OF_RANGE;
+            case /^GRPC-UNAVAILABLE/:        return GRPC_STATUS_UNAVAILABLE;
+            case /^GRPC-DATA-LOSS/:          return GRPC_STATUS_DATA_LOSS;
+            case /^GRPC-CANCELLED/:          return GRPC_STATUS_CANCELLED;
+            case /^GRPC-DEADLINE-EXCEEDED/:  return GRPC_STATUS_DEADLINE_EXCEEDED;
+            default:                         return GRPC_STATUS_INTERNAL;
+        }
     }
 
     #! Send a gRPC error response (trailers-only)
