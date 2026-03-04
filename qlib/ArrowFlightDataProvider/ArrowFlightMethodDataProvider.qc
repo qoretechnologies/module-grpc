@@ -219,7 +219,12 @@ public class ArrowFlightMethodDataProvider inherits AbstractDataProvider {
         while (*ArrowRecordBatch batch = reader.read()) {
             all_rows += batch.toRows();
         }
-        reader.finish();
+        hash<GrpcCallResult> result = reader.finish();
+        if (result.status_code != GRPC_STATUS_OK) {
+            throw "ARROW-FLIGHT-ERROR",
+                sprintf("DoGet failed for dataset '%s' with gRPC status %d: %s",
+                    dataset_name, result.status_code, result.status_message);
+        }
         return all_rows;
     }
 
@@ -235,6 +240,11 @@ public class ArrowFlightMethodDataProvider inherits AbstractDataProvider {
         }
         writer.writesDone();
         hash<GrpcCallResult> result = writer.finish();
+        if (result.status_code != GRPC_STATUS_OK) {
+            throw "ARROW-FLIGHT-ERROR",
+                sprintf("DoPut failed for dataset '%s' with gRPC status %d: %s",
+                    dataset_name, result.status_code, result.status_message);
+        }
         return result.body ?? {};
     }
 
@@ -255,7 +265,12 @@ public class ArrowFlightMethodDataProvider inherits AbstractDataProvider {
         while (*ArrowRecordBatch batch = exchange.read()) {
             all_rows += batch.toRows();
         }
-        exchange.finish();
+        hash<GrpcCallResult> result = exchange.finish();
+        if (result.status_code != GRPC_STATUS_OK) {
+            throw "ARROW-FLIGHT-ERROR",
+                sprintf("DoExchange failed for dataset '%s' with gRPC status %d: %s",
+                    dataset_name, result.status_code, result.status_message);
+        }
         return all_rows;
     }
 

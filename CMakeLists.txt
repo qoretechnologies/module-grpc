@@ -115,6 +115,12 @@ add_custom_target(QORE_INC_FILES DEPENDS ${QORE_INC_SRC})
 add_dependencies(${module_name} QORE_INC_FILES)
 
 target_link_libraries(${module_name} ${Protobuf_LIBRARIES} ${QORE_LIBRARY} Arrow::arrow_shared)
+# Link Arrow IPC target if split into a separate library (some Arrow builds)
+if(TARGET Arrow::arrow_ipc_shared)
+    target_link_libraries(${module_name} Arrow::arrow_ipc_shared)
+elseif(TARGET Arrow::arrow_ipc)
+    target_link_libraries(${module_name} Arrow::arrow_ipc)
+endif()
 
 set(MODULE_DOX_INPUT ${CMAKE_CURRENT_BINARY_DIR}/mainpage.dox ${QPP_DOX})
 string(REPLACE ";" " " MODULE_DOX_INPUT "${MODULE_DOX_INPUT}")

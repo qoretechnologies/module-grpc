@@ -50,11 +50,15 @@ public class ArrowFlightTypeHelper {
         @return the corresponding DataProvider type
     */
     static AbstractDataProviderType arrowTypeToDataType(string arrow_type) {
-        # Strip any parameters like "timestamp[us, tz=UTC]"
+        # Strip any parameters like "timestamp[us, tz=UTC]" or "decimal128(18, 4)"
         string base_type = arrow_type;
         int bracket = base_type.find("[");
         if (bracket >= 0) {
             base_type = base_type.substr(0, bracket);
+        }
+        int paren = base_type.find("(");
+        if (paren >= 0) {
+            base_type = base_type.substr(0, paren);
         }
 
         switch (base_type) {
@@ -84,6 +88,7 @@ public class ArrowFlightTypeHelper {
 
             case "binary":
             case "large_binary":
+            case "fixed_size_binary":
                 return AbstractDataProviderType::get(BinaryType);
 
             case "bool":
@@ -101,6 +106,8 @@ public class ArrowFlightTypeHelper {
                 return AbstractDataProviderType::get(NothingType);
 
             case "list":
+            case "large_list":
+            case "fixed_size_list":
                 return AbstractDataProviderType::get(SoftListType);
 
             case "struct":

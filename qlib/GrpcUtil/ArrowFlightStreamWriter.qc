@@ -88,6 +88,15 @@ public class ArrowFlightStreamWriter {
         m_stream.writesDone();
     }
 
+    #! Cancel the stream
+    /** Aborts the DoPut stream, signalling cancellation to the server.
+
+        @since %GrpcUtil 1.0
+    */
+    cancel() {
+        m_stream.cancel();
+    }
+
     #! Finish the stream and return the result
     /** Automatically calls writesDone() if not already called.
 
