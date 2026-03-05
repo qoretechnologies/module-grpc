@@ -1,0 +1,570 @@
+#!/usr/bin/env qore
+# -*- mode: qore; indent-tabs-mode: nil -*-
+
+/*
+    Copyright (C) 2026 Qore Technologies, s.r.o., all rights reserved
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+
+    ArrowFlightDataProvider test suite -- tests the Arrow Flight DataProvider
+    module with an embedded Flight server
+*/
+
+%modern
+
+%requires QUnit
+
+%requires grpc
+%requires GrpcUtil
+%requires ArrowFlightDataProvider
+
+%exec-class ArrowFlightDataProviderTest
+
+#! Test dataset handler that serves sales data
+class TestSalesHandler inherits ArrowFlightDatasetHandler {
+    private {
+        list<hash<auto>> m_data;
+    }
+
+    constructor(list<hash<auto>> data) {
+        m_data = data;
+    }
+
+    ArrowSchema getSchema() {
+        return new ArrowSchema((
+            {"name": "id", "type": "int64"},
+            {"name": "product", "type": "utf8"},
+            {"name": "amount", "type": "float64"},
+        ));
+    }
+
+    hash<auto> getFlightInfo(hash<auto> descriptor) {
+        return {
+            "schema": ArrowIpc::writeSchema(getSchema()),
+            "flight_descriptor": descriptor,
+            "total_records": m_data.size(),
+            "total_bytes": -1,
+        };
+    }
+
+    nothing doGet(hash<auto> ticket, GrpcServerStream stream) {
+        ArrowSchema sch = getSchema();
+        stream.write(ArrowFlightHelper::schemaToFlightData(sch));
+        if (m_data.size() > 0) {
+            ArrowRecordBatch batch(sch, m_data);
+            stream.write(ArrowFlightHelper::batchToFlightData(batch));
+        }
+    }
+}
+
+#! Test dataset handler that supports DoPut
+class TestWritableHandler inherits ArrowFlightDatasetHandler {
+    public {
+        list<list<hash<auto>>> received_batches = ();
+    }
+
+    ArrowSchema getSchema() {
+        return new ArrowSchema((
+            {"name": "key", "type": "utf8"},
+            {"name": "value", "type": "int64"},
+        ));
+    }
+
+    hash<auto> getFlightInfo(hash<auto> descriptor) {
+        return {
+            "schema": ArrowIpc::writeSchema(getSchema()),
+            "flight_descriptor": descriptor,
+            "total_records": -1,
+            "total_bytes": -1,
+        };
+    }
+
+    nothing doGet(hash<auto> ticket, GrpcServerStream stream) {
+        stream.write(ArrowFlightHelper::schemaToFlightData(getSchema()));
+    }
+
+    hash<auto> doPut(hash<auto> descriptor, GrpcServerStream stream) {
+        ArrowSchema sch = getSchema();
+        while (*hash<auto> flight_data = stream.read(5s)) {
+            if (flight_data.data_header && flight_data.data_body
+                    && !flight_data.data_body.empty()) {
+                ArrowRecordBatch batch = ArrowFlightHelper::flightDataToBatch(sch,
+                    flight_data);
+                push received_batches, batch.toRows();
+            }
+        }
+        return {"app_metadata": binary("ok")};
+    }
+}
+
+#! Test dataset handler for DoExchange (doubles input values)
+class TestTransformHandler inherits ArrowFlightDatasetHandler {
+    ArrowSchema getSchema() {
+        return new ArrowSchema((
+            {"name": "input", "type": "int64"},
+        ));
+    }
+
+    hash<auto> getFlightInfo(hash<auto> descriptor) {
+        return {
+            "schema": ArrowIpc::writeSchema(getSchema()),
+            "flight_descriptor": descriptor,
+            "total_records": -1,
+            "total_bytes": -1,
+        };
+    }
+
+    nothing doGet(hash<auto> ticket, GrpcServerStream stream) {
+        stream.write(ArrowFlightHelper::schemaToFlightData(getSchema()));
+    }
+
+    nothing doExchange(hash<auto> descriptor, GrpcServerStream stream) {
+        ArrowSchema in_sch = getSchema();
+        ArrowSchema out_sch = new ArrowSchema((
+            {"name": "output", "type": "int64"},
+        ));
+
+        stream.write(ArrowFlightHelper::schemaToFlightData(out_sch));
+
+        while (*hash<auto> flight_data = stream.read(5s)) {
+            if (flight_data.data_header && flight_data.data_body
+                    && !flight_data.data_body.empty()) {
+                ArrowRecordBatch batch = ArrowFlightHelper::flightDataToBatch(
+                    in_sch, flight_data);
+                list<hash<auto>> rows = batch.toRows();
+                list<hash<auto>> out_rows = ();
+                for (int i = 0; i < rows.size(); ++i) {
+                    out_rows += {"output": rows[i].input * 2};
+                }
+                ArrowRecordBatch out_batch(out_sch, out_rows);
+                stream.write(ArrowFlightHelper::batchToFlightData(out_batch));
+            }
+        }
+    }
+}
+
+public class ArrowFlightDataProviderTest inherits QUnit::Test {
+    private {
+        #! Server port
+        int port;
+
+        #! Flight server
+        ArrowFlightServer server;
+
+        #! Server URL
+        string url;
+
+        #! Test data
+        list<hash<auto>> sales_data = (
+            {"id": 1, "product": "Widget", "amount": 9.99},
+            {"id": 2, "product": "Gadget", "amount": 24.99},
+            {"id": 3, "product": "Gizmo", "amount": 14.50},
+        );
+
+        #! Writable handler for verification
+        TestWritableHandler writable_handler;
+    }
+
+    constructor() : Test("ArrowFlightDataProviderTest", "1.0") {
+        # Factory and module tests
+        addTestCase("factory discovery", \testFactoryDiscovery());
+        addTestCase("factory instantiation", \testFactoryInstantiation());
+        addTestCase("connection scheme", \testConnectionScheme());
+
+        # Hierarchy tests
+        addTestCase("root provider children", \testRootChildren());
+        addTestCase("dataset provider children", \testDatasetChildren());
+        addTestCase("method provider info", \testMethodProviderInfo());
+
+        # DoGet tests
+        addTestCase("doGet via data provider", \testDoGetRequest());
+        addTestCase("doGet with empty dataset", \testDoGetEmpty());
+
+        # DoPut tests
+        addTestCase("doPut via data provider", \testDoPutRequest());
+
+        # DoExchange tests
+        addTestCase("doExchange via data provider", \testDoExchangeRequest());
+
+        # Type introspection tests
+        addTestCase("type introspection: get", \testTypeIntrospectionGet());
+        addTestCase("type introspection: put", \testTypeIntrospectionPut());
+
+        # Observable event tests
+        addTestCase("doGet observable events", \testDoGetObservable());
+        addTestCase("doExchange observable events", \testDoExchangeObservable());
+        addTestCase("flights:// TLS scheme", \testFlightsTlsScheme());
+        addTestCase("error event on invalid dataset", \testErrorEvent());
+
+        set_return_value(main());
+    }
+
+    globalSetUp() {
+        server = new ArrowFlightServer();
+        server.registerDataset("sales", new TestSalesHandler(sales_data));
+
+        writable_handler = new TestWritableHandler();
+        server.registerDataset("writable", writable_handler);
+        server.registerDataset("transform", new TestTransformHandler());
+        server.registerDataset("empty", new TestSalesHandler(()));
+
+        port = server.addInsecurePort("localhost:0");
+        server.start();
+        url = sprintf("http://localhost:%d", port);
+    }
+
+    globalTearDown() {
+        server.shutdown();
+    }
+
+    testFactoryDiscovery() {
+        AbstractDataProviderFactory factory = DataProvider::getFactory("flight");
+        assertEq("flight", factory.getInfo().name);
+        hash<DataProviderInfo> prov_info = factory.getProviderInfo();
+        assertTrue(prov_info.supports_children);
+        assertTrue(prov_info.children_can_support_apis);
+    }
+
+    testFactoryInstantiation() {
+        AbstractDataProviderFactory factory = DataProvider::getFactory("flight");
+        AbstractDataProvider provider = factory.create({"url": url});
+        assertTrue(provider instanceof ArrowFlightDataProvider);
+        *list<string> children = provider.getChildProviderNames();
+        assertTrue(children.size() >= 3);
+        assertTrue(children.contains("sales"));
+        assertTrue(children.contains("writable"));
+    }
+
+    testConnectionScheme() {
+        # Test flight:// -> http:// conversion
+        ArrowFlightConnection conn("test", "Test Flight connection",
+            sprintf("flight://localhost:%d", port));
+        assertEq("flight", conn.getType());
+
+        # Verify data provider creation from connection
+        AbstractDataProvider provider = conn.getDataProvider();
+        assertTrue(provider instanceof ArrowFlightDataProvider);
+        *list<string> children = provider.getChildProviderNames();
+        assertTrue(children.contains("sales"));
+    }
+
+    testRootChildren() {
+        ArrowFlightDataProvider provider({"url": url});
+        *list<string> children = provider.getChildProviderNames();
+        assertGt(0, children.size());
+
+        # Verify expected datasets
+        assertTrue(children.contains("sales"));
+        assertTrue(children.contains("writable"));
+        assertTrue(children.contains("transform"));
+        assertTrue(children.contains("empty"));
+    }
+
+    testDatasetChildren() {
+        ArrowFlightDataProvider provider({"url": url});
+        AbstractDataProvider dataset = provider.getChildProvider("sales");
+        assertEq("sales", dataset.getName());
+
+        *list<string> children = dataset.getChildProviderNames();
+        assertEq(3, children.size());
+        assertTrue(children.contains("get"));
+        assertTrue(children.contains("put"));
+        assertTrue(children.contains("exchange"));
+    }
+
+    testMethodProviderInfo() {
+        ArrowFlightDataProvider provider({"url": url});
+        AbstractDataProvider get_method = provider.getChildProvider("sales")
+            .getChildProvider("get");
+        assertEq("get", get_method.getName());
+
+        hash<DataProviderInfo> info = get_method.getInfo();
+        assertTrue(info.supports_request);
+        assertTrue(info.supports_children);
+
+        # Get method should have events child
+        *list<string> children = get_method.getChildProviderNames();
+        assertEq(1, children.size());
+        assertEq("events", children[0]);
+    }
+
+    testDoGetRequest() {
+        ArrowFlightDataProvider provider({"url": url});
+        auto result = provider.getChildProvider("sales")
+            .getChildProvider("get")
+            .doRequest(NOTHING);
+
+        assertEq("list<hash<auto>>", result.fullType());
+        assertEq(3, result.size());
+
+        # Verify data content
+        assertEq(1, result[0].id);
+        assertEq("Widget", result[0].product);
+        assertFloatEq(9.99, result[0].amount, 0.001);
+
+        assertEq(2, result[1].id);
+        assertEq("Gadget", result[1].product);
+
+        assertEq(3, result[2].id);
+        assertEq("Gizmo", result[2].product);
+    }
+
+    testDoGetEmpty() {
+        ArrowFlightDataProvider provider({"url": url});
+        auto result = provider.getChildProvider("empty")
+            .getChildProvider("get")
+            .doRequest(NOTHING);
+
+        assertEq("list<hash<auto>>", result.fullType());
+        assertEq(0, result.size());
+    }
+
+    testDoPutRequest() {
+        ArrowFlightDataProvider provider({"url": url});
+        list<hash<auto>> rows = (
+            {"key": "alpha", "value": 100},
+            {"key": "beta", "value": 200},
+        );
+
+        auto result = provider.getChildProvider("writable")
+            .getChildProvider("put")
+            .doRequest({"rows": rows});
+
+        # Verify data was received by the handler
+        assertTrue(writable_handler.received_batches.size() > 0);
+        list<hash<auto>> received = writable_handler.received_batches[
+            writable_handler.received_batches.size() - 1];
+        assertEq(2, received.size());
+        assertEq("alpha", received[0].key);
+        assertEq(100, received[0].value);
+        assertEq("beta", received[1].key);
+        assertEq(200, received[1].value);
+    }
+
+    testDoExchangeRequest() {
+        ArrowFlightDataProvider provider({"url": url});
+        list<hash<auto>> input_rows = (
+            {"input": 5},
+            {"input": 10},
+            {"input": 15},
+        );
+
+        auto result = provider.getChildProvider("transform")
+            .getChildProvider("exchange")
+            .doRequest({"rows": input_rows});
+
+        assertEq("list<hash<auto>>", result.fullType());
+        assertEq(3, result.size());
+        assertEq(10, result[0].output);
+        assertEq(20, result[1].output);
+        assertEq(30, result[2].output);
+    }
+
+    testTypeIntrospectionGet() {
+        ArrowFlightDataProvider provider({"url": url});
+        AbstractDataProvider get_method = provider.getChildProvider("sales")
+            .getChildProvider("get");
+
+        # Check request type has ticket field
+        *AbstractDataProviderType req_type = get_method.getRequestType();
+        assertTrue(exists req_type);
+        hash<auto> req_fields = req_type.getFields();
+        assertTrue(req_fields.hasKey("ticket"), "get request has ticket field");
+
+        # Check response type
+        *AbstractDataProviderType resp_type = get_method.getResponseType();
+        assertTrue(exists resp_type);
+    }
+
+    testTypeIntrospectionPut() {
+        ArrowFlightDataProvider provider({"url": url});
+        AbstractDataProvider put_method = provider.getChildProvider("writable")
+            .getChildProvider("put");
+
+        # Check request type has rows field
+        *AbstractDataProviderType req_type = put_method.getRequestType();
+        assertTrue(exists req_type);
+        hash<auto> req_fields = req_type.getFields();
+        assertTrue(req_fields.hasKey("rows"), "put request has rows field");
+
+        # Check response type
+        *AbstractDataProviderType resp_type = put_method.getResponseType();
+        assertTrue(exists resp_type);
+    }
+
+    testDoGetObservable() {
+        ArrowFlightDataProvider provider({"url": url});
+        ArrowFlightStreamEventDataProvider event_dp =
+            cast<ArrowFlightStreamEventDataProvider>(provider.getChildProvider("sales")
+                .getChildProvider("get")
+                .getChildProvider("events"));
+
+        assertEq("events", event_dp.getName());
+
+        hash<DataProviderInfo> info = event_dp.getInfo();
+        assertTrue(info.supports_observable);
+
+        # Test observable event streaming
+        TestObserver observer();
+        event_dp.registerObserver(observer);
+        event_dp.observersReady();
+
+        # Wait for stream to complete and all events to be delivered
+        observer.done.waitForZero(10s);
+
+        # Verify we received batch events
+        assertTrue(observer.events.size() > 0);
+
+        # Check for record batch event
+        bool got_batch = False;
+        bool got_complete = False;
+        for (int i = 0; i < observer.events.size(); ++i) {
+            hash<auto> ev = observer.events[i];
+            if (ev.event_id == EVENT_FLIGHT_RECORD_BATCH) {
+                got_batch = True;
+                assertGt(0, ev.data.num_rows);
+                assertTrue(ev.data.rows.size() > 0);
+            } else if (ev.event_id == EVENT_FLIGHT_COMPLETE) {
+                got_complete = True;
+            }
+        }
+        assertTrue(got_batch);
+        assertTrue(got_complete);
+    }
+
+    testDoExchangeObservable() {
+        ArrowFlightDataProvider provider({"url": url});
+        ArrowFlightStreamEventDataProvider event_dp =
+            cast<ArrowFlightStreamEventDataProvider>(provider.getChildProvider("transform")
+                .getChildProvider("exchange")
+                .getChildProvider("events"));
+
+        assertEq("events", event_dp.getName());
+        hash<DataProviderInfo> info = event_dp.getInfo();
+        assertTrue(info.supports_observable);
+
+        # DoExchange event provider also supports messages
+        assertEq(MSG_Async, info.supports_messages);
+
+        # Test observable event streaming
+        TestObserver observer();
+        event_dp.registerObserver(observer);
+        event_dp.observersReady();
+
+        # Wait for the stream to be ready
+        assertTrue(event_dp.waitForReady(10s), "exchange stream ready");
+
+        # Send data via message API
+        event_dp.sendMessage(MESSAGE_FLIGHT_SEND_BATCH, {
+            "rows": ({"input": 7}, {"input": 14}),
+        });
+
+        # Signal writes done
+        event_dp.stopEvents();
+
+        # Wait for all events to be delivered
+        observer.done.waitForZero(10s);
+
+        # Verify we received batch events with transformed data
+        bool got_batch = False;
+        bool got_complete = False;
+        for (int i = 0; i < observer.events.size(); ++i) {
+            hash<auto> ev = observer.events[i];
+            if (ev.event_id == EVENT_FLIGHT_RECORD_BATCH) {
+                got_batch = True;
+                assertTrue(ev.data.rows.size() > 0, "batch has rows");
+            } else if (ev.event_id == EVENT_FLIGHT_COMPLETE) {
+                got_complete = True;
+            }
+        }
+        assertTrue(got_batch, "received batch event");
+        assertTrue(got_complete, "received complete event");
+    }
+
+    testFlightsTlsScheme() {
+        # Verify that flights:// URL is accepted and converted
+        # We can't connect to a TLS server in this test, but verify the
+        # connection object constructs correctly
+        ArrowFlightConnection conn("test-tls", "Test TLS connection",
+            "flights://localhost:8816");
+        assertEq("flight", conn.getType());
+
+        # Verify the connection URL uses flights://
+        assertTrue(conn.url =~ /^flights:/, "URL uses flights:// scheme");
+    }
+
+    testErrorEvent() {
+        # Create a separate empty server with no datasets
+        ArrowFlightServer err_server();
+        int err_port = err_server.addInsecurePort("localhost:0");
+        err_server.start();
+        on_exit err_server.shutdown();
+
+        string err_url = sprintf("http://localhost:%d", err_port);
+
+        # Create a provider pointing to the empty server; manually build an
+        # events provider with a flight_info that references a non-existent
+        # dataset on this server
+        GrpcChannel err_channel(err_url);
+        on_exit err_channel.shutdown();
+        ArrowFlightClient flight_client(err_channel);
+
+        # Construct flight_info with schema from sales handler
+        hash<auto> flight_info = {
+            "schema": ArrowIpc::writeSchema(new ArrowSchema((
+                {"name": "id", "type": "int64"},
+            ))),
+        };
+
+        ArrowFlightStreamEventDataProvider event_dp(
+            flight_client, "nonexistent", flight_info, "get");
+
+        TestObserver observer();
+        event_dp.registerObserver(observer);
+        event_dp.observersReady();
+
+        # Wait for all events to be delivered (error event)
+        observer.done.waitForZero(10s);
+        assertTrue(observer.events.size() > 0, "received at least one event");
+        bool got_error = False;
+        for (int i = 0; i < observer.events.size(); ++i) {
+            if (observer.events[i].event_id == EVENT_FLIGHT_ERROR) {
+                got_error = True;
+                assertTrue(exists observer.events[i].data.err, "error has err field");
+                assertTrue(exists observer.events[i].data.desc, "error has desc field");
+            }
+        }
+        assertTrue(got_error, "received error event");
+    }
+}
+
+#! Simple observer for testing
+class TestObserver inherits Observer {
+    public {
+        list<hash<auto>> events = ();
+        Counter done(1);
+    }
+
+    update(string event_id, hash<auto> data_) {
+        events += {"event_id": event_id, "data": data_};
+        if (event_id == EVENT_FLIGHT_COMPLETE || event_id == EVENT_FLIGHT_ERROR) {
+            done.dec();
+        }
+    }
+}

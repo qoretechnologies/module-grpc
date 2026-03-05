@@ -1,0 +1,423 @@
+/* -*- mode: c++; indent-tabs-mode: nil -*- */
+/** @file QC_ArrowRecordBatch.qpp defines the %Qore ArrowRecordBatch class */
+/*
+    Qore grpc module
+
+    Copyright (C) 2026 Qore Technologies, s.r.o.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+*/
+
+#include "grpc-module.h"
+#include "QC_ArrowRecordBatch.h"
+#include "QC_ArrowSchema.h"
+#include "QoreArrowHelper.h"
+
+//! The ArrowRecordBatch class wraps an Apache Arrow RecordBatch — the fundamental unit of columnar data
+/**
+    An ArrowRecordBatch holds a fixed number of rows organized in a columnar layout.
+    It can be created from columnar data (hash of lists — one list per column) or from
+    row-oriented data (list of hashes — one hash per row), and can be serialized to
+    Arrow IPC format for transport via Arrow Flight.
+
+    @par Example: Building an order batch from columnar data
+    @code{.py}
+%requires grpc
+
+ArrowSchema schema((
+    {"name": "order_id",  "type": "int64",             "nullable": False},
+    {"name": "customer",  "type": "utf8",              "nullable": False},
+    {"name": "total",     "type": "decimal128(18, 2)", "nullable": False},
+    {"name": "placed_at", "type": "timestamp[us]",     "nullable": False},
+));
+
+ArrowRecordBatch batch(schema, {
+    "order_id":  (1001, 1002, 1003),
+    "customer":  ("Acme Corp", "Globex Inc", "Initech LLC"),
+    "total":     (1500.00n, 2340.50n, 890.25n),
+    "placed_at": (2026-03-01T09:15:00Z, 2026-03-01T10:30:00Z, 2026-03-01T14:45:00Z),
+});
+printf("Rows: %d, Columns: %d\n", batch.numRows(), batch.numColumns());
+    @endcode
+
+    @par Example: Building from row-oriented data (e.g. database query results)
+    @code{.py}
+ArrowRecordBatch batch(schema, (
+    {"order_id": 1001, "customer": "Acme Corp",   "total": 1500.00n,
+        "placed_at": 2026-03-01T09:15:00Z},
+    {"order_id": 1002, "customer": "Globex Inc",  "total": 2340.50n,
+        "placed_at": 2026-03-01T10:30:00Z},
+));
+    @endcode
+
+    @par Example: Serializing for Arrow Flight transport
+    @code{.py}
+hash<ArrowIpcData> ipc = batch.toIpc();
+# Send ipc.data_header and ipc.data_body as FlightData messages
+    @endcode
+
+    @par Performance: toColumns() vs toRows()
+    Use @ref toColumns() when processing data column-at-a-time (aggregations, analytics) —
+    it returns a single hash of lists and avoids per-row hash allocation.
+    Use @ref toRows() when you need row-level iteration (record-by-record processing,
+    database inserts) — it transposes the columnar data into a list of hashes.
+
+    @note This class is only available when the grpc module is built with Apache Arrow support.
+
+    @since %grpc 1.0
+*/
+qclass ArrowRecordBatch [arg=QoreArrowRecordBatchHolder* holder; ns=Qore::Grpc];
+
+//! Creates an ArrowRecordBatch from IPC data_header and data_body (as received in FlightData)
+/** @param schema the Arrow schema needed to interpret the IPC data
+    @param data_header the IPC message header (flatbuffer metadata describing column layout)
+    @param data_body the IPC message body (raw column buffer data)
+
+    @throw ARROW-IPC-ERROR if the IPC data cannot be deserialized or does not match the schema
+
+    @par Example:
+    @code{.py}
+# Receive schema and data from an Arrow Flight DoGet stream
+ArrowSchema schema(flight_data_list[0].data_header);
+ArrowRecordBatch batch(schema, flight_data_list[1].data_header, flight_data_list[1].data_body);
+list<hash<auto>> rows = batch.toRows();
+    @endcode
+
+    @since %grpc 1.0
+*/
+ArrowRecordBatch::constructor(ArrowSchema[QoreArrowSchemaHolder] schema, binary data_header, binary data_body) {
+    auto batch = QoreArrowHelper::ipcToRecordBatch(
+        schema->schema, data_header, data_body, xsink);
+    if (!batch) {
+        return;
+    }
+    self->setPrivate(CID_ARROWRECORDBATCH, new QoreArrowRecordBatchHolder(batch));
+}
+
+//! Creates an ArrowRecordBatch from columnar data (hash of lists)
+/** @param schema the Arrow schema defining the columns
+    @param columns a hash where each key is a column name and the value is a list of column values;
+        all lists must have the same length and every schema field must be present
+
+    @throw ARROW-BUILD-ERROR if the data cannot be converted to Arrow format
+    @throw ARROW-SCHEMA-ERROR if column names don't match the schema or row counts differ
+
+    @par Example:
+    @code{.py}
+ArrowRecordBatch batch(schema, {
+    "trade_id": (1001, 1002, 1003),
+    "symbol":   ("AAPL", "GOOG", "MSFT"),
+    "price":    (182.50n, 141.25n, 378.90n),
+    "quantity": (100, 50, 200),
+});
+    @endcode
+
+    @since %grpc 1.0
+*/
+ArrowRecordBatch::constructor(ArrowSchema[QoreArrowSchemaHolder] schema, hash<auto> columns) {
+    auto arrow_schema = schema->schema;
+
+    // Build arrays from columns
+    std::vector<std::shared_ptr<arrow::Array>> arrays;
+    int64_t num_rows = -1;
+
+    for (int i = 0; i < arrow_schema->num_fields(); ++i) {
+        auto field = arrow_schema->field(i);
+        QoreValue col_val = columns->getKeyValue(field->name().c_str());
+        const QoreListNode* list = col_val.get<QoreListNode>();
+        if (!list) {
+            xsink->raiseException("ARROW-SCHEMA-ERROR",
+                "missing column '%s' in data hash", field->name().c_str());
+            return;
+        }
+
+        if (num_rows < 0) {
+            num_rows = list->size();
+        } else if ((int64_t)list->size() != num_rows) {
+            xsink->raiseException("ARROW-SCHEMA-ERROR",
+                "column '%s' has %d rows, expected %d",
+                field->name().c_str(), (int)list->size(), (int)num_rows);
+            return;
+        }
+
+        auto array = QoreArrowHelper::listToArray(field->type(), list, xsink);
+        if (!array) {
+            return;
+        }
+        arrays.push_back(array);
+    }
+
+    if (num_rows < 0) {
+        num_rows = 0;
+    }
+
+    auto batch = arrow::RecordBatch::Make(arrow_schema, num_rows, arrays);
+    self->setPrivate(CID_ARROWRECORDBATCH, new QoreArrowRecordBatchHolder(batch));
+}
+
+//! Creates an ArrowRecordBatch from row-oriented data (list of hashes)
+/** @param schema the Arrow schema defining the columns
+    @param rows a list of hashes, where each hash represents a row; missing keys are treated
+        as \c NOTHING (null)
+
+    @throw ARROW-BUILD-ERROR if the data cannot be converted to Arrow format
+
+    @par Example:
+    @code{.py}
+# Build from database query results or API responses
+ArrowRecordBatch batch(schema, (
+    {"order_id": 1001, "customer": "Acme Corp",   "total": 1500.00n},
+    {"order_id": 1002, "customer": "Globex Inc",  "total": 2340.50n},
+));
+    @endcode
+
+    @since %grpc 1.0
+*/
+ArrowRecordBatch::constructor(ArrowSchema[QoreArrowSchemaHolder] schema, list<hash<auto>> rows) {
+    auto arrow_schema = schema->schema;
+    int64_t num_rows = rows->size();
+
+    // Transpose rows to columns
+    std::vector<std::shared_ptr<arrow::Array>> arrays;
+    for (int i = 0; i < arrow_schema->num_fields(); ++i) {
+        auto field = arrow_schema->field(i);
+
+        // Build a list of values for this column from all rows
+        ReferenceHolder<QoreListNode> col_list(new QoreListNode(autoTypeInfo), xsink);
+        for (int64_t r = 0; r < num_rows; ++r) {
+            const QoreHashNode* row = rows->retrieveEntry(r).get<QoreHashNode>();
+            if (row) {
+                col_list->push(row->getKeyValue(field->name().c_str()).refSelf(), xsink);
+            } else {
+                col_list->push(QoreValue(), xsink);
+            }
+        }
+
+        auto array = QoreArrowHelper::listToArray(field->type(), *col_list, xsink);
+        if (!array) {
+            return;
+        }
+        arrays.push_back(array);
+    }
+
+    auto batch = arrow::RecordBatch::Make(arrow_schema, num_rows, arrays);
+    self->setPrivate(CID_ARROWRECORDBATCH, new QoreArrowRecordBatchHolder(batch));
+}
+
+//! Returns the schema of this RecordBatch
+/** @return an ArrowSchema object describing the columns
+
+    @par Example:
+    @code{.py}
+ArrowSchema schema = batch.schema();
+    @endcode
+
+    @since %grpc 1.0
+*/
+ArrowSchema ArrowRecordBatch::schema() {
+    auto schema = holder->batch->schema();
+    QoreObject* obj = new QoreObject(QC_ARROWSCHEMA, getProgram());
+    obj->setPrivate(CID_ARROWSCHEMA, new QoreArrowSchemaHolder(schema));
+    return obj;
+}
+
+//! Returns the number of rows in this RecordBatch
+/** @return the number of rows
+
+    @par Example:
+    @code{.py}
+int rows = batch.numRows();
+    @endcode
+
+    @since %grpc 1.0
+*/
+int ArrowRecordBatch::numRows() {
+    return holder->batch->num_rows();
+}
+
+//! Returns the number of columns in this RecordBatch
+/** @return the number of columns
+
+    @par Example:
+    @code{.py}
+int cols = batch.numColumns();
+    @endcode
+
+    @since %grpc 1.0
+*/
+int ArrowRecordBatch::numColumns() {
+    return holder->batch->num_columns();
+}
+
+//! Converts the RecordBatch to columnar data (hash of lists)
+/** @return a hash where each key is a column name and the value is a list of values
+
+    This is the most efficient output format — each column is returned as a contiguous
+    list, which is ideal for column-at-a-time analytics (sums, averages, filtering).
+
+    @par Example:
+    @code{.py}
+hash<auto> cols = batch.toColumns();
+# Compute total order value
+number total = 0n;
+map total += $1, cols.total;
+printf("Total revenue: %n\n", total);
+    @endcode
+
+    @see toRows() for row-oriented output
+
+    @since %grpc 1.0
+*/
+hash<auto> ArrowRecordBatch::toColumns() {
+    ReferenceHolder<QoreHashNode> hash(new QoreHashNode(autoTypeInfo), xsink);
+
+    for (int i = 0; i < holder->batch->num_columns(); ++i) {
+        auto array = holder->batch->column(i);
+        auto name = holder->batch->schema()->field(i)->name();
+        QoreListNode* list = QoreArrowHelper::arrayToList(array, xsink);
+        if (*xsink) {
+            return QoreValue();
+        }
+        hash->setKeyValue(name, list, xsink);
+    }
+
+    return hash.release();
+}
+
+//! Converts the RecordBatch to row-oriented data (list of hashes)
+/** @return a list of hashes, where each hash represents a row
+
+    This format is convenient for record-by-record processing (database inserts, API calls,
+    per-row business logic).  For bulk analytics prefer @ref toColumns() which avoids
+    per-row hash allocation overhead.
+
+    @par Example:
+    @code{.py}
+list<hash<auto>> rows = batch.toRows();
+for (hash<auto> row in rows) {
+    printf("Order %d from %s: %n\n", row.order_id, row.customer, row.total);
+}
+    @endcode
+
+    @see toColumns() for columnar output
+
+    @since %grpc 1.0
+*/
+list<hash<auto>> ArrowRecordBatch::toRows() {
+    ReferenceHolder<QoreListNode> rows(new QoreListNode(autoTypeInfo), xsink);
+
+    int64_t num_rows = holder->batch->num_rows();
+    int num_cols = holder->batch->num_columns();
+
+    // Pre-convert all columns to lists (references are managed by col_list_holder)
+    ReferenceHolder<QoreListNode> col_list_holder(new QoreListNode(autoTypeInfo), xsink);
+    std::vector<QoreListNode*> col_lists;
+    for (int c = 0; c < num_cols; ++c) {
+        auto array = holder->batch->column(c);
+        QoreListNode* list = QoreArrowHelper::arrayToList(array, xsink);
+        if (*xsink) {
+            return QoreValue();
+        }
+        col_lists.push_back(list);
+        col_list_holder->push(list, xsink);
+    }
+
+    for (int64_t r = 0; r < num_rows; ++r) {
+        ReferenceHolder<QoreHashNode> row(new QoreHashNode(autoTypeInfo), xsink);
+        for (int c = 0; c < num_cols; ++c) {
+            auto name = holder->batch->schema()->field(c)->name();
+            row->setKeyValue(name, col_lists[c]->retrieveEntry(r).refSelf(), xsink);
+        }
+        rows->push(row.release(), xsink);
+    }
+
+    return rows.release();
+}
+
+//! Returns a single column as a Qore list by column name
+/** @param name the column name
+
+    @return a list of values for the column
+
+    @throw ARROW-COLUMN-ERROR if the column is not found
+
+    @par Example:
+    @code{.py}
+list<auto> prices = batch.column("price");
+number avg_price = 0n;
+map avg_price += $1, prices;
+avg_price /= prices.size();
+    @endcode
+
+    @since %grpc 1.0
+*/
+list<auto> ArrowRecordBatch::column(string name) {
+    auto array = holder->batch->GetColumnByName(std::string(name->c_str()));
+    if (!array) {
+        xsink->raiseException("ARROW-COLUMN-ERROR",
+            "column '%s' not found in record batch", name->c_str());
+        return QoreValue();
+    }
+    return QoreArrowHelper::arrayToList(array, xsink);
+}
+
+//! Returns a single column as a Qore list by column index
+/** @param index the zero-based column index
+
+    @return a list of values for the column
+
+    @throw ARROW-COLUMN-ERROR if the index is out of range
+
+    @par Example:
+    @code{.py}
+list<auto> first_col = batch.column(0);
+    @endcode
+
+    @since %grpc 1.0
+*/
+list<auto> ArrowRecordBatch::column(int index) {
+    if (index < 0 || index >= holder->batch->num_columns()) {
+        xsink->raiseException("ARROW-COLUMN-ERROR",
+            "column index %d out of range (0..%d)", (int)index,
+            holder->batch->num_columns() - 1);
+        return QoreValue();
+    }
+    auto array = holder->batch->column(index);
+    return QoreArrowHelper::arrayToList(array, xsink);
+}
+
+//! Serializes the RecordBatch to IPC data_header + data_body pair for Arrow Flight transport
+/** @return an @ref ArrowIpcData hash with \c data_header and \c data_body binary fields
+
+    @throw ARROW-IPC-ERROR if serialization fails
+
+    The two returned binary values map directly to the \c FlightData protobuf message
+    fields used in Arrow Flight \c DoGet / \c DoPut streams.
+
+    @par Example:
+    @code{.py}
+hash<ArrowIpcData> ipc = batch.toIpc();
+# Send ipc.data_header and ipc.data_body as FlightData fields
+    @endcode
+
+    @since %grpc 1.0
+*/
+hash<ArrowIpcData> ArrowRecordBatch::toIpc() {
+    return QoreArrowHelper::recordBatchToIpc(holder->batch, xsink);
+}

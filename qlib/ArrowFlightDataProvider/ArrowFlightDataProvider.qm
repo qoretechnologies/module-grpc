@@ -1,0 +1,218 @@
+# -*- mode: qore; indent-tabs-mode: nil -*-
+#! @file ArrowFlightDataProvider.qm Qore Arrow Flight data provider module
+
+/*  ArrowFlightDataProvider.qm Copyright 2026 Qore Technologies, s.r.o.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+*/
+
+%modern
+%allow-weak-references
+
+%requires(reexport) DataProvider
+%requires(reexport) ConnectionProvider
+%requires grpc
+%requires GrpcUtil
+
+module ArrowFlightDataProvider {
+    version = "1.0";
+    desc = "User module providing a data provider API for Arrow Flight services";
+    author = "Qore Technologies, s.r.o.";
+    url = "https://github.com/qoretechnologies/module-grpc";
+    license = "MIT";
+    init = sub () {
+        # Register data provider factory
+        DataProvider::registerFactory(new ArrowFlightDataProviderFactory());
+
+        # Register connection schemes
+        ConnectionSchemeCache::registerScheme("flight", ArrowFlightConnection::ConnectionScheme);
+        ConnectionSchemeCache::registerScheme("flights", ArrowFlightConnection::ConnectionScheme);
+
+        # Register app in action catalog
+        DataProviderActionCatalog::registerApp(<DataProviderAppInfo>{
+            "name": ArrowFlightDataProvider::AppName,
+            "display_name": "Arrow Flight",
+            "short_desc": "Arrow Flight columnar data service",
+            "desc": "Connect to Arrow Flight services for high-performance columnar data "
+                "exchange using Apache Arrow IPC format, supporting DoGet, DoPut, and "
+                "DoExchange streaming patterns",
+            "scheme": "flight",
+            "groups": (DataProvider::AppGroup::ApiIntegration,),
+            "logo": ArrowFlightLogo,
+            "logo_mime_type": MimeTypeSvg,
+            "logo_file_name": "arrow-flight-logo.svg",
+        });
+
+        # Register doGet action
+        DataProviderActionCatalog::registerAction(<DataProviderActionInfo>{
+            "app": ArrowFlightDataProvider::AppName,
+            "path": "/{dataset}/get",
+            "path_vars": {
+                "dataset": <DataProviderPathVarInfo>{
+                    "display_name": "Dataset",
+                    "short_desc": "The Flight dataset name",
+                    "desc": "The Arrow Flight dataset name as registered on the server",
+                    "example_value": "my-dataset",
+                },
+            },
+            "action": "call",
+            "display_name": "Get Flight Data",
+            "short_desc": "Retrieve data from an Arrow Flight dataset",
+            "desc": "Retrieves columnar data from an Arrow Flight service via DoGet",
+            "action_code": DPAT_API,
+        });
+    };
+}
+
+/** @mainpage ArrowFlightDataProvider Module
+
+    @tableofcontents
+
+    @section arrowflightdataproviderintro ArrowFlightDataProvider Module Introduction
+
+    The %ArrowFlightDataProvider module integrates Apache Arrow Flight services into Qore's
+    data provider framework, enabling high-performance columnar data exchange alongside
+    REST, SOAP, gRPC, and other protocols through a uniform API.
+
+    Key capabilities:
+    - <b>Columnar data exchange</b>: Arrow Flight transfers data in columnar Apache Arrow
+      IPC format for zero-copy, high-throughput data access
+    - <b>Dynamic dataset discovery</b>: datasets are discovered automatically via the
+      Flight \c ListFlights RPC
+    - <b>Three data patterns</b>: DoGet (read), DoPut (write), and DoExchange
+      (bidirectional transformation)
+    - <b>Observable streams</b>: DoGet and DoExchange methods expose an \c events child
+      provider for event-driven batch consumption via the DataProvider observer pattern
+    - <b>Connection management</b>: \c flight:// and \c flights:// URL schemes integrate
+      with Qore's connection framework
+
+    @subsection arrowflightdataprovider_hierarchy Provider Hierarchy
+
+    Arrow Flight datasets are navigated as a three-level hierarchy:
+
+    @verbatim
+<root>
+  └── <DatasetName>      (ArrowFlightDatasetDataProvider)
+        ├── get           (ArrowFlightMethodDataProvider — DoGet)
+        │   └── events    (ArrowFlightStreamEventDataProvider)
+        ├── put           (ArrowFlightMethodDataProvider — DoPut)
+        └── exchange      (ArrowFlightMethodDataProvider — DoExchange)
+              └── events  (ArrowFlightStreamEventDataProvider)
+    @endverbatim
+
+    @subsection arrowflightdataprovider_classes Provided Classes
+
+    - @ref ArrowFlightDataProvider::ArrowFlightDataProvider "ArrowFlightDataProvider":
+      root provider with dataset discovery via ListFlights
+    - @ref ArrowFlightDataProvider::ArrowFlightDataProviderFactory "ArrowFlightDataProviderFactory":
+      factory for creating providers from constructor options
+    - @ref ArrowFlightDataProvider::ArrowFlightDatasetDataProvider "ArrowFlightDatasetDataProvider":
+      dataset-level container provider
+    - @ref ArrowFlightDataProvider::ArrowFlightMethodDataProvider "ArrowFlightMethodDataProvider":
+      method-level provider supporting DoGet, DoPut, and DoExchange
+    - @ref ArrowFlightDataProvider::ArrowFlightStreamEventDataProvider "ArrowFlightStreamEventDataProvider":
+      observable event provider for DoGet and DoExchange streaming;
+      DoExchange also supports sending batches
+    - @ref ArrowFlightDataProvider::ArrowFlightConnection "ArrowFlightConnection":
+      connection provider with \c flight:// and \c flights:// URL schemes
+    - @ref ArrowFlightDataProvider::ArrowFlightTypeHelper "ArrowFlightTypeHelper":
+      Arrow-to-DataProvider type mapping
+
+    @section arrowflightdataprovider_factory ArrowFlightDataProvider Factory
+
+    The name of the Arrow Flight data provider factory is <b><tt>flight</tt></b>.
+
+    @subsection arrowflightdataprovider_factory_options Factory Options
+
+    The factory supports the following constructor options:
+
+    | Option | Type | Description |
+    |--------|------|-------------|
+    | \c url | string | Arrow Flight server URL (\c http://host:port or \c https://host:port) |
+    | \c timeout_ms | int | Default call timeout in milliseconds (default: \c 30000) |
+
+    @section arrowflightdataprovider_examples ArrowFlightDataProvider Examples
+
+    @subsection arrowflightdataprovider_examples_doget DoGet with qdp
+
+    @par Example: read all data from a dataset
+    @verbatim qdp 'flight{url=http://localhost:8815}/sales/get' dor
+    @endverbatim
+
+    @subsection arrowflightdataprovider_examples_connection Named Connection
+
+    @par Example: read data via a named connection
+    @verbatim qdp myflight/sales/get dor
+    @endverbatim
+
+    @subsection arrowflightdataprovider_examples_events Observable Events
+
+    @par Example: subscribe to streaming DoGet events
+    @verbatim qdp -s myflight myflight/sales/get/events listen
+    @endverbatim
+
+    @section arrowflightdataprovider_programmatic Programmatic Usage
+
+    @code{.py}
+%modern
+%requires ArrowFlightDataProvider
+
+ArrowFlightDataProvider provider({"url": "http://localhost:8815"});
+
+# List available datasets
+map printf("Dataset: %s\n", $1), provider.getChildProviderNames();
+
+# Read data from a dataset
+auto rows = provider.getChildProvider("sales")
+    .getChildProvider("get")
+    .doRequest(NOTHING);
+printf("Got %d rows\n", rows.size());
+    @endcode
+
+    @section arrowflightdataprovider_connections Connection Schemes
+
+    The module registers two connection URL schemes:
+    - \c flight://host:port — plaintext HTTP/2 (h2c)
+    - \c flights://host:port — TLS-encrypted HTTP/2
+
+    @section arrowflightdataprovider_relnotes Release Notes
+
+    @subsection arrowflightdataprovider_v1_0 ArrowFlightDataProvider v1.0
+    - initial release
+    - @ref ArrowFlightDataProvider::ArrowFlightDataProvider "ArrowFlightDataProvider": root
+      provider with dataset discovery via ListFlights
+    - @ref ArrowFlightDataProvider::ArrowFlightDatasetDataProvider "ArrowFlightDatasetDataProvider":
+      dataset-level container provider
+    - @ref ArrowFlightDataProvider::ArrowFlightMethodDataProvider "ArrowFlightMethodDataProvider":
+      method-level provider supporting DoGet, DoPut, and DoExchange
+    - @ref ArrowFlightDataProvider::ArrowFlightStreamEventDataProvider "ArrowFlightStreamEventDataProvider":
+      observable event provider for streaming methods
+    - @ref ArrowFlightDataProvider::ArrowFlightConnection "ArrowFlightConnection": connection
+      provider with \c flight:// and \c flights:// URL schemes
+*/
+
+#! Contains all public definitions in the ArrowFlightDataProvider module
+public namespace ArrowFlightDataProvider {
+    #! MIME type for SVG images
+    public const MimeTypeSvg = "image/svg+xml";
+
+    #! Arrow Flight logo in SVG format for the action catalog
+    public const ArrowFlightLogo = File::readTextFile(get_script_dir()
+        + "/arrow-flight-logo.svg");
+}

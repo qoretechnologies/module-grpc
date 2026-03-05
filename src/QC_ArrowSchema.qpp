@@ -1,0 +1,258 @@
+/* -*- mode: c++; indent-tabs-mode: nil -*- */
+/** @file QC_ArrowSchema.qpp defines the %Qore ArrowSchema class and related types */
+/*
+    Qore grpc module
+
+    Copyright (C) 2026 Qore Technologies, s.r.o.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+*/
+
+#include "grpc-module.h"
+#include "QC_ArrowSchema.h"
+#include "QoreArrowHelper.h"
+
+//! Information about a field in an Arrow schema
+/** @since %grpc 1.0
+*/
+hashdecl Qore::Grpc::ArrowFieldInfo {
+    //! The field name
+    string name;
+
+    //! The Arrow data type name
+    /** See @ref grpcarrowtypes for the complete list of supported type strings.
+
+        Common types: \c "int64", \c "utf8", \c "float64", \c "bool", \c "binary",
+        \c "timestamp[us, tz=UTC]", \c "decimal128(18, 2)", \c "date32"
+    */
+    string type;
+
+    //! True if the field is nullable (can contain \c NOTHING values)
+    bool nullable;
+
+    //! Optional field-level metadata key-value pairs
+    *hash<string, string> metadata;
+
+    //! Child fields for nested types
+    /** Required for:
+        - \c "struct": one child per struct field
+        - \c "list" / \c "large_list": exactly one child defining the element type
+        - \c "map": exactly two children — first is the key type, second is the value type
+    */
+    *list<hash<Qore::Grpc::ArrowFieldInfo>> children;
+}
+
+//! Information about an Arrow schema
+/** @since %grpc 1.0
+*/
+hashdecl Qore::Grpc::ArrowSchemaInfo {
+    //! The fields in the schema
+    list<hash<Qore::Grpc::ArrowFieldInfo>> fields;
+
+    //! Schema-level metadata key-value pairs
+    *hash<string, string> metadata;
+}
+
+//! IPC serialization result containing the data_header and data_body pair
+/** Used by @ref ArrowRecordBatch::toIpc() and @ref ArrowIpc::writeRecordBatch()
+    to return the two parts of an Arrow IPC message needed for FlightData transport.
+
+    @since %grpc 1.0
+*/
+hashdecl Qore::Grpc::ArrowIpcData {
+    //! IPC message header (flatbuffer metadata describing column layout and types)
+    binary data_header;
+
+    //! IPC message body (raw column buffer data)
+    binary data_body;
+}
+
+//! The ArrowSchema class wraps an Apache Arrow schema for use with Arrow Flight
+/**
+    An ArrowSchema defines the column names, data types, and nullability of an Arrow
+    record batch.  Use it to describe the structure of tabular data for high-performance
+    columnar transport via Arrow Flight.
+
+    @par Example: Financial trade schema with metadata
+    @code{.py}
+%requires grpc
+
+ArrowSchema schema((
+    {"name": "trade_id",   "type": "int64",                    "nullable": False},
+    {"name": "symbol",     "type": "utf8",                     "nullable": False},
+    {"name": "price",      "type": "decimal128(18, 4)",        "nullable": False},
+    {"name": "quantity",   "type": "int32",                    "nullable": False},
+    {"name": "timestamp",  "type": "timestamp[us, tz=UTC]",    "nullable": False},
+    {"name": "notes",      "type": "utf8",                     "nullable": True},
+), {"source": "trading-engine", "version": "2.1"});
+printf("Fields: %d\n", schema.numFields());
+    @endcode
+
+    @par Example: IoT sensor schema with nested types
+    @code{.py}
+ArrowSchema schema((
+    {"name": "device_id",   "type": "utf8",    "nullable": False},
+    {"name": "readings",    "type": "list",    "nullable": False,
+        "children": (
+            {"name": "item", "type": "float64", "nullable": False},
+        )},
+    {"name": "location",    "type": "struct",  "nullable": True,
+        "children": (
+            {"name": "lat",  "type": "float64", "nullable": False},
+            {"name": "lon",  "type": "float64", "nullable": False},
+        )},
+    {"name": "recorded_at", "type": "timestamp[us, tz=UTC]", "nullable": False},
+));
+    @endcode
+
+    @par Example: Deserializing a schema from Arrow Flight IPC bytes
+    @code{.py}
+# Received from FlightData.data_header or SchemaResult.schema
+ArrowSchema schema(ipc_bytes);
+hash<ArrowSchemaInfo> info = schema.info();
+for (hash<ArrowFieldInfo> field in info.fields) {
+    printf("Column: %s (%s, nullable=%y)\n", field.name, field.type, field.nullable);
+}
+    @endcode
+
+    @note This class is only available when the grpc module is built with Apache Arrow support.
+
+    @see @ref grpcarrowtypes for the complete list of supported Arrow type strings
+
+    @since %grpc 1.0
+*/
+qclass ArrowSchema [arg=QoreArrowSchemaHolder* holder; ns=Qore::Grpc];
+
+//! Creates an ArrowSchema from IPC-serialized schema bytes
+/** @param ipc_schema the IPC-serialized schema bytes (from FlightData.data_header or SchemaResult.schema)
+
+    @throw ARROW-IPC-ERROR if the IPC data cannot be deserialized
+
+    @par Example:
+    @code{.py}
+ArrowSchema schema(ipc_bytes);
+    @endcode
+
+    @since %grpc 1.0
+*/
+ArrowSchema::constructor(binary ipc_schema) {
+    auto schema = QoreArrowHelper::deserializeSchema(ipc_schema, xsink);
+    if (!schema) {
+        return;
+    }
+    self->setPrivate(CID_ARROWSCHEMA, new QoreArrowSchemaHolder(schema));
+}
+
+//! Creates an ArrowSchema from field definitions
+/** @param fields a list of @ref ArrowFieldInfo hashdecls describing each field
+    @param metadata optional schema-level metadata key-value pairs (e.g. \c {"source": "etl-pipeline"})
+
+    @throw ARROW-SCHEMA-ERROR if the field definitions are invalid
+
+    @par Example:
+    @code{.py}
+ArrowSchema schema((
+    {"name": "order_id",  "type": "int64",             "nullable": False},
+    {"name": "customer",  "type": "utf8",              "nullable": False},
+    {"name": "total",     "type": "decimal128(18, 2)", "nullable": False},
+    {"name": "placed_at", "type": "timestamp[us]",     "nullable": False},
+));
+    @endcode
+
+    @since %grpc 1.0
+*/
+ArrowSchema::constructor(list<auto> fields, *hash<auto> metadata) {
+    auto schema = QoreArrowHelper::hashToSchema(fields, metadata, xsink);
+    if (!schema) {
+        return;
+    }
+    self->setPrivate(CID_ARROWSCHEMA, new QoreArrowSchemaHolder(schema));
+}
+
+//! Returns schema information as an @ref ArrowSchemaInfo hashdecl
+/** @return an @ref ArrowSchemaInfo hash with field definitions and schema-level metadata
+
+    @par Example:
+    @code{.py}
+hash<ArrowSchemaInfo> info = schema.info();
+for (hash<ArrowFieldInfo> field in info.fields) {
+    printf("Column: %s type=%s nullable=%y\n", field.name, field.type, field.nullable);
+}
+if (info.metadata) {
+    printf("Schema metadata: %y\n", info.metadata);
+}
+    @endcode
+
+    @since %grpc 1.0
+*/
+hash<ArrowSchemaInfo> ArrowSchema::info() {
+    return QoreArrowHelper::schemaToHash(holder->schema, xsink);
+}
+
+//! Returns the list of field names in the schema
+/** @return a list of field name strings
+
+    @par Example:
+    @code{.py}
+list<string> names = schema.fieldNames();
+    @endcode
+
+    @since %grpc 1.0
+*/
+list<string> ArrowSchema::fieldNames() {
+    ReferenceHolder<QoreListNode> list(new QoreListNode(stringTypeInfo), xsink);
+    for (int i = 0; i < holder->schema->num_fields(); ++i) {
+        list->push(new QoreStringNode(holder->schema->field(i)->name()), xsink);
+    }
+    return list.release();
+}
+
+//! Returns the number of fields in the schema
+/** @return the number of fields
+
+    @par Example:
+    @code{.py}
+int n = schema.numFields();
+    @endcode
+
+    @since %grpc 1.0
+*/
+int ArrowSchema::numFields() {
+    return holder->schema->num_fields();
+}
+
+//! Serializes the schema to IPC format for Arrow Flight transport
+/** @return the IPC-serialized schema bytes
+
+    @throw ARROW-IPC-ERROR if serialization fails
+
+    The returned bytes can be sent as a \c SchemaResult.schema or as the first
+    \c FlightData.data_header in a \c DoGet / \c DoPut stream.
+
+    @par Example:
+    @code{.py}
+binary ipc_data = schema.toIpc();
+# Send as SchemaResult.schema or FlightData.data_header
+    @endcode
+
+    @since %grpc 1.0
+*/
+binary ArrowSchema::toIpc() {
+    return QoreArrowHelper::serializeSchema(holder->schema, xsink);
+}

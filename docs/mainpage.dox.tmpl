@@ -418,6 +418,313 @@ GrpcDataProvider provider({
 });
     @endcode
 
+    @section grpcarrow Arrow IPC Support
+
+    When built with Apache Arrow (\c -DArrow_DIR=...), the module provides classes for
+    creating, inspecting, and serializing Apache Arrow columnar data.  These are the
+    building blocks for Arrow Flight integration — the high-performance columnar data
+    transport protocol used in analytics, data lakehouse, and ETL pipelines.
+
+    @subsection grpcarrowclasses Arrow Classes
+
+    |!Class|!Description
+    |@ref Qore::Grpc::ArrowSchema|Defines column names, types, nullability, and metadata
+    |@ref Qore::Grpc::ArrowRecordBatch|Holds columnar data (rows × columns) in Arrow format
+    |@ref Qore::Grpc::ArrowIpc|Static utility methods for IPC serialization / deserialization
+
+    @subsection grpcarrowtypes Supported Arrow Type Strings
+
+    These strings are used in the @ref Qore::Grpc::ArrowFieldInfo \c "type" field when
+    defining schemas.
+
+    <b>Integer types</b>:
+    |!Type String|!Description|!Qore Type
+    |\c "int8"|Signed 8-bit integer|\c int
+    |\c "int16"|Signed 16-bit integer|\c int
+    |\c "int32"|Signed 32-bit integer|\c int
+    |\c "int64"|Signed 64-bit integer|\c int
+    |\c "uint8"|Unsigned 8-bit integer|\c int
+    |\c "uint16"|Unsigned 16-bit integer|\c int
+    |\c "uint32"|Unsigned 32-bit integer|\c int
+    |\c "uint64"|Unsigned 64-bit integer|\c int or \c number (values > 2^63)
+
+    <b>Floating-point types</b>:
+    |!Type String|!Description|!Qore Type
+    |\c "float16" / \c "half_float"|IEEE 754 half-precision|\c float
+    |\c "float32" / \c "float"|IEEE 754 single-precision|\c float
+    |\c "float64" / \c "double"|IEEE 754 double-precision|\c float
+
+    <b>Decimal types</b>:
+    |!Type String|!Description|!Qore Type
+    |\c "decimal128(P, S)"|128-bit decimal with precision P, scale S|\c number
+    |\c "decimal256(P, S)"|256-bit decimal with precision P, scale S|\c number
+
+    <b>String and binary types</b>:
+    |!Type String|!Description|!Qore Type
+    |\c "utf8"|UTF-8 string (up to 2 GB)|\c string
+    |\c "large_utf8"|UTF-8 string (up to 2^63 bytes)|\c string
+    |\c "binary"|Binary data (up to 2 GB)|\c binary
+    |\c "large_binary"|Binary data (up to 2^63 bytes)|\c binary
+    |\c "fixed_size_binary[N]"|Fixed-length binary of N bytes|\c binary
+
+    <b>Boolean</b>:
+    |!Type String|!Description|!Qore Type
+    |\c "bool"|Boolean true/false|\c bool
+
+    <b>Date and time types</b>:
+    |!Type String|!Description|!Qore Type
+    |\c "date32"|Days since epoch|\c date
+    |\c "date64"|Milliseconds since epoch|\c date
+    |\c "timestamp[s]", \c "timestamp[ms]", \c "timestamp[us]", \c "timestamp[ns]"|Timestamp with unit|\c date
+    |\c "timestamp[us, tz=UTC]"|Timestamp with timezone|\c date
+    |\c "time32[s]", \c "time32[ms]"|Time of day (second/millisecond)|\c date
+    |\c "time64[us]", \c "time64[ns]"|Time of day (microsecond/nanosecond)|\c date
+    |\c "duration[s]", \c "duration[ms]", \c "duration[us]", \c "duration[ns]"|Duration with unit|\c date
+
+    <b>Nested types</b>:
+    |!Type String|!Children|!Qore Type
+    |\c "struct"|One child per struct field|\c hash
+    |\c "list"|One child named \c "item"|\c list
+    |\c "large_list"|One child named \c "item"|\c list
+    |\c "map"|Two children: \c "key" and \c "value"|\c hash
+
+    @subsection grpcarrowworkflow Arrow Flight Workflow
+
+    A typical Arrow Flight data exchange follows this pattern:
+
+    @par Sender: Schema + RecordBatch → IPC bytes
+    @code{.py}
+%requires grpc
+
+# 1. Define the schema
+ArrowSchema schema((
+    {"name": "trade_id",  "type": "int64",             "nullable": False},
+    {"name": "symbol",    "type": "utf8",              "nullable": False},
+    {"name": "price",     "type": "decimal128(18, 4)", "nullable": False},
+    {"name": "quantity",  "type": "int32",             "nullable": False},
+    {"name": "exec_time", "type": "timestamp[us, tz=UTC]", "nullable": False},
+));
+
+# 2. Build a record batch from data
+ArrowRecordBatch batch(schema, {
+    "trade_id":  (10001, 10002, 10003),
+    "symbol":    ("AAPL", "GOOG", "MSFT"),
+    "price":     (182.5025n, 141.2500n, 378.9075n),
+    "quantity":  (100, 50, 200),
+    "exec_time": (2026-03-04T14:30:00.123456Z, 2026-03-04T14:30:01.234567Z,
+                  2026-03-04T14:30:02.345678Z),
+});
+
+# 3. Serialize for transport
+binary schema_ipc = schema.toIpc();
+hash<ArrowIpcData> batch_ipc = batch.toIpc();
+# Send schema_ipc, batch_ipc.data_header, batch_ipc.data_body via Flight
+    @endcode
+
+    @par Receiver: IPC bytes → Schema + RecordBatch → Qore data
+    @code{.py}
+# 1. Deserialize the schema
+ArrowSchema schema(schema_ipc);
+
+# 2. Deserialize the record batch
+ArrowRecordBatch batch(schema, data_header, data_body);
+
+# 3. Access data — columnar for analytics
+hash<auto> cols = batch.toColumns();
+number total_value = 0n;
+for (int i = 0; i < batch.numRows(); ++i) {
+    total_value += cols.price[i] * cols.quantity[i];
+}
+printf("Total notional: %n\n", total_value);
+
+# 3b. Or row-oriented for per-record processing
+list<hash<auto>> trades = batch.toRows();
+for (hash<auto> trade in trades) {
+    printf("Trade %d: %s %d @ %n at %y\n",
+        trade.trade_id, trade.symbol, trade.quantity, trade.price, trade.exec_time);
+}
+    @endcode
+
+    @subsection grpcarrowerrors Arrow Error Handling
+
+    Arrow operations raise Qore exceptions with the following error codes:
+
+    |!Exception|!Cause
+    |\c ARROW-IPC-ERROR|IPC deserialization failed (corrupt or invalid binary data)
+    |\c ARROW-SCHEMA-ERROR|Schema definition invalid, or column data does not match the schema
+    |\c ARROW-BUILD-ERROR|Data cannot be converted to the declared Arrow type
+    |\c ARROW-TYPE-ERROR|Unknown or unsupported Arrow type string
+    |\c ARROW-COLUMN-ERROR|Column name not found or index out of range
+
+    @section grpcflight Arrow Flight Protocol
+
+    The Arrow Flight protocol is a high-performance data transport built on gRPC for
+    exchanging columnar Arrow data.  When built with Apache Arrow, the \c GrpcUtil module
+    provides Arrow Flight client and server classes, and the
+    @ref ArrowFlightDataProvider::ArrowFlightDataProvider "ArrowFlightDataProvider" module
+    integrates Flight services into the data provider framework.
+
+    @subsection grpcflightarch Flight Architecture
+
+    @verbatim
+GrpcUtil Module                         ArrowFlightDataProvider Module
+┌───────────────────────────────┐       ┌─────────────────────────────────────┐
+│ ArrowFlightClient             │       │ ArrowFlightDataProvider (root)      │
+│   listFlights(), doGet(),     │       │   └─ ArrowFlightDatasetDataProvider │
+│   doPut(), doExchange()       │       │        ├─ get  (doGet)             │
+│                               │       │        ├─ put  (doPut)             │
+│ ArrowFlightServer             │       │        └─ exchange (doExchange)    │
+│   registerDataset(),          │       │              └─ events (observable) │
+│   registerAction()            │       │                                     │
+│                               │       │ ArrowFlightConnection               │
+│ ArrowFlightStreamReader       │       │   flight://, flights://             │
+│ ArrowFlightStreamWriter       │       │                                     │
+│ ArrowFlightExchangeStream     │       │ ArrowFlightDataProviderFactory      │
+│ ArrowFlightDatasetHandler     │       │   name: "flight"                    │
+│ ArrowFlightHelper             │       └─────────────────────────────────────┘
+└───────────────────────────────┘
+    @endverbatim
+
+    @subsection grpcflightserver Flight Server
+
+    @code{.py}
+%modern
+%requires grpc
+%requires GrpcUtil
+
+class SalesHandler inherits ArrowFlightDatasetHandler {
+    ArrowSchema getSchema() {
+        return new ArrowSchema((
+            {"name": "id", "type": "int64"},
+            {"name": "product", "type": "utf8"},
+            {"name": "price", "type": "float64"},
+        ));
+    }
+
+    hash<auto> getFlightInfo(hash<auto> descriptor) {
+        return {
+            "schema": ArrowIpc::writeSchema(getSchema()),
+            "flight_descriptor": descriptor,
+            "total_records": 3,
+            "total_bytes": -1,
+        };
+    }
+
+    nothing doGet(hash<auto> ticket, GrpcServerStream stream) {
+        ArrowSchema sch = getSchema();
+        stream.write(ArrowFlightHelper::schemaToFlightData(sch));
+
+        ArrowRecordBatch batch(sch, (
+            {"id": 1, "product": "Widget", "price": 9.99},
+            {"id": 2, "product": "Gadget", "price": 24.99},
+        ));
+        stream.write(ArrowFlightHelper::batchToFlightData(batch));
+    }
+}
+
+ArrowFlightServer server();
+server.registerDataset("sales", new SalesHandler());
+
+int port = server.addInsecurePort("localhost:0");
+server.start();
+printf("Flight server on port %d\n", port);
+server.wait();
+    @endcode
+
+    @subsection grpcflightclient Flight Client
+
+    @code{.py}
+%modern
+%requires grpc
+%requires GrpcUtil
+
+GrpcChannel channel("http://localhost:8815");
+ArrowFlightClient client(channel);
+
+# List available datasets
+list<hash<auto>> flights = client.listFlights();
+printf("Datasets: %y\n", flights);
+
+# Read data via DoGet
+hash<auto> ticket = {"ticket": binary("sales")};
+ArrowFlightStreamReader reader = client.doGet(ticket);
+ArrowSchema schema = reader.schema();
+while (*ArrowRecordBatch batch = reader.read(5s)) {
+    list<hash<auto>> rows = batch.toRows();
+    printf("Received %d rows\n", rows.size());
+}
+reader.finish();
+
+# Write data via DoPut
+ArrowSchema write_schema((
+    {"name": "key", "type": "utf8"},
+    {"name": "value", "type": "int64"},
+));
+hash<auto> descriptor = ArrowFlightHelper::pathDescriptor("my-dataset");
+ArrowFlightStreamWriter writer = client.doPut(descriptor, write_schema);
+ArrowRecordBatch batch(write_schema, (
+    {"key": "alpha", "value": 100},
+    {"key": "beta", "value": 200},
+));
+writer.write(batch);
+writer.finish();
+
+channel.shutdown();
+    @endcode
+
+    @subsection grpcflightdataprovider Flight Data Provider
+
+    The @ref ArrowFlightDataProvider::ArrowFlightDataProvider "ArrowFlightDataProvider"
+    module integrates Arrow Flight into Qore's data provider framework.
+
+    @par Navigate datasets and read data
+    @code{.py}
+%modern
+%requires ArrowFlightDataProvider
+
+ArrowFlightDataProvider provider({"url": "http://localhost:8815"});
+
+# List datasets
+map printf("Dataset: %s\n", $1), provider.getChildProviderNames();
+
+# Read data via doRequest
+auto rows = provider.getChildProvider("sales")
+    .getChildProvider("get")
+    .doRequest(NOTHING);
+printf("Got %d rows\n", rows.size());
+    @endcode
+
+    @par Write data
+    @code{.py}
+list<hash<auto>> rows = (
+    {"key": "alpha", "value": 100},
+    {"key": "beta", "value": 200},
+);
+provider.getChildProvider("writable")
+    .getChildProvider("put")
+    .doRequest({"rows": rows});
+    @endcode
+
+    @par Observable streaming events
+    @code{.py}
+ArrowFlightStreamEventDataProvider events =
+    cast<ArrowFlightStreamEventDataProvider>(
+        provider.getChildProvider("sales")
+            .getChildProvider("get")
+            .getChildProvider("events"));
+events.registerObserver(my_observer);
+events.observersReady();
+    @endcode
+
+    @par Using named connections
+    @verbatim qdp 'flight{url=http://localhost:8815}/sales/get' dor
+    @endverbatim
+
+    @par Connection schemes
+    |!Scheme|!Transport|!Example URL
+    |\c flight://|Plaintext HTTP/2|\c flight://localhost:8815
+    |\c flights://|TLS HTTPS|\c flights://flight.example.com:443
+
     @section grpcrelnotes Release Notes
 
     @subsection grpc_v1_0 grpc Module Version 1.0
@@ -445,6 +752,37 @@ GrpcDataProvider provider({
     - \c GrpcDataProviderFactory for factory-based creation
     - \c GrpcTypeHelper for protobuf-to-DataProvider type mapping
     - \c GrpcReflectionClient for gRPC server reflection protocol
+    - <b>Arrow IPC support</b> (optional, requires Apache Arrow):
+      - @ref Qore::Grpc::ArrowSchema for schema definition, introspection, and IPC serialization
+      - @ref Qore::Grpc::ArrowRecordBatch for columnar data with row/column construction and conversion
+      - @ref Qore::Grpc::ArrowIpc static utility class for IPC serialization / deserialization
+      - support for all Arrow primitive types, nested types (struct, list, large_list, map),
+        decimal128/256, timestamps with timezones, durations, half-float, and field/schema metadata
+      - IPC data_header + data_body split compatible with Arrow Flight wire format
+    - <b>Arrow Flight protocol</b> (optional, requires Apache Arrow):
+      - @ref Grpc::ArrowFlightClient "ArrowFlightClient" for Flight RPCs (ListFlights,
+        GetFlightInfo, DoGet, DoPut, DoExchange, DoAction)
+      - @ref Grpc::ArrowFlightServer "ArrowFlightServer" with dataset and action registration
+      - @ref Grpc::ArrowFlightStreamReader "ArrowFlightStreamReader",
+        @ref Grpc::ArrowFlightStreamWriter "ArrowFlightStreamWriter", and
+        @ref Grpc::ArrowFlightExchangeStream "ArrowFlightExchangeStream" for typed streaming
+      - @ref Grpc::ArrowFlightDatasetHandler "ArrowFlightDatasetHandler" abstract base for
+        user-implemented Flight datasets
+      - @ref Grpc::ArrowFlightHelper "ArrowFlightHelper" for FlightData ↔ Arrow object conversion
+      - @ref Grpc::FlightProto "FlightProto" embedded Flight protocol schema
+    - <b>ArrowFlightDataProvider module</b> (optional, requires Apache Arrow):
+      - @ref ArrowFlightDataProvider::ArrowFlightDataProvider "ArrowFlightDataProvider" root
+        provider with dataset discovery via ListFlights
+      - @ref ArrowFlightDataProvider::ArrowFlightDatasetDataProvider "ArrowFlightDatasetDataProvider"
+        per-dataset container provider
+      - @ref ArrowFlightDataProvider::ArrowFlightMethodDataProvider "ArrowFlightMethodDataProvider"
+        method-level provider supporting DoGet, DoPut, and DoExchange
+      - @ref ArrowFlightDataProvider::ArrowFlightStreamEventDataProvider "ArrowFlightStreamEventDataProvider"
+        observable event provider for streaming methods
+      - @ref ArrowFlightDataProvider::ArrowFlightConnection "ArrowFlightConnection" with
+        \c flight:// and \c flights:// connection schemes
+      - @ref ArrowFlightDataProvider::ArrowFlightTypeHelper "ArrowFlightTypeHelper" for
+        Arrow-to-DataProvider type mapping
 
     @section grpclicense License
 

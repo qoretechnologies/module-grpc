@@ -71,6 +71,20 @@ set(CPP_SRC
     src/ProtobufHelper.cpp
 )
 
+# Apache Arrow is required for Arrow Flight support (IPC, schema, record batches)
+find_package(Arrow CONFIG REQUIRED)
+message(STATUS "Found Apache Arrow: ${ARROW_FULL_SO_VERSION}")
+message(STATUS "Arrow include dirs: ${ARROW_INCLUDE_DIR}")
+
+list(APPEND QPP_SRC
+    src/QC_ArrowSchema.qpp
+    src/QC_ArrowRecordBatch.qpp
+    src/QC_ArrowIpc.qpp
+)
+list(APPEND CPP_SRC
+    src/QoreArrowHelper.cpp
+)
+
 qore_wrap_qpp_value(QPP_SOURCES METALIST QPP_META_SRC ${QPP_SRC})
 
 foreach (it ${QPP_SOURCES})
@@ -83,6 +97,7 @@ set(module_name "grpc")
 set(QMOD
     qlib/GrpcUtil
     qlib/GrpcDataProvider
+    qlib/ArrowFlightDataProvider
 )
 
 set(QORE_DOX_TMPL_SRC
@@ -99,7 +114,13 @@ target_include_directories(${module_name} PRIVATE $<BUILD_INTERFACE:${CMAKE_CURR
 add_custom_target(QORE_INC_FILES DEPENDS ${QORE_INC_SRC})
 add_dependencies(${module_name} QORE_INC_FILES)
 
-target_link_libraries(${module_name} ${Protobuf_LIBRARIES} ${QORE_LIBRARY})
+target_link_libraries(${module_name} ${Protobuf_LIBRARIES} ${QORE_LIBRARY} Arrow::arrow_shared)
+# Link Arrow IPC target if split into a separate library (some Arrow builds)
+if(TARGET Arrow::arrow_ipc_shared)
+    target_link_libraries(${module_name} Arrow::arrow_ipc_shared)
+elseif(TARGET Arrow::arrow_ipc)
+    target_link_libraries(${module_name} Arrow::arrow_ipc)
+endif()
 
 set(MODULE_DOX_INPUT ${CMAKE_CURRENT_BINARY_DIR}/mainpage.dox ${QPP_DOX})
 string(REPLACE ";" " " MODULE_DOX_INPUT "${MODULE_DOX_INPUT}")
@@ -116,6 +137,7 @@ qore_dist(${PROJECT_VERSION})
 qore_user_modules("${QMOD}")
 qore_external_user_module("qlib/GrpcUtil" "")
 qore_external_user_module("qlib/GrpcDataProvider" "")
+qore_external_user_module("qlib/ArrowFlightDataProvider" "")
 
 # install qpp metadata files
 if (COMMAND qore_install_qpp_metadata)
@@ -143,11 +165,16 @@ if (DOXYGEN_FOUND)
         "\n# Suppress warnings for initial pass (no user module TAGFILES available)\nWARN_IF_DOC_ERROR = NO\n")
 
     # Create final-pass Doxyfile from the binary module's Doxyfile with user module tag files
+    set(_tagfiles "${CMAKE_BINARY_DIR}/GrpcUtil.tag=../GrpcUtil/html "
+        "${CMAKE_BINARY_DIR}/GrpcDataProvider.tag=../GrpcDataProvider/html")
+    set(_doc_deps docs-GrpcUtil docs-GrpcDataProvider docs-ArrowFlightDataProvider)
+    string(APPEND _tagfiles
+        " ${CMAKE_BINARY_DIR}/ArrowFlightDataProvider.tag=../ArrowFlightDataProvider/html")
+
     file(COPY_FILE ${CMAKE_BINARY_DIR}/Doxyfile ${CMAKE_BINARY_DIR}/Doxyfile.final)
     file(APPEND ${CMAKE_BINARY_DIR}/Doxyfile.final
         "\n# Final pass: enable user module cross-references and re-enable doc error warnings\n"
-        "TAGFILES = ${CMAKE_BINARY_DIR}/GrpcUtil.tag=../GrpcUtil/html "
-        "${CMAKE_BINARY_DIR}/GrpcDataProvider.tag=../GrpcDataProvider/html\n"
+        "TAGFILES = ${_tagfiles}\n"
         "WARN_IF_DOC_ERROR = YES\n")
 
     add_custom_target(docs-module-final
@@ -159,6 +186,6 @@ if (DOXYGEN_FOUND)
         COMMENT "Generating API documentation with Doxygen (final pass with user module cross-references)"
         VERBATIM
     )
-    add_dependencies(docs-module-final docs-GrpcUtil docs-GrpcDataProvider)
+    add_dependencies(docs-module-final ${_doc_deps})
     add_dependencies(docs docs-module-final)
 endif()
