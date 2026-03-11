@@ -111,6 +111,20 @@ public:
     */
     DLLLOCAL QoreListNode* serializeFileDescriptors(ExceptionSink* xsink) const;
 
+    //! Serializes the file descriptor containing a given symbol and its transitive dependencies
+    /** @param symbol the fully-qualified symbol name (service, message, or enum type)
+        @param xsink exception sink
+        @return a list of binary data, each containing one serialized FileDescriptorProto
+    */
+    DLLLOCAL QoreListNode* serializeFileDescriptorForSymbol(const char* symbol, ExceptionSink* xsink) const;
+
+    //! Serializes the file descriptor with the given filename and its transitive dependencies
+    /** @param filename the proto file name (e.g., "test.proto")
+        @param xsink exception sink
+        @return a list of binary data, each containing one serialized FileDescriptorProto
+    */
+    DLLLOCAL QoreListNode* serializeFileDescriptorByName(const char* filename, ExceptionSink* xsink) const;
+
     //! Returns the type name string for a protobuf field type
     DLLLOCAL static const char* fieldTypeName(google::protobuf::FieldDescriptor::Type type);
 
@@ -135,6 +149,10 @@ private:
 
     //! Build service info for a service descriptor (used by getServices())
     DLLLOCAL QoreHashNode* buildServiceInfo(const google::protobuf::ServiceDescriptor* svc,
+        ExceptionSink* xsink) const;
+
+    //! Serialize a single file descriptor and its transitive dependencies
+    DLLLOCAL QoreListNode* serializeFileWithDeps(const google::protobuf::FileDescriptor* fd,
         ExceptionSink* xsink) const;
 
     //! Error collector for protobuf parser errors

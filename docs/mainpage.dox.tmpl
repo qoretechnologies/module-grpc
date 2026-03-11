@@ -261,6 +261,90 @@ if (result.status_code == GRPC_STATUS_DEADLINE_EXCEEDED) {
     Server handler exceptions are automatically caught and returned as
     @ref Qore::Grpc::GRPC_STATUS_INTERNAL with the exception message.
 
+    @section grpcreflection Server Reflection
+
+    The @ref Qore::Grpc::GrpcReflectionService class implements the standard gRPC server
+    reflection protocol (\c grpc.reflection.v1), enabling clients to discover services
+    exposed by a @ref Qore::Grpc::GrpcServer without needing local \c .proto files. This
+    is the same protocol used by tools such as \c grpcurl and \c grpc_cli.
+
+    @subsection grpcreflectionserver Enabling Server Reflection
+
+    The simplest way to enable reflection is to pass \c enable_reflection in the server
+    options. The server automatically sets up the reflection service:
+
+    @code{.py}
+%modern
+%requires grpc
+%requires GrpcUtil
+
+ProtobufSchema schema("./proto/", "service.proto");
+GrpcServer server(schema, <GrpcServerOptions>{"enable_reflection": True});
+
+server.registerHandler("MyService", "MyMethod",
+    hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+        return {"result": "ok"};
+    });
+
+int port = server.addInsecurePort("localhost:0");
+server.start();
+    @endcode
+
+    For more control, you can use @ref Grpc::GrpcReflectionService "GrpcReflectionService"
+    directly:
+
+    @code{.py}
+ProtobufSchema schema("./proto/", "service.proto");
+GrpcReflectionService reflection(schema);
+
+GrpcServer server(reflection.getCombinedSchema());
+server.registerHandler("MyService", "MyMethod",
+    hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+        return {"result": "ok"};
+    });
+reflection.registerHandlers(server);
+
+server.addInsecurePort("localhost:0");
+server.start();
+    @endcode
+
+    @subsection grpcreflectionclient Client Discovery via Reflection
+
+    The @ref GrpcDataProvider::GrpcReflectionClient class can discover services
+    programmatically:
+
+    @code{.py}
+GrpcChannel channel("http://localhost:50051");
+GrpcReflectionClient rc(channel);
+
+# List all services
+list<string> services = rc.listServices();
+
+# Discover full schema for making calls
+ProtobufSchema discovered = rc.discoverSchema();
+GrpcClient client(channel, discovered, "MyService");
+hash<GrpcCallResult> result = client.call("MyMethod", {"key": "value"});
+
+channel.shutdown();
+    @endcode
+
+    Servers with reflection enabled also work with standard gRPC tools:
+    @verbatim
+# List services with grpcurl
+grpcurl -plaintext localhost:50051 list
+
+# Describe a service
+grpcurl -plaintext localhost:50051 describe mypackage.MyService
+    @endverbatim
+
+    The reflection service supports the following request types:
+    - \c list_services: enumerate all available services
+    - \c file_containing_symbol: get the file descriptor for a service, message, or enum type
+    - \c file_by_filename: get the file descriptor by \c .proto filename
+
+    @note The @ref grpcdpreflection "GrpcDataProvider module" can also use reflection
+    for zero-configuration service access via the \c use_reflection option.
+
     @section grpcprotobuf Standalone Protobuf
 
     The @ref Qore::Grpc::ProtobufSchema class can be used independently for protobuf
@@ -408,15 +492,25 @@ list<auto> results = provider
     @subsection grpcdpreflection Server Reflection
 
     The module includes a gRPC server reflection client that can dynamically discover services
-    and schemas from a running server:
+    and schemas from a running server. The server must have
+    @ref grpcreflection "GrpcReflectionService" enabled for this to work.
 
     @code{.py}
-# Auto-discover services via reflection
+# Auto-discover services via reflection (no .proto files needed)
 GrpcDataProvider provider({
     "url": "http://localhost:50051",
     "use_reflection": True,
 });
+
+# Services are discovered automatically
+auto result = provider.getChildProvider("MyService")
+    .getChildProvider("MyMethod")
+    .doRequest({"name": "World"});
     @endcode
+
+    From the command line:
+    @verbatim qdp 'grpc{url=http://localhost:50051,use_reflection=true}/MyService/MyMethod' dor name=World
+    @endverbatim
 
     @section grpcarrow Arrow IPC Support
 
@@ -739,6 +833,8 @@ events.observersReady();
     - dynamic protobuf schema loading (file and string) and serialized descriptor loading
     - protobuf encoding/decoding for all field types
     - protobuf message schema introspection (\c messageSchema(), \c enumValues())
+    - file descriptor lookup by symbol and filename (\c serializeFileDescriptorForSymbol(),
+      \c serializeFileDescriptorByName())
     - JSON conversion via protobuf
     - gRPC client with unary, server streaming, client streaming, bidirectional streaming
     - gRPC server with handler registration and async I/O
@@ -751,7 +847,11 @@ events.observersReady();
     - \c GrpcConnection with \c grpc:// and \c grpcs:// connection schemes
     - \c GrpcDataProviderFactory for factory-based creation
     - \c GrpcTypeHelper for protobuf-to-DataProvider type mapping
-    - \c GrpcReflectionClient for gRPC server reflection protocol
+    - \c GrpcReflectionClient for gRPC server reflection protocol (client)
+    - @ref Grpc::GrpcReflectionService "GrpcReflectionService" for built-in gRPC server
+      reflection (\c grpc.reflection.v1) — enables clients to discover services without
+      local \c .proto files; also available via the \c enable_reflection
+      @ref Qore::Grpc::GrpcServerOptions "GrpcServerOptions" flag
     - <b>Arrow IPC support</b> (optional, requires Apache Arrow):
       - @ref Qore::Grpc::ArrowSchema for schema definition, introspection, and IPC serialization
       - @ref Qore::Grpc::ArrowRecordBatch for columnar data with row/column construction and conversion

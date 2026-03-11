@@ -1,0 +1,535 @@
+#!/usr/bin/env qore
+# -*- mode: qore; indent-tabs-mode: nil -*-
+
+/*
+    Copyright (C) 2026 Qore Technologies, s.r.o., all rights reserved
+
+    gRPC server reflection integration test suite
+*/
+
+%modern
+
+%requires QUnit
+
+%requires grpc
+%requires GrpcUtil
+%requires GrpcDataProvider
+
+%exec-class GrpcReflectionTest
+
+public class GrpcReflectionTest inherits QUnit::Test {
+    private {
+        string test_dir;
+    }
+
+    constructor() : Test("GrpcReflectionTest", "1.0") {
+        test_dir = get_script_dir();
+
+        addTestCase("C++ serializeFileDescriptorForSymbol", \testSerializeForSymbol());
+        addTestCase("C++ serializeFileDescriptorByName", \testSerializeByName());
+        addTestCase("C++ serializeFileDescriptor not found", \testSerializeNotFound());
+        addTestCase("reflection service list_services", \testListServices());
+        addTestCase("reflection service file_containing_symbol (service)",
+            \testFileContainingSymbolService());
+        addTestCase("reflection service file_containing_symbol (message)",
+            \testFileContainingSymbolMessage());
+        addTestCase("reflection service file_containing_symbol (not found)",
+            \testFileContainingSymbolNotFound());
+        addTestCase("reflection service file_by_filename", \testFileByFilename());
+        addTestCase("reflection service file_by_filename (not found)",
+            \testFileByFilenameNotFound());
+        addTestCase("reflection service file_containing_extension",
+            \testFileContainingExtension());
+        addTestCase("reflection service all_extension_numbers_of_type",
+            \testAllExtensionNumbers());
+        addTestCase("reflection service default request is list_services",
+            \testDefaultRequestIsListServices());
+        addTestCase("reflection service multiple requests on one stream",
+            \testMultipleRequests());
+        addTestCase("end-to-end schema discovery and RPC", \testEndToEndDiscovery());
+        addTestCase("reflection includes reflection service in listing",
+            \testReflectionServiceInListing());
+        addTestCase("reflection file_containing_symbol for reflection type",
+            \testFileContainingSymbolReflection());
+        addTestCase("GrpcDataProvider with use_reflection via GrpcReflectionService",
+            \testDataProviderReflection());
+        addTestCase("enable_reflection server option",
+            \testEnableReflectionOption());
+        addTestCase("enable_reflection end-to-end discovery and RPC",
+            \testEnableReflectionEndToEnd());
+
+        set_return_value(main());
+    }
+
+    # ---------- C++ Method Tests ----------
+
+    testSerializeForSymbol() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        # Look up by service name
+        list<binary> fds = schema.serializeFileDescriptorForSymbol("test.TestService");
+        assertTrue(fds.size() > 0, "should return at least one file descriptor");
+
+        # Verify we can reconstruct a schema from the returned descriptors
+        ProtobufSchema reconstructed(fds);
+        list<hash<GrpcServiceInfo>> services = reconstructed.services();
+        assertTrue(services.size() > 0, "reconstructed schema should have services");
+        assertEq("TestService", services[0].name);
+
+        # Look up by message name
+        list<binary> fds2 = schema.serializeFileDescriptorForSymbol("test.SimpleRequest");
+        assertTrue(fds2.size() > 0, "should find file for message type");
+
+        # Verify the message type is usable
+        ProtobufSchema reconstructed2(fds2);
+        hash<auto> msg = reconstructed2.defaultMessage("test.SimpleRequest");
+        assertTrue(msg.hasKey("name"), "reconstructed schema should have SimpleRequest.name");
+
+        # Look up by enum name
+        list<binary> fds3 = schema.serializeFileDescriptorForSymbol("test.Status");
+        assertTrue(fds3.size() > 0, "should find file for enum type");
+
+        # Verify the enum type is usable
+        ProtobufSchema reconstructed3(fds3);
+        hash<string, int> values = reconstructed3.enumValues("test.Status");
+        assertTrue(values.hasKey("ACTIVE"), "reconstructed schema should have Status.ACTIVE");
+    }
+
+    testSerializeByName() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        list<binary> fds = schema.serializeFileDescriptorByName("test.proto");
+        assertTrue(fds.size() > 0, "should return at least one file descriptor");
+
+        # Verify round-trip: reconstruct schema and check services
+        ProtobufSchema reconstructed(fds);
+        list<hash<GrpcServiceInfo>> services = reconstructed.services();
+        assertTrue(services.size() > 0, "reconstructed schema should have services");
+    }
+
+    testSerializeNotFound() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        # Symbol not found
+        assertThrows("PROTOBUF-SYMBOL-NOT-FOUND", sub () {
+            schema.serializeFileDescriptorForSymbol("nonexistent.Service");
+        });
+
+        # File not found
+        assertThrows("PROTOBUF-FILE-NOT-FOUND", sub () {
+            schema.serializeFileDescriptorByName("nonexistent.proto");
+        });
+    }
+
+    # ---------- Reflection Service Integration Tests ----------
+
+    #! Helper: create a server with reflection enabled and a test handler
+    private hash<auto> setupReflectionServer() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        GrpcReflectionService reflection(schema);
+
+        GrpcServer server(reflection.getCombinedSchema());
+
+        # Register test handler
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                return {"message": "Hello, " + request.name, "status": 0};
+            });
+
+        # Register reflection handlers
+        reflection.registerHandlers(server);
+
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+
+        return {
+            "server": server,
+            "port": port,
+            "schema": schema,
+            "reflection": reflection,
+        };
+    }
+
+    testListServices() {
+        hash<auto> env = setupReflectionServer();
+        on_exit env.server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(env.port));
+        on_exit channel.shutdown();
+
+        GrpcReflectionClient rc(channel);
+        list<string> services = rc.listServices();
+
+        assertTrue(services.size() >= 1, "should list at least one service");
+        assertTrue(services.contains("test.TestService"),
+            "should list test.TestService; got: " + services.join(", "));
+    }
+
+    testFileContainingSymbolService() {
+        hash<auto> env = setupReflectionServer();
+        on_exit env.server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(env.port));
+        on_exit channel.shutdown();
+
+        GrpcReflectionClient rc(channel);
+        list<binary> fds = rc.getFileDescriptorsForService("test.TestService");
+        assertTrue(fds.size() > 0, "should return file descriptors for service");
+
+        # Verify we can build a working schema from the descriptors
+        ProtobufSchema discovered(fds);
+        list<hash<GrpcServiceInfo>> services = discovered.services();
+        assertTrue(services.size() > 0, "discovered schema should have services");
+        assertEq("TestService", services[0].name);
+    }
+
+    testFileContainingSymbolMessage() {
+        hash<auto> env = setupReflectionServer();
+        on_exit env.server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(env.port));
+        on_exit channel.shutdown();
+
+        # Use raw bidi stream to send file_containing_symbol for a message type
+        ProtobufSchema refl_schema(GrpcReflectionClient::ReflectionProto);
+        GrpcClient client(channel, refl_schema, "ServerReflection");
+        GrpcClientStream stream = client.bidiStream("ServerReflectionInfo");
+
+        stream.write({"file_containing_symbol": "test.SimpleRequest"});
+        stream.writesDone();
+
+        *hash<auto> response = stream.read();
+        assertEq(True, response.hasKey("file_descriptor_response"),
+            "should return file_descriptor_response for message type");
+        assertTrue(response.file_descriptor_response.file_descriptor_proto.size() > 0);
+        stream.finish();
+    }
+
+    testFileContainingSymbolNotFound() {
+        hash<auto> env = setupReflectionServer();
+        on_exit env.server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(env.port));
+        on_exit channel.shutdown();
+
+        ProtobufSchema refl_schema(GrpcReflectionClient::ReflectionProto);
+        GrpcClient client(channel, refl_schema, "ServerReflection");
+        GrpcClientStream stream = client.bidiStream("ServerReflectionInfo");
+
+        stream.write({"file_containing_symbol": "nonexistent.Symbol"});
+        stream.writesDone();
+
+        *hash<auto> response = stream.read();
+        assertTrue(response.hasKey("error_response"),
+            "should return error_response for unknown symbol");
+        assertEq(GRPC_STATUS_NOT_FOUND, response.error_response.error_code);
+        stream.finish();
+    }
+
+    testFileByFilename() {
+        hash<auto> env = setupReflectionServer();
+        on_exit env.server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(env.port));
+        on_exit channel.shutdown();
+
+        ProtobufSchema refl_schema(GrpcReflectionClient::ReflectionProto);
+        GrpcClient client(channel, refl_schema, "ServerReflection");
+        GrpcClientStream stream = client.bidiStream("ServerReflectionInfo");
+
+        stream.write({"file_by_filename": "test.proto"});
+        stream.writesDone();
+
+        *hash<auto> response = stream.read();
+        assertEq(True, response.hasKey("file_descriptor_response"),
+            "should return file_descriptor_response for filename");
+        assertTrue(response.file_descriptor_response.file_descriptor_proto.size() > 0);
+        stream.finish();
+
+        # Verify we can reconstruct a usable schema
+        list<binary> fds = cast<list<binary>>(
+            response.file_descriptor_response.file_descriptor_proto);
+        ProtobufSchema reconstructed(fds);
+        list<hash<GrpcServiceInfo>> services = reconstructed.services();
+        assertTrue(services.size() > 0, "reconstructed schema should have services");
+    }
+
+    testFileByFilenameNotFound() {
+        hash<auto> env = setupReflectionServer();
+        on_exit env.server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(env.port));
+        on_exit channel.shutdown();
+
+        ProtobufSchema refl_schema(GrpcReflectionClient::ReflectionProto);
+        GrpcClient client(channel, refl_schema, "ServerReflection");
+        GrpcClientStream stream = client.bidiStream("ServerReflectionInfo");
+
+        stream.write({"file_by_filename": "nonexistent.proto"});
+        stream.writesDone();
+
+        *hash<auto> response = stream.read();
+        assertTrue(response.hasKey("error_response"),
+            "should return error_response for unknown filename");
+        assertEq(GRPC_STATUS_NOT_FOUND, response.error_response.error_code);
+        stream.finish();
+    }
+
+    testFileContainingExtension() {
+        hash<auto> env = setupReflectionServer();
+        on_exit env.server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(env.port));
+        on_exit channel.shutdown();
+
+        ProtobufSchema refl_schema(GrpcReflectionClient::ReflectionProto);
+        GrpcClient client(channel, refl_schema, "ServerReflection");
+        GrpcClientStream stream = client.bidiStream("ServerReflectionInfo");
+
+        stream.write({"file_containing_extension": "test.SomeType"});
+        stream.writesDone();
+
+        *hash<auto> response = stream.read();
+        assertTrue(response.hasKey("error_response"),
+            "should return error for extensions (not supported in proto3)");
+        assertEq(GRPC_STATUS_UNIMPLEMENTED, response.error_response.error_code);
+        stream.finish();
+    }
+
+    testAllExtensionNumbers() {
+        hash<auto> env = setupReflectionServer();
+        on_exit env.server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(env.port));
+        on_exit channel.shutdown();
+
+        ProtobufSchema refl_schema(GrpcReflectionClient::ReflectionProto);
+        GrpcClient client(channel, refl_schema, "ServerReflection");
+        GrpcClientStream stream = client.bidiStream("ServerReflectionInfo");
+
+        stream.write({"all_extension_numbers_of_type": "test.SimpleRequest"});
+        stream.writesDone();
+
+        *hash<auto> response = stream.read();
+        assertTrue(response.hasKey("all_extension_numbers_response"),
+            "should return all_extension_numbers_response");
+        assertEq("test.SimpleRequest",
+            response.all_extension_numbers_response.base_type_name);
+        # Proto3 has no extensions, so the list should be empty
+        assertEq(0, response.all_extension_numbers_response.extension_number.size());
+        stream.finish();
+    }
+
+    testDefaultRequestIsListServices() {
+        hash<auto> env = setupReflectionServer();
+        on_exit env.server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(env.port));
+        on_exit channel.shutdown();
+
+        ProtobufSchema refl_schema(GrpcReflectionClient::ReflectionProto);
+        GrpcClient client(channel, refl_schema, "ServerReflection");
+        GrpcClientStream stream = client.bidiStream("ServerReflectionInfo");
+
+        # Send a request with only the host field set; proto3 oneof fields all
+        # default to empty string, so this falls through to list_services
+        stream.write({"host": "localhost"});
+        stream.writesDone();
+
+        *hash<auto> response = stream.read();
+        assertTrue(response.hasKey("list_services_response"),
+            "default request should return list_services_response");
+        assertTrue(response.list_services_response.service.size() > 0,
+            "should list services");
+        stream.finish();
+    }
+
+    testMultipleRequests() {
+        hash<auto> env = setupReflectionServer();
+        on_exit env.server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(env.port));
+        on_exit channel.shutdown();
+
+        ProtobufSchema refl_schema(GrpcReflectionClient::ReflectionProto);
+        GrpcClient client(channel, refl_schema, "ServerReflection");
+        GrpcClientStream stream = client.bidiStream("ServerReflectionInfo");
+
+        # Send multiple requests on the same stream
+        stream.write({"list_services": ""});
+        *hash<auto> resp1 = stream.read();
+        assertTrue(resp1.hasKey("list_services_response"),
+            "first response should be list_services");
+
+        stream.write({"file_containing_symbol": "test.TestService"});
+        *hash<auto> resp2 = stream.read();
+        assertTrue(resp2.hasKey("file_descriptor_response"),
+            "second response should be file_descriptor");
+
+        stream.write({"file_by_filename": "test.proto"});
+        *hash<auto> resp3 = stream.read();
+        assertTrue(resp3.hasKey("file_descriptor_response"),
+            "third response should be file_descriptor");
+
+        stream.write({"file_containing_symbol": "nonexistent.Foo"});
+        *hash<auto> resp4 = stream.read();
+        assertTrue(resp4.hasKey("error_response"),
+            "fourth response should be error");
+
+        stream.writesDone();
+        stream.finish();
+    }
+
+    testEndToEndDiscovery() {
+        hash<auto> env = setupReflectionServer();
+        on_exit env.server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(env.port));
+        on_exit channel.shutdown();
+
+        # Use GrpcReflectionClient to discover the full schema
+        GrpcReflectionClient rc(channel);
+        ProtobufSchema discovered = rc.discoverSchema();
+
+        # Verify the discovered schema has the TestService
+        list<hash<GrpcServiceInfo>> services = discovered.services();
+        assertTrue(services.size() > 0, "discovered schema should have services");
+
+        bool found_test_service = False;
+        for (int i = 0; i < services.size(); ++i) {
+            if (services[i].name == "TestService") {
+                found_test_service = True;
+                break;
+            }
+        }
+        assertTrue(found_test_service, "should discover TestService");
+
+        # Use the discovered schema to make an actual RPC call
+        GrpcClient client(channel, discovered, "TestService");
+        hash<GrpcCallResult> result = client.call("UnaryCall",
+            {"name": "reflection-test", "id": 0});
+        assertEq(GRPC_STATUS_OK, result.status_code);
+        assertEq("Hello, reflection-test", result.body.message);
+    }
+
+    testReflectionServiceInListing() {
+        hash<auto> env = setupReflectionServer();
+        on_exit env.server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(env.port));
+        on_exit channel.shutdown();
+
+        GrpcReflectionClient rc(channel);
+        list<string> services = rc.listServices();
+
+        assertTrue(services.contains("grpc.reflection.v1.ServerReflection"),
+            "listing should include the reflection service itself; got: "
+            + services.join(", "));
+    }
+
+    testFileContainingSymbolReflection() {
+        hash<auto> env = setupReflectionServer();
+        on_exit env.server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(env.port));
+        on_exit channel.shutdown();
+
+        ProtobufSchema refl_schema(GrpcReflectionClient::ReflectionProto);
+        GrpcClient client(channel, refl_schema, "ServerReflection");
+        GrpcClientStream stream = client.bidiStream("ServerReflectionInfo");
+
+        # Request the reflection service's own definition
+        stream.write({
+            "file_containing_symbol": "grpc.reflection.v1.ServerReflection",
+        });
+        stream.writesDone();
+
+        *hash<auto> response = stream.read();
+        assertEq(True, response.hasKey("file_descriptor_response"),
+            "should return file descriptor for reflection service itself");
+        assertTrue(response.file_descriptor_response.file_descriptor_proto.size() > 0);
+        stream.finish();
+    }
+
+    testDataProviderReflection() {
+        hash<auto> env = setupReflectionServer();
+        on_exit env.server.shutdown();
+
+        # Create GrpcDataProvider using reflection
+        GrpcDataProvider provider({
+            "url": "http://localhost:" + string(env.port),
+            "use_reflection": True,
+        });
+
+        # Verify we discovered the TestService
+        *list<string> children = provider.getChildProviderNames();
+        assertTrue(children.size() > 0, "should have child providers");
+        assertTrue(children.contains("TestService"),
+            "should discover TestService; got: " + children.join(", "));
+
+        # Make an actual call through the data provider
+        auto result = provider.getChildProvider("TestService")
+            .getChildProvider("UnaryCall")
+            .doRequest({"name": "dp-reflection", "id": 0});
+        assertEq("Hello, dp-reflection", result.message);
+    }
+
+    # ---------- enable_reflection Option Tests ----------
+
+    #! Helper: create a server using the enable_reflection option (zero-config)
+    private hash<auto> setupReflectionServerViaOption() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        # Single-line reflection setup via server option
+        GrpcServer server(schema, <GrpcServerOptions>{"enable_reflection": True});
+
+        # Register test handler (reflection is already set up)
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                return {"message": "Hello, " + request.name, "status": 0};
+            });
+
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+
+        return {
+            "server": server,
+            "port": port,
+        };
+    }
+
+    testEnableReflectionOption() {
+        hash<auto> env = setupReflectionServerViaOption();
+        on_exit env.server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(env.port));
+        on_exit channel.shutdown();
+
+        # Verify reflection works: list services
+        GrpcReflectionClient rc(channel);
+        list<string> services = rc.listServices();
+        assertTrue(services.size() >= 1, "should list at least one service");
+        assertTrue(services.contains("test.TestService"),
+            "should list test.TestService; got: " + services.join(", "));
+        assertTrue(services.contains("grpc.reflection.v1.ServerReflection"),
+            "should list the reflection service; got: " + services.join(", "));
+    }
+
+    testEnableReflectionEndToEnd() {
+        hash<auto> env = setupReflectionServerViaOption();
+        on_exit env.server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + string(env.port));
+        on_exit channel.shutdown();
+
+        # Discover schema via reflection and make a call
+        GrpcReflectionClient rc(channel);
+        ProtobufSchema discovered = rc.discoverSchema();
+
+        GrpcClient client(channel, discovered, "TestService");
+        hash<GrpcCallResult> result = client.call("UnaryCall",
+            {"name": "option-test", "id": 0});
+        assertEq(GRPC_STATUS_OK, result.status_code);
+        assertEq("Hello, option-test", result.body.message);
+    }
+}

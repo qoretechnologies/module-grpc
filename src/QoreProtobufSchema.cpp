@@ -587,6 +587,73 @@ QoreListNode* QoreProtobufSchema::serializeFileDescriptors(ExceptionSink* xsink)
     return list.release();
 }
 
+QoreListNode* QoreProtobufSchema::serializeFileWithDeps(
+        const google::protobuf::FileDescriptor* fd, ExceptionSink* xsink) const {
+    ReferenceHolder<QoreListNode> list(new QoreListNode(binaryTypeInfo), xsink);
+
+    // Collect the file and its transitive dependencies via BFS
+    std::set<const google::protobuf::FileDescriptor*> seen;
+    std::vector<const google::protobuf::FileDescriptor*> work;
+    seen.insert(fd);
+    work.push_back(fd);
+
+    for (size_t i = 0; i < work.size(); ++i) {
+        for (int j = 0; j < work[i]->dependency_count(); ++j) {
+            auto* dep = work[i]->dependency(j);
+            if (seen.insert(dep).second) {
+                work.push_back(dep);
+            }
+        }
+    }
+
+    // Serialize in reverse BFS order so dependencies appear before dependents;
+    // this allows receivers to build descriptors in list order
+    for (auto it = work.rbegin(); it != work.rend(); ++it) {
+        google::protobuf::FileDescriptorProto fdp;
+        (*it)->CopyTo(&fdp);
+        std::string data;
+        if (!fdp.SerializeToString(&data)) {
+            xsink->raiseException("PROTOBUF-SCHEMA-ERROR",
+                "failed to serialize FileDescriptorProto for '%s'",
+                (*it)->name().c_str());
+            return nullptr;
+        }
+        SimpleRefHolder<BinaryNode> bin(new BinaryNode);
+        bin->append(data.data(), data.size());
+        list->push(bin.release(), xsink);
+    }
+
+    return list.release();
+}
+
+QoreListNode* QoreProtobufSchema::serializeFileDescriptorForSymbol(const char* symbol,
+        ExceptionSink* xsink) const {
+    const google::protobuf::DescriptorPool* pool = getPool();
+
+    // FindFileContainingSymbol handles services, messages, enums, methods, etc.
+    const google::protobuf::FileDescriptor* fd = pool->FindFileContainingSymbol(symbol);
+    if (!fd) {
+        xsink->raiseException("PROTOBUF-SYMBOL-NOT-FOUND",
+            "symbol '%s' not found in schema", symbol);
+        return nullptr;
+    }
+
+    return serializeFileWithDeps(fd, xsink);
+}
+
+QoreListNode* QoreProtobufSchema::serializeFileDescriptorByName(const char* filename,
+        ExceptionSink* xsink) const {
+    const google::protobuf::DescriptorPool* pool = getPool();
+    const google::protobuf::FileDescriptor* fd = pool->FindFileByName(filename);
+    if (!fd) {
+        xsink->raiseException("PROTOBUF-FILE-NOT-FOUND",
+            "file '%s' not found in schema", filename);
+        return nullptr;
+    }
+
+    return serializeFileWithDeps(fd, xsink);
+}
+
 const char* QoreProtobufSchema::fieldTypeName(google::protobuf::FieldDescriptor::Type type) {
     using FD = google::protobuf::FieldDescriptor;
     switch (type) {

@@ -77,6 +77,9 @@ public namespace Grpc {
       handle with read/write and metadata support
     - @ref Grpc::GrpcHelper "GrpcHelper": gRPC framing, header utilities, and
       timeout formatting
+    - @ref Grpc::GrpcReflectionService "GrpcReflectionService": built-in gRPC
+      server reflection (grpc.reflection.v1) enabling clients to discover
+      services without local \c .proto files
 
     For the data provider API integration (factory, connections, action catalog),
     see the @ref grpcdataproviderintro "GrpcDataProvider module".
@@ -290,6 +293,11 @@ printf("Fields: %y\n", keys msg_schema.fields);
     @subsection grpcutil_v1_0 GrpcUtil Module Version 1.0
 
     - initial release
+    - @ref Grpc::GrpcReflectionService "GrpcReflectionService": built-in gRPC server
+      reflection (grpc.reflection.v1) enabling client discovery of services via
+      \c list_services, \c file_containing_symbol, and \c file_by_filename requests;
+      also available via the \c enable_reflection
+      @ref Qore::Grpc::GrpcServerOptions "GrpcServerOptions" flag
     - @ref Grpc::GrpcServer "GrpcServer": handler exceptions with \c GRPC-* prefixes
       (e.g. \c GRPC-NOT-FOUND, \c GRPC-UNIMPLEMENTED, \c GRPC-DEADLINE-EXCEEDED) map
       to the appropriate gRPC status code; all other exceptions return \c GRPC_STATUS_INTERNAL

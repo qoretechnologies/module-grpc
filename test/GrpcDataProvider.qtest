@@ -655,16 +655,11 @@ public class GrpcDataProviderTest inherits QUnit::Test {
     }
 
     testIntegrationReflection() {
-        # Build a combined schema from test.proto + reflection proto
+        # Use GrpcReflectionService for built-in server reflection
         ProtobufSchema test_schema(test_dir, "test.proto");
-        ProtobufSchema reflection_schema(GrpcReflectionClient::ReflectionProto);
+        GrpcReflectionService reflection(test_schema);
 
-        list<binary> test_descriptors = test_schema.serializeFileDescriptors();
-        list<binary> reflection_descriptors = reflection_schema.serializeFileDescriptors();
-        list<binary> combined_descriptors = test_descriptors + reflection_descriptors;
-        ProtobufSchema combined_schema(combined_descriptors);
-
-        GrpcServer server(combined_schema);
+        GrpcServer server(reflection.getCombinedSchema());
 
         # Register a handler for the actual TestService
         server.registerHandler("TestService", "UnaryCall",
@@ -672,31 +667,8 @@ public class GrpcDataProviderTest inherits QUnit::Test {
                 return {"message": "reflected: " + request.name, "status": 0};
             });
 
-        # Register mock reflection service handler
-        # Note: protobuf3 oneof fields all have default values, so we check by
-        # seeing which field has a meaningful (non-empty) value
-        server.registerHandler("ServerReflection", "ServerReflectionInfo",
-            sub(GrpcServerStream stream, hash<string, string> metadata) {
-                while (*hash<auto> req = stream.read()) {
-                    if (req.file_containing_symbol.val()) {
-                        # File containing symbol request
-                        stream.write({
-                            "file_descriptor_response": {
-                                "file_descriptor_proto": test_descriptors,
-                            },
-                        });
-                    } else if (req.list_services.type() == "string") {
-                        # List services request (list_services sends empty string "")
-                        stream.write({
-                            "list_services_response": {
-                                "service": (
-                                    {"name": "test.TestService"},
-                                ),
-                            },
-                        });
-                    }
-                }
-            });
+        # Register the reflection service handlers
+        reflection.registerHandlers(server);
 
         int port = server.addInsecurePort("localhost:0");
         server.start();
