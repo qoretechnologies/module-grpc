@@ -287,7 +287,10 @@ public class GrpcReflectionService {
                 },
             };
         } catch (hash<ExceptionInfo> ex) {
-            # Fall through to try reflection schema
+            # Only fall through on "not found"; rethrow real errors
+            if (ex.err != "PROTOBUF-SYMBOL-NOT-FOUND") {
+                rethrow;
+            }
         }
 
         # Try reflection schema
@@ -299,6 +302,9 @@ public class GrpcReflectionService {
                 },
             };
         } catch (hash<ExceptionInfo> ex) {
+            if (ex.err != "PROTOBUF-SYMBOL-NOT-FOUND") {
+                rethrow;
+            }
             return makeErrorResponse(GRPC_STATUS_NOT_FOUND,
                 sprintf("symbol not found: %s", symbol));
         }
@@ -315,7 +321,10 @@ public class GrpcReflectionService {
                 },
             };
         } catch (hash<ExceptionInfo> ex) {
-            # Fall through to try reflection schema
+            # Only fall through on "not found"; rethrow real errors
+            if (ex.err != "PROTOBUF-FILE-NOT-FOUND") {
+                rethrow;
+            }
         }
 
         # Try reflection schema
@@ -327,6 +336,9 @@ public class GrpcReflectionService {
                 },
             };
         } catch (hash<ExceptionInfo> ex) {
+            if (ex.err != "PROTOBUF-FILE-NOT-FOUND") {
+                rethrow;
+            }
             return makeErrorResponse(GRPC_STATUS_NOT_FOUND,
                 sprintf("file not found: %s", filename));
         }
