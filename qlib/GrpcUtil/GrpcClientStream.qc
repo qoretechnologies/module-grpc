@@ -178,7 +178,15 @@ public class GrpcClientStream {
             # For server-streaming, the client already sent END_STREAM with the
             # request body, so the stream may already be complete.
             if (!m_stream.isDone()) {
-                m_stream.sendData(binary(), True);
+                try {
+                    m_stream.sendData(binary(), True);
+                } catch (hash<ExceptionInfo> ex) {
+                    # Ignore state errors - the stream may have been closed by
+                    # the server between the isDone() check and sendData() call
+                    if (ex.err != "HTTPCLIENT-STATE-ERROR") {
+                        rethrow;
+                    }
+                }
             }
         }
     }
