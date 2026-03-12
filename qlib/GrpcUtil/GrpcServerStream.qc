@@ -205,8 +205,9 @@ public class GrpcServerStream {
                     m_read_buf += chunk;
                 }
             } catch (hash<ExceptionInfo> ex) {
-                if (ex.err == "HTTP2-STREAM-TIMEOUT") {
-                    return NOTHING;  # Timeout
+                if (ex.err == "HTTP2-STREAM-TIMEOUT"
+                        || ex.err == "HTTP2-STREAM-ERROR") {
+                    return NOTHING;  # Timeout or stream not found
                 }
                 rethrow;
             }
