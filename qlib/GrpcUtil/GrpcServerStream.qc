@@ -172,9 +172,14 @@ public class GrpcServerStream {
             if (m_socket.isHttp2StreamComplete(m_stream_id)) {
                 # Drain any remaining data from the HTTP/2 stream buffer
                 # (DATA may have arrived in the same batch as HEADERS + END_STREAM)
-                *binary remaining = m_socket.readHttp2StreamDataBlock(m_stream_id, 0ms);
-                if (remaining) {
-                    m_read_buf += remaining;
+                try {
+                    *binary remaining = m_socket.readHttp2StreamDataBlock(
+                        m_stream_id, 0ms);
+                    if (remaining) {
+                        m_read_buf += remaining;
+                    }
+                } catch () {
+                    # Ignore errors draining a completed stream
                 }
                 # Try to parse remaining buffered data; if the buffer contains an
                 # incomplete frame after END_STREAM, discard it to prevent infinite
@@ -193,10 +198,18 @@ public class GrpcServerStream {
             }
 
             # Blocking read from HTTP/2 stream
-            *binary chunk = m_socket.readHttp2StreamDataBlock(m_stream_id,
-                milliseconds(remaining_ms));
-            if (chunk) {
-                m_read_buf += chunk;
+            try {
+                *binary chunk = m_socket.readHttp2StreamDataBlock(m_stream_id,
+                    milliseconds(remaining_ms));
+                if (chunk) {
+                    m_read_buf += chunk;
+                }
+            } catch (hash<ExceptionInfo> ex) {
+                if (ex.err == "HTTP2-STREAM-TIMEOUT"
+                        || ex.err == "HTTP2-STREAM-ERROR") {
+                    return NOTHING;  # Timeout or stream not found
+                }
+                rethrow;
             }
         }
     }

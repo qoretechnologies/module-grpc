@@ -12,6 +12,7 @@ The `grpc` module provides gRPC client/server and protobuf support for Qore, inc
 - Custom metadata passing (request, initial response, trailing)
 - Timeout/deadline enforcement
 - Connection pooling via `HttpClientConnectionManager`
+- Built-in gRPC server reflection (`GrpcReflectionService`) for client service discovery
 
 ## Architecture
 
@@ -183,6 +184,95 @@ server.registerHandler("Service", "Stream",
         stream.setTrailingMetadata({"x-count": "5"});
         # ... write messages ...
     });
+```
+
+### Server Reflection
+
+Enable clients to discover services without local `.proto` files using the standard
+gRPC server reflection protocol (`grpc.reflection.v1`). This works with tools like
+`grpcurl` and `grpc_cli` as well as programmatic clients.
+
+#### Server Setup
+
+Just pass `enable_reflection: True` in the server options:
+
+```qore
+%modern
+%requires grpc
+%requires GrpcUtil
+
+ProtobufSchema schema("./proto/", "service.proto");
+GrpcServer server(schema, <GrpcServerOptions>{"enable_reflection": True});
+
+server.registerHandler("MyService", "MyMethod",
+    hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+        return {"result": "ok"};
+    });
+
+server.addInsecurePort("localhost:50051");
+server.start();
+server.wait();
+```
+
+#### Client Discovery with grpcurl
+
+```bash
+# List all services exposed by the server
+grpcurl -plaintext localhost:50051 list
+
+# Describe a specific service
+grpcurl -plaintext localhost:50051 describe mypackage.MyService
+
+# Make a call without needing the .proto file
+grpcurl -plaintext -d '{"name": "World"}' localhost:50051 mypackage.MyService/MyMethod
+```
+
+#### Programmatic Discovery
+
+```qore
+%modern
+%requires grpc
+%requires GrpcUtil
+
+GrpcChannel channel("http://localhost:50051");
+
+# Discover services and schema via reflection
+GrpcReflectionClient rc(channel);
+list<string> services = rc.listServices();
+printf("Available services: %y\n", services);
+
+# Build a schema from the server's descriptors and make calls
+ProtobufSchema discovered = rc.discoverSchema();
+GrpcClient client(channel, discovered, "MyService");
+hash<GrpcCallResult> result = client.call("MyMethod", {"name": "World"});
+printf("Response: %y\n", result.body);
+
+channel.shutdown();
+```
+
+#### Data Provider with Reflection
+
+The `GrpcDataProvider` module can use reflection for zero-configuration service access:
+
+```qore
+%modern
+%requires GrpcDataProvider
+
+GrpcDataProvider provider({
+    "url": "http://localhost:50051",
+    "use_reflection": True,
+});
+
+# Services are discovered automatically
+auto result = provider.getChildProvider("MyService")
+    .getChildProvider("MyMethod")
+    .doRequest({"name": "World"});
+```
+
+Or from the command line:
+
+```bash
+qdp 'grpc{url=http://localhost:50051,use_reflection=true}/MyService/MyMethod' dor name=World
 ```
 
 ### Standalone Protobuf

@@ -203,6 +203,29 @@ hashdecl Qore::Grpc::GrpcChannelOptions {
 hashdecl Qore::Grpc::GrpcServerOptions {
     //! Maximum message size in bytes (0 = unlimited)
     *int max_message_size;
+
+    //! Enable gRPC server reflection (grpc.reflection.v1) for client service discovery
+    /** When True, the server automatically registers the standard gRPC server reflection
+        service, allowing clients to discover services without local \c .proto files.
+
+        This is equivalent to calling @ref Grpc::GrpcReflectionService "GrpcReflectionService"
+        manually but requires no additional code.
+
+        @par Example:
+        @code{.py}
+ProtobufSchema schema("./proto/", "service.proto");
+GrpcServer server(schema, <GrpcServerOptions>{"enable_reflection": True});
+server.registerHandler("MyService", "SayHello",
+    hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+        return {"message": "Hello, " + request.name};
+    });
+server.addInsecurePort("localhost:50051");
+server.start();
+        @endcode
+
+        @since %grpc 1.0
+    */
+    *bool enable_reflection;
 }
 
 //! The ProtobufSchema class provides dynamic protobuf schema loading and message encoding/decoding
@@ -500,4 +523,53 @@ ProtobufSchema schema2(descriptors);
 */
 list<binary> ProtobufSchema::serializeFileDescriptors() {
     return schema->serializeFileDescriptors(xsink);
+}
+
+//! Serializes the file descriptor containing a given symbol and its transitive dependencies
+/** Returns a list where each element is a serialized \c FileDescriptorProto message
+    for the file containing the specified symbol and all of its transitive dependencies.
+    This is used by the gRPC server reflection protocol to serve
+    \c file_containing_symbol requests.
+
+    @param symbol the fully-qualified symbol name (service, message, or enum type name,
+    e.g., \c "test.TestService" or \c "test.SimpleRequest")
+
+    @return a list of binary data, each containing one serialized \c FileDescriptorProto
+
+    @throw PROTOBUF-SYMBOL-NOT-FOUND if the symbol is not found in the schema
+
+    @par Example:
+    @code{.py}
+ProtobufSchema schema("./proto/", "service.proto");
+list<binary> fds = schema.serializeFileDescriptorForSymbol("mypackage.MyService");
+    @endcode
+
+    @since %grpc 1.0
+*/
+list<binary> ProtobufSchema::serializeFileDescriptorForSymbol(string symbol) {
+    return schema->serializeFileDescriptorForSymbol(symbol->c_str(), xsink);
+}
+
+//! Serializes the file descriptor with the given filename and its transitive dependencies
+/** Returns a list where each element is a serialized \c FileDescriptorProto message
+    for the named file and all of its transitive dependencies.
+    This is used by the gRPC server reflection protocol to serve
+    \c file_by_filename requests.
+
+    @param filename the proto file name (e.g., \c "test.proto" or \c "input.proto")
+
+    @return a list of binary data, each containing one serialized \c FileDescriptorProto
+
+    @throw PROTOBUF-FILE-NOT-FOUND if the file is not found in the schema
+
+    @par Example:
+    @code{.py}
+ProtobufSchema schema("./proto/", "service.proto");
+list<binary> fds = schema.serializeFileDescriptorByName("service.proto");
+    @endcode
+
+    @since %grpc 1.0
+*/
+list<binary> ProtobufSchema::serializeFileDescriptorByName(string filename) {
+    return schema->serializeFileDescriptorByName(filename->c_str(), xsink);
 }

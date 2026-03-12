@@ -41,6 +41,19 @@ server.start();
 server.shutdown();
     @endcode
 
+    @par Example (with reflection enabled):
+    @code{.py}
+ProtobufSchema schema(proto_dir, "service.proto");
+GrpcServer server(schema, <GrpcServerOptions>{"enable_reflection": True});
+server.registerHandler("MyService", "SayHello",
+    hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+        return {"message": "Hello, " + request.name};
+    });
+server.addInsecurePort("localhost:50051");
+server.start();
+# Clients can now discover services via grpcurl or GrpcReflectionClient
+    @endcode
+
     @since GrpcUtil 1.0
 */
 public class GrpcServer {
@@ -83,6 +96,9 @@ public class GrpcServer {
 
         #! Mutex for state
         Mutex m_mutex();
+
+        #! Reflection service instance (kept alive for handler closures)
+        *GrpcReflectionService m_reflection;
     }
 
     #! Create a gRPC server
@@ -92,17 +108,30 @@ public class GrpcServer {
         @since %GrpcUtil 1.0
     */
     constructor(ProtobufSchema schema, *hash<GrpcServerOptions> opts) {
-        m_schema = schema;
         m_opts = opts;
 
+        # If reflection is enabled, wrap the schema with the reflection service
+        if (opts.enable_reflection) {
+            GrpcReflectionService reflection(schema);
+            m_schema = reflection.getCombinedSchema();
+            m_reflection = reflection;
+        } else {
+            m_schema = schema;
+        }
+
         # Index services from schema
-        list<hash<GrpcServiceInfo>> services = schema.services();
+        list<hash<GrpcServiceInfo>> services = m_schema.services();
         for (int i = 0; i < services.size(); ++i) {
             m_services{services[i].name} = services[i];
             for (int j = 0; j < services[i].methods.size(); ++j) {
                 hash<GrpcMethodInfo> method = services[i].methods[j];
                 m_method_info{services[i].name + "/" + method.name} = method;
             }
+        }
+
+        # Register deferred reflection handlers now that services are indexed
+        if (m_reflection) {
+            m_reflection.registerHandlers(self);
         }
     }
 
