@@ -219,11 +219,32 @@ QoreProtobufSchema::QoreProtobufSchema(const QoreListNode* serialized_fds, Excep
         protos.push_back(std::move(fdp));
     }
 
+    // Resolve duplicate file names by appending a numeric suffix.
+    // This happens when combining serialized descriptors from multiple ProtobufSchema
+    // instances that were created from strings (all default to "input.proto").
+    {
+        std::map<std::string, int> name_counts;
+        for (auto& p : protos) {
+            int count = ++name_counts[p.name()];
+            if (count > 1) {
+                // Rename duplicate: "input.proto" -> "input_2.proto"
+                std::string orig = p.name();
+                std::string base = orig;
+                std::string ext;
+                size_t dot = orig.rfind('.');
+                if (dot != std::string::npos) {
+                    base = orig.substr(0, dot);
+                    ext = orig.substr(dot);
+                }
+                p.set_name(base + "_" + std::to_string(count) + ext);
+            }
+        }
+    }
+
     // Build files in dependency order: try to build each proto; if it fails because
     // a dependency hasn't been built yet, retry after building others.
     // This handles arbitrary dependency ordering in the input list.
     std::set<std::string> built;
-    size_t last_built_count = 0;
 
     while (built.size() < protos.size()) {
         bool progress = false;
@@ -278,11 +299,6 @@ QoreProtobufSchema::QoreProtobufSchema(const QoreListNode* serialized_fds, Excep
                 "unresolvable dependencies for: %s", missing.c_str());
             return;
         }
-
-        if (built.size() == last_built_count) {
-            break;
-        }
-        last_built_count = built.size();
     }
 
     // Use the last file descriptor as the primary one
