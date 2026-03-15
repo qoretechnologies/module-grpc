@@ -26,8 +26,8 @@ echo "export QORE_GID=999" >> ${ENV_FILE}
 export MAKE_JOBS=4
 
 # install interop test dependencies
-pip3 install --break-system-packages grpcio grpcio-tools 2>/dev/null \
-    || pip3 install grpcio grpcio-tools || true
+pip3 install --break-system-packages grpcio grpcio-tools pyarrow 2>/dev/null \
+    || pip3 install grpcio grpcio-tools pyarrow || true
 
 # install grpcurl for interop testing
 GRPCURL_VERSION=1.9.3

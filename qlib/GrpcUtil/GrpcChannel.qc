@@ -42,8 +42,6 @@ public class GrpcChannel {
         string m_target;
         #! Connection manager
         HttpClientIo::HttpClientConnectionManager m_mgr;
-        #! Async I/O controller for driving HTTP/2 connections
-        AsyncSocketIo::AsyncSocketIoController m_controller(False);
     }
 
     #! Create a new gRPC channel to the given target
@@ -77,27 +75,15 @@ public class GrpcChannel {
         }
 
         m_mgr = new HttpClientIo::HttpClientConnectionManager(mgr_opts);
-
-        # Set up controller mode for async I/O (required for streaming)
-        m_mgr.setController(m_controller);
-        m_controller.start();
     }
 
-    #! Shut down the channel and stop the I/O controller
-    /** Stops the async I/O controller. Should be called when the channel is
-        no longer needed.
+    #! Shut down the channel and close all connections
+    /** Should be called when the channel is no longer needed.
 
         @since %GrpcUtil 1.0
     */
     shutdown() {
-        m_controller.stop();
-    }
-
-    #! Destructor — ensures the I/O controller is stopped on object destruction
-    /** @since %GrpcUtil 1.0
-    */
-    destructor() {
-        m_controller.stop();
+        m_mgr.closeAll();
     }
 
     #! Get the target URL

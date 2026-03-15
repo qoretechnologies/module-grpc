@@ -1,0 +1,512 @@
+#!/usr/bin/env qore
+# -*- mode: qore; indent-tabs-mode: nil -*-
+
+/*
+    Copyright (C) 2026 Qore Technologies, s.r.o., all rights reserved
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+
+    Arrow Flight interoperability test suite -- verifies Qore's Arrow Flight
+    implementation against PyArrow's reference Flight implementation in both
+    directions:
+      1. Qore ArrowFlightClient -> PyArrow Flight server
+      2. PyArrow Flight client  -> Qore ArrowFlightServer
+*/
+
+%modern
+
+%requires QUnit
+
+%try-module process
+%define NO_PROCESS
+%endtry
+%requires grpc
+%requires GrpcUtil
+
+%exec-class ArrowFlightInteropTest
+
+#! Dataset handler for the Qore server (used by PyArrow client tests)
+class InteropSalesHandler inherits ArrowFlightDatasetHandler {
+    private {
+        list<hash<auto>> m_data;
+    }
+
+    constructor(list<hash<auto>> data) {
+        m_data = data;
+    }
+
+    ArrowSchema getSchema() {
+        return new ArrowSchema((
+            {"name": "id", "type": "int64"},
+            {"name": "product", "type": "utf8"},
+            {"name": "amount", "type": "float64"},
+        ));
+    }
+
+    hash<auto> getFlightInfo(hash<auto> descriptor) {
+        return {
+            "schema": ArrowIpc::writeSchema(getSchema()),
+            "flight_descriptor": descriptor,
+            "total_records": m_data.size(),
+            "total_bytes": -1,
+        };
+    }
+
+    nothing doGet(hash<auto> ticket, GrpcServerStream stream) {
+        ArrowSchema sch = getSchema();
+        stream.write(ArrowFlightHelper::schemaToFlightData(sch));
+        if (m_data.size() > 0) {
+            ArrowRecordBatch batch(sch, m_data);
+            stream.write(ArrowFlightHelper::batchToFlightData(batch));
+        }
+    }
+}
+
+#! Writable handler for DoPut interop
+class InteropWritableHandler inherits ArrowFlightDatasetHandler {
+    public {
+        list<list<hash<auto>>> received_batches = ();
+    }
+
+    ArrowSchema getSchema() {
+        return new ArrowSchema((
+            {"name": "key", "type": "utf8"},
+            {"name": "value", "type": "int64"},
+        ));
+    }
+
+    hash<auto> getFlightInfo(hash<auto> descriptor) {
+        return {
+            "schema": ArrowIpc::writeSchema(getSchema()),
+            "flight_descriptor": descriptor,
+            "total_records": -1,
+            "total_bytes": -1,
+        };
+    }
+
+    nothing doGet(hash<auto> ticket, GrpcServerStream stream) {
+        stream.write(ArrowFlightHelper::schemaToFlightData(getSchema()));
+    }
+
+    hash<auto> doPut(hash<auto> descriptor, GrpcServerStream stream) {
+        ArrowSchema sch = getSchema();
+        while (*hash<auto> flight_data = stream.read(5s)) {
+            if (flight_data.data_header && flight_data.data_body
+                    && !flight_data.data_body.empty()) {
+                ArrowRecordBatch batch = ArrowFlightHelper::flightDataToBatch(sch,
+                    flight_data);
+                push received_batches, batch.toRows();
+            }
+        }
+        return {"app_metadata": binary("ok")};
+    }
+}
+
+#! Transform handler for DoExchange interop
+class InteropTransformHandler inherits ArrowFlightDatasetHandler {
+    ArrowSchema getSchema() {
+        return new ArrowSchema((
+            {"name": "input", "type": "int64"},
+        ));
+    }
+
+    hash<auto> getFlightInfo(hash<auto> descriptor) {
+        return {
+            "schema": ArrowIpc::writeSchema(getSchema()),
+            "flight_descriptor": descriptor,
+            "total_records": -1,
+            "total_bytes": -1,
+        };
+    }
+
+    nothing doGet(hash<auto> ticket, GrpcServerStream stream) {
+        stream.write(ArrowFlightHelper::schemaToFlightData(getSchema()));
+    }
+
+    nothing doExchange(hash<auto> descriptor, GrpcServerStream stream) {
+        ArrowSchema in_sch = getSchema();
+        ArrowSchema out_sch = new ArrowSchema((
+            {"name": "output", "type": "int64"},
+        ));
+
+        # Send output schema
+        stream.write(ArrowFlightHelper::schemaToFlightData(out_sch));
+
+        # Read input, transform, write output
+        while (*hash<auto> flight_data = stream.read(5s)) {
+            if (flight_data.data_header && flight_data.data_body
+                    && !flight_data.data_body.empty()) {
+                ArrowRecordBatch batch = ArrowFlightHelper::flightDataToBatch(
+                    in_sch, flight_data);
+                list<hash<auto>> rows = batch.toRows();
+                list<hash<auto>> out_rows = ();
+                for (int i = 0; i < rows.size(); ++i) {
+                    out_rows += {"output": rows[i].input * 2};
+                }
+                ArrowRecordBatch out_batch(out_sch, out_rows);
+                stream.write(ArrowFlightHelper::batchToFlightData(out_batch));
+            }
+        }
+    }
+}
+
+public class ArrowFlightInteropTest inherits QUnit::Test {
+    private {
+        #! Path to this test file's directory
+        string test_dir;
+
+        #! PyArrow server process handle
+        Process pyarrow_server_proc;
+
+        #! PyArrow server port
+        int pyarrow_port;
+
+        #! Channel to the PyArrow server
+        GrpcChannel pyarrow_channel;
+
+        #! Our Qore server for PyArrow client to test against
+        ArrowFlightServer qore_server;
+
+        #! Qore server port
+        int qore_port;
+
+        #! Sales test data
+        list<hash<auto>> sales_data = (
+            {"id": 1, "product": "Widget", "amount": 9.99},
+            {"id": 2, "product": "Gadget", "amount": 24.99},
+            {"id": 3, "product": "Gizmo", "amount": 14.50},
+        );
+
+        #! Whether pyarrow is available
+        bool pyarrow_available = False;
+    }
+
+    constructor() : Test("ArrowFlightInteropTest", "1.0") {
+        # Direction 1: Qore client -> PyArrow server
+        addTestCase("interop: ListFlights (Qore->PyArrow)",
+            \testQoreToPyListFlights());
+        addTestCase("interop: GetFlightInfo (Qore->PyArrow)",
+            \testQoreToPyGetFlightInfo());
+        addTestCase("interop: GetSchema (Qore->PyArrow)",
+            \testQoreToPyGetSchema());
+        addTestCase("interop: DoGet (Qore->PyArrow)",
+            \testQoreToPyDoGet());
+        addTestCase("interop: DoPut (Qore->PyArrow)",
+            \testQoreToPyDoPut());
+        addTestCase("interop: DoExchange (Qore->PyArrow)",
+            \testQoreToPyDoExchange());
+        addTestCase("interop: DoAction (Qore->PyArrow)",
+            \testQoreToPyDoAction());
+        addTestCase("interop: ListActions (Qore->PyArrow)",
+            \testQoreToPyListActions());
+
+        # Direction 2: PyArrow client -> Qore server
+        addTestCase("interop: PyArrow client -> Qore server (all RPCs)",
+            \testPyToQoreAllRPCs());
+
+        set_return_value(main());
+    }
+
+    globalSetUp() {
+        test_dir = get_script_dir();
+
+%ifdef NO_PROCESS
+        testSkip("process module not available");
+        return;
+%endif
+
+        # Check if python3 and pyarrow are available
+        bool python_ok = False;
+        try {
+            Process check("python3", ("-c", "import pyarrow.flight; print('ok')"));
+            check.wait();
+            *string output = check.readStdout(4096);
+            if (check.exitCode() == 0 && output && (output =~ /ok/)) {
+                python_ok = True;
+            }
+        } catch (hash<ExceptionInfo> ex) {
+            # python3 not available
+        }
+        if (!python_ok) {
+            testSkip("pyarrow not available");
+            return;
+        }
+        pyarrow_available = True;
+
+        # Start the PyArrow Flight server
+        pyarrow_server_proc = new Process("python3",
+            (test_dir + "/pyarrow_flight_server.py",));
+
+        # Read the port from stdout
+        string line = "";
+        date deadline = now_us() + 30s;
+        while (True) {
+            if (now_us() > deadline) {
+                *string err;
+                try { err = pyarrow_server_proc.readStderr(4096); } catch () {}
+                throw "PYARROW-SERVER-TIMEOUT",
+                    sprintf("PyArrow server did not start within 30s; stderr: %s",
+                        err ?? "(no stderr)");
+            }
+            *string chunk = pyarrow_server_proc.readStdout(4096, 1s);
+            if (chunk) {
+                line += chunk;
+            }
+            if (line =~ /PORT:\d+/) {
+                break;
+            }
+        }
+
+        *list<*string> m = (line =~ x/PORT:(\d+)/);
+        if (!m || !m[0]) {
+            throw "PYARROW-SERVER-ERROR",
+                sprintf("could not parse port from PyArrow server output: %y", line);
+        }
+        pyarrow_port = int(m[0]);
+
+        pyarrow_channel = new GrpcChannel("http://localhost:" + pyarrow_port);
+
+        # Start our Qore ArrowFlightServer
+        qore_server = new ArrowFlightServer();
+        qore_server.registerDataset("sales", new InteropSalesHandler(sales_data));
+        qore_server.registerDataset("writable", new InteropWritableHandler());
+        qore_server.registerDataset("transform", new InteropTransformHandler());
+        qore_server.registerAction("health_check", "Check server health",
+            list<hash<auto>> sub(binary body) {
+                return ({"body": binary("healthy")},);
+            });
+        qore_server.registerAction("echo", "Echo the input",
+            list<hash<auto>> sub(binary body) {
+                return ({"body": body},);
+            });
+        qore_port = qore_server.addInsecurePort("localhost:0");
+        qore_server.start();
+    }
+
+    globalTearDown() {
+        if (pyarrow_channel) {
+            pyarrow_channel.shutdown();
+        }
+        if (pyarrow_server_proc) {
+            pyarrow_server_proc.terminate();
+            pyarrow_server_proc.wait();
+        }
+        if (qore_server) {
+            qore_server.shutdown();
+        }
+    }
+
+    private checkPyArrow() {
+        if (!pyarrow_available) {
+            testSkip("pyarrow not available");
+        }
+    }
+
+    # ===== Direction 1: Qore client -> PyArrow server =====
+
+    testQoreToPyListFlights() {
+        checkPyArrow();
+        ArrowFlightClient flight(pyarrow_channel);
+        list<hash<auto>> flights = flight.listFlights();
+        assertTrue(flights.size() >= 3, "at least 3 datasets from PyArrow server");
+
+        hash<string, bool> names;
+        for (int i = 0; i < flights.size(); ++i) {
+            if (flights[i].flight_descriptor.path) {
+                string name;
+                auto path0 = flights[i].flight_descriptor.path[0];
+                if (path0.typeCode() == NT_BINARY) {
+                    name = path0.toString("utf-8");
+                } else {
+                    name = string(path0);
+                }
+                names{name} = True;
+            }
+        }
+        assertTrue(names.hasKey("sales"), "sales dataset listed");
+    }
+
+    testQoreToPyGetFlightInfo() {
+        checkPyArrow();
+        ArrowFlightClient flight(pyarrow_channel);
+        hash<auto> descriptor = ArrowFlightHelper::pathDescriptor("sales");
+        hash<auto> info = flight.getFlightInfo(descriptor);
+        assertEq(3, info.total_records, "total records = 3");
+        assertTrue(info.schema.size() > 0, "schema bytes present");
+    }
+
+    testQoreToPyGetSchema() {
+        checkPyArrow();
+        ArrowFlightClient flight(pyarrow_channel);
+        hash<auto> descriptor = ArrowFlightHelper::pathDescriptor("sales");
+        ArrowSchema schema = flight.getSchema(descriptor);
+        assertEq(3, schema.numFields(), "3 fields");
+        assertEq(("id", "product", "amount"), schema.fieldNames(), "field names");
+    }
+
+    testQoreToPyDoGet() {
+        checkPyArrow();
+        ArrowFlightClient flight(pyarrow_channel);
+        hash<auto> ticket = {"ticket": binary("sales")};
+        ArrowFlightStreamReader reader = flight.doGet(ticket);
+
+        ArrowSchema schema = reader.schema();
+        assertEq(3, schema.numFields(), "3 fields in schema");
+
+        list<hash<auto>> all_rows = ();
+        while (*ArrowRecordBatch batch = reader.read(30s)) {
+            all_rows += batch.toRows();
+        }
+        assertTrue(reader.readsDone(), "reads done");
+        assertEq(3, all_rows.size(), "3 rows from PyArrow server");
+        assertEq(1, all_rows[0].id, "first id");
+        assertEq("Widget", all_rows[0].product, "first product");
+        assertEq(9.99, all_rows[0].amount, "first amount");
+        assertEq("Gadget", all_rows[1].product, "second product");
+        assertEq(24.99, all_rows[1].amount, "second amount");
+        assertEq("Gizmo", all_rows[2].product, "third product");
+
+        reader.finish();
+    }
+
+    testQoreToPyDoPut() {
+        checkPyArrow();
+        ArrowFlightClient flight(pyarrow_channel);
+        ArrowSchema schema = new ArrowSchema((
+            {"name": "key", "type": "utf8"},
+            {"name": "value", "type": "int64"},
+        ));
+        hash<auto> descriptor = ArrowFlightHelper::pathDescriptor("writable");
+        ArrowFlightStreamWriter writer = flight.doPut(descriptor, schema);
+
+        ArrowRecordBatch batch1(schema, (
+            {"key": "a", "value": 1},
+            {"key": "b", "value": 2},
+        ));
+        writer.write(batch1);
+
+        ArrowRecordBatch batch2(schema, (
+            {"key": "c", "value": 3},
+        ));
+        writer.write(batch2);
+
+        hash<GrpcCallResult> result = writer.finish();
+        assertEq(GRPC_STATUS_OK, result.status_code, "DoPut succeeded");
+
+        # Verify data was stored by reading it back
+        hash<auto> ticket = {"ticket": binary("writable")};
+        ArrowFlightStreamReader reader = flight.doGet(ticket);
+        reader.schema();
+        list<hash<auto>> all_rows = ();
+        while (*ArrowRecordBatch rb = reader.read(30s)) {
+            all_rows += rb.toRows();
+        }
+        assertEq(3, all_rows.size(), "3 rows stored via DoPut");
+        reader.finish();
+    }
+
+    testQoreToPyDoExchange() {
+        checkPyArrow();
+        ArrowFlightClient flight(pyarrow_channel);
+        ArrowSchema input_schema = new ArrowSchema((
+            {"name": "input", "type": "int64"},
+        ));
+        hash<auto> descriptor = ArrowFlightHelper::pathDescriptor("transform");
+        ArrowFlightExchangeStream exchange = flight.doExchange(descriptor,
+            input_schema);
+
+        ArrowRecordBatch input_batch(input_schema, (
+            {"input": 5},
+            {"input": 10},
+            {"input": 15},
+        ));
+        exchange.write(input_batch);
+        exchange.writesDone();
+
+        ArrowSchema output_schema = exchange.readSchema();
+        assertEq(("output",), output_schema.fieldNames(), "output field name");
+
+        list<hash<auto>> all_rows = ();
+        while (*ArrowRecordBatch batch = exchange.read(30s)) {
+            all_rows += batch.toRows();
+        }
+        assertEq(3, all_rows.size(), "3 output rows");
+        assertEq(10, all_rows[0].output, "5 * 2 = 10");
+        assertEq(20, all_rows[1].output, "10 * 2 = 20");
+        assertEq(30, all_rows[2].output, "15 * 2 = 30");
+
+        exchange.finish();
+    }
+
+    testQoreToPyDoAction() {
+        checkPyArrow();
+        ArrowFlightClient flight(pyarrow_channel);
+
+        list<hash<auto>> results = flight.doAction({
+            "type": "health_check",
+            "body": binary(),
+        });
+        assertEq(1, results.size(), "one result");
+        assertEq(binary("healthy"), results[0].body, "healthy response");
+
+        binary echo_data = binary("hello flight interop");
+        list<hash<auto>> echo_results = flight.doAction({
+            "type": "echo",
+            "body": echo_data,
+        });
+        assertEq(1, echo_results.size(), "one echo result");
+        assertEq(echo_data, echo_results[0].body, "echoed data");
+    }
+
+    testQoreToPyListActions() {
+        checkPyArrow();
+        ArrowFlightClient flight(pyarrow_channel);
+        list<hash<auto>> actions = flight.listActions();
+        assertTrue(actions.size() >= 2, "at least 2 actions");
+
+        hash<string, string> action_map;
+        for (int i = 0; i < actions.size(); ++i) {
+            action_map{actions[i].type} = actions[i].description;
+        }
+        assertTrue(action_map.hasKey("health_check"), "has health_check action");
+        assertTrue(action_map.hasKey("echo"), "has echo action");
+    }
+
+    # ===== Direction 2: PyArrow client -> Qore server =====
+
+    testPyToQoreAllRPCs() {
+        checkPyArrow();
+        Process client("python3", (
+            test_dir + "/pyarrow_flight_client.py",
+            string(qore_port),
+        ));
+        client.wait();
+
+        *string stdout_str = client.readStdout(65536);
+        *string stderr_str = client.readStderr(65536);
+
+        if (m_options.verbose > 1) {
+            printf("PyArrow client stdout: %s\n", stdout_str);
+            printf("PyArrow client stderr: %s\n", stderr_str);
+        }
+
+        assertEq(0, client.exitCode(),
+            sprintf("PyArrow client exit code (stderr: %s)", stderr_str));
+    }
+}

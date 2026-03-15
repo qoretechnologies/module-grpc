@@ -165,3 +165,52 @@ hash<ArrowIpcData> ipc = ArrowIpc::writeRecordBatch(batch);
 static hash<ArrowIpcData> ArrowIpc::writeRecordBatch(ArrowRecordBatch[QoreArrowRecordBatchHolder] batch) {
     return QoreArrowHelper::recordBatchToIpc(batch->batch, xsink);
 }
+
+//! Serializes an ArrowSchema to raw IPC Message format for FlightData.data_header
+/** This produces the raw IPC flatbuffers Message format used in the Arrow Flight
+    protocol's \c FlightData.data_header field.  This differs from @ref writeSchema()
+    which produces the encapsulated IPC stream format used in \c SchemaResult.schema
+    and \c FlightInfo.schema fields.
+
+    @param schema the Arrow schema to serialize
+    @return the raw IPC Message bytes suitable for FlightData.data_header
+
+    @throw ARROW-IPC-ERROR if serialization fails
+
+    @par Example:
+    @code{.py}
+binary data_header = ArrowIpc::writeSchemaPayload(schema);
+hash<auto> flight_data = {"data_header": data_header, "data_body": binary()};
+    @endcode
+
+    @since %grpc 1.0
+*/
+static binary ArrowIpc::writeSchemaPayload(ArrowSchema[QoreArrowSchemaHolder] schema) {
+    return QoreArrowHelper::serializeSchemaPayload(schema->schema, xsink);
+}
+
+//! Deserializes an ArrowSchema from raw IPC Message format (FlightData.data_header)
+/** Reads a schema from the raw IPC flatbuffers Message format used in the Arrow Flight
+    protocol's \c FlightData.data_header field.
+
+    @param ipc_data the raw IPC Message bytes from FlightData.data_header
+    @return an ArrowSchema object
+
+    @throw ARROW-IPC-ERROR if the IPC data cannot be deserialized
+
+    @par Example:
+    @code{.py}
+ArrowSchema schema = ArrowIpc::readSchemaPayload(flight_data.data_header);
+    @endcode
+
+    @since %grpc 1.0
+*/
+static ArrowSchema ArrowIpc::readSchemaPayload(binary ipc_data) {
+    auto schema = QoreArrowHelper::deserializeSchemaPayload(ipc_data, xsink);
+    if (!schema) {
+        return QoreValue();
+    }
+    QoreObject* obj = new QoreObject(QC_ARROWSCHEMA, getProgram());
+    obj->setPrivate(CID_ARROWSCHEMA, new QoreArrowSchemaHolder(schema));
+    return obj;
+}

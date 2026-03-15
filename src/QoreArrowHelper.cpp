@@ -30,6 +30,7 @@
 #include <arrow/builder.h>
 #include <arrow/type.h>
 #include <arrow/io/memory.h>
+#include <arrow/ipc/dictionary.h>
 #include <arrow/ipc/reader.h>
 #include <arrow/ipc/writer.h>
 #include <arrow/util/decimal.h>
@@ -382,6 +383,9 @@ QoreListNode* QoreArrowHelper::arrayToList(const std::shared_ptr<arrow::Array>& 
     ReferenceHolder<QoreListNode> list(new QoreListNode(autoTypeInfo), xsink);
 
     for (int64_t i = 0; i < array->length(); ++i) {
+        if (!(i & 0xff) && i > 0 && qore_check_cancel(xsink)) {
+            return nullptr;
+        }
         QoreValue val = scalarToQore(array, i, xsink);
         if (*xsink) {
             return nullptr;
@@ -853,6 +857,9 @@ std::shared_ptr<arrow::Array> QoreArrowHelper::listToArray(
     }
 
     for (size_t i = 0; i < list->size(); ++i) {
+        if (!(i & 0xff) && i > 0 && qore_check_cancel(xsink)) {
+            return nullptr;
+        }
         if (!appendToBuilder(builder.get(), type, list->retrieveEntry(i), xsink)) {
             return nullptr;
         }
@@ -1547,6 +1554,55 @@ std::shared_ptr<arrow::Schema> QoreArrowHelper::deserializeSchema(
     if (!result.ok()) {
         xsink->raiseException("ARROW-IPC-ERROR",
             "failed to deserialize schema: %s", result.status().ToString().c_str());
+        return nullptr;
+    }
+
+    return std::move(result).ValueUnsafe();
+}
+
+BinaryNode* QoreArrowHelper::serializeSchemaPayload(
+        const std::shared_ptr<arrow::Schema>& schema, ExceptionSink* xsink) {
+    arrow::ipc::IpcPayload payload;
+    arrow::ipc::DictionaryFieldMapper mapper(*schema);
+    auto status = arrow::ipc::GetSchemaPayload(
+        *schema, arrow::ipc::IpcWriteOptions::Defaults(), mapper, &payload);
+    if (!status.ok()) {
+        xsink->raiseException("ARROW-IPC-ERROR",
+            "failed to get schema payload: %s", status.ToString().c_str());
+        return nullptr;
+    }
+
+    SimpleRefHolder<BinaryNode> bin(new BinaryNode);
+    bin->append(payload.metadata->data(), payload.metadata->size());
+    return bin.release();
+}
+
+std::shared_ptr<arrow::Schema> QoreArrowHelper::deserializeSchemaPayload(
+        const BinaryNode* data, ExceptionSink* xsink) {
+    if (!data || data->size() == 0) {
+        xsink->raiseException("ARROW-IPC-ERROR", "empty or missing schema payload data");
+        return nullptr;
+    }
+
+    auto buf = arrow::Buffer::Wrap(
+        static_cast<const uint8_t*>(data->getPtr()), data->size());
+
+    // Open the raw flatbuffers Message (same format as record batch metadata)
+    auto msg_result = arrow::ipc::Message::Open(buf, nullptr);
+    if (!msg_result.ok()) {
+        xsink->raiseException("ARROW-IPC-ERROR",
+            "failed to open IPC message for schema: %s",
+            msg_result.status().ToString().c_str());
+        return nullptr;
+    }
+    auto message = std::move(msg_result).ValueUnsafe();
+
+    arrow::ipc::DictionaryMemo dict_memo;
+    auto result = arrow::ipc::ReadSchema(*message, &dict_memo);
+    if (!result.ok()) {
+        xsink->raiseException("ARROW-IPC-ERROR",
+            "failed to read schema from IPC message: %s",
+            result.status().ToString().c_str());
         return nullptr;
     }
 

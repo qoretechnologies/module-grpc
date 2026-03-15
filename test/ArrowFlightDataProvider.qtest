@@ -206,6 +206,12 @@ public class ArrowFlightDataProviderTest inherits QUnit::Test {
         addTestCase("type introspection: get", \testTypeIntrospectionGet());
         addTestCase("type introspection: put", \testTypeIntrospectionPut());
 
+        # Operation provider tests
+        addTestCase("list-flights provider", \testListFlightsProvider());
+        addTestCase("get-flight-info provider", \testGetFlightInfoProvider());
+        addTestCase("do-action provider", \testDoActionProvider());
+        addTestCase("list-actions provider", \testListActionsProvider());
+
         # Observable event tests
         addTestCase("doGet observable events", \testDoGetObservable());
         addTestCase("doExchange observable events", \testDoExchangeObservable());
@@ -223,6 +229,15 @@ public class ArrowFlightDataProviderTest inherits QUnit::Test {
         server.registerDataset("writable", writable_handler);
         server.registerDataset("transform", new TestTransformHandler());
         server.registerDataset("empty", new TestSalesHandler(()));
+
+        server.registerAction("health_check", "Check server health",
+            list<hash<auto>> sub(binary body) {
+                return ({"body": binary("healthy")},);
+            });
+        server.registerAction("echo", "Echo the input",
+            list<hash<auto>> sub(binary body) {
+                return ({"body": body},);
+            });
 
         port = server.addInsecurePort("localhost:0");
         server.start();
@@ -274,6 +289,12 @@ public class ArrowFlightDataProviderTest inherits QUnit::Test {
         assertTrue(children.contains("writable"));
         assertTrue(children.contains("transform"));
         assertTrue(children.contains("empty"));
+
+        # Verify operation providers
+        assertTrue(children.contains("list-flights"));
+        assertTrue(children.contains("get-flight-info"));
+        assertTrue(children.contains("do-action"));
+        assertTrue(children.contains("list-actions"));
     }
 
     testDatasetChildren() {
@@ -406,6 +427,97 @@ public class ArrowFlightDataProviderTest inherits QUnit::Test {
         # Check response type
         *AbstractDataProviderType resp_type = put_method.getResponseType();
         assertTrue(exists resp_type);
+    }
+
+    testListFlightsProvider() {
+        ArrowFlightDataProvider provider({"url": url});
+        AbstractDataProvider lf = provider.getChildProvider("list-flights");
+        assertEq("list-flights", lf.getName());
+        assertTrue(lf.getInfo().supports_request);
+
+        # Verify request and response types exist
+        assertTrue(exists lf.getRequestType());
+        assertTrue(exists lf.getResponseType());
+
+        # Call ListFlights
+        auto result = lf.doRequest(NOTHING);
+        assertTrue(result instanceof list);
+        assertGt(0, result.size(), "at least one flight");
+
+        # Verify a FlightInfo entry has expected fields
+        bool found_sales = False;
+        for (int i = 0; i < result.size(); ++i) {
+            if (result[i].flight_descriptor.path
+                    && result[i].flight_descriptor.path[0] == "sales") {
+                found_sales = True;
+                assertEq(3, result[i].total_records, "sales has 3 records");
+            }
+        }
+        assertTrue(found_sales, "sales dataset found via list-flights");
+    }
+
+    testGetFlightInfoProvider() {
+        ArrowFlightDataProvider provider({"url": url});
+        AbstractDataProvider gfi = provider.getChildProvider("get-flight-info");
+        assertEq("get-flight-info", gfi.getName());
+
+        # Verify request type has dataset field
+        *AbstractDataProviderType req_type = gfi.getRequestType();
+        assertTrue(exists req_type);
+        hash<auto> fields = req_type.getFields();
+        assertTrue(fields.hasKey("dataset"), "request has dataset field");
+
+        # Call GetFlightInfo for sales
+        hash<auto> info = gfi.doRequest({"dataset": "sales"});
+        assertEq(3, info.total_records, "sales total_records");
+        assertTrue(info.schema.size() > 0, "schema bytes present");
+    }
+
+    testDoActionProvider() {
+        ArrowFlightDataProvider provider({"url": url});
+        AbstractDataProvider da = provider.getChildProvider("do-action");
+        assertEq("do-action", da.getName());
+
+        # Verify request type has action_type and body fields
+        *AbstractDataProviderType req_type = da.getRequestType();
+        assertTrue(exists req_type);
+        hash<auto> fields = req_type.getFields();
+        assertTrue(fields.hasKey("action_type"), "request has action_type field");
+        assertTrue(fields.hasKey("body"), "request has body field");
+
+        # Execute health_check action
+        list<hash<auto>> results = da.doRequest({
+            "action_type": "health_check",
+        });
+        assertEq(1, results.size(), "one result");
+        assertEq(binary("healthy"), results[0].body, "healthy response");
+
+        # Execute echo action
+        binary echo_data = binary("test echo");
+        list<hash<auto>> echo_results = da.doRequest({
+            "action_type": "echo",
+            "body": echo_data,
+        });
+        assertEq(echo_data, echo_results[0].body, "echoed data");
+    }
+
+    testListActionsProvider() {
+        ArrowFlightDataProvider provider({"url": url});
+        AbstractDataProvider la = provider.getChildProvider("list-actions");
+        assertEq("list-actions", la.getName());
+
+        # Call ListActions
+        list<hash<auto>> actions = la.doRequest(NOTHING);
+        assertTrue(actions.size() >= 2, "at least 2 actions");
+
+        hash<string, string> action_map;
+        for (int i = 0; i < actions.size(); ++i) {
+            action_map{actions[i].type} = actions[i].description;
+        }
+        assertTrue(action_map.hasKey("health_check"), "has health_check");
+        assertTrue(action_map.hasKey("echo"), "has echo");
+        assertEq("Check server health", action_map.health_check,
+            "health_check description");
     }
 
     testDoGetObservable() {

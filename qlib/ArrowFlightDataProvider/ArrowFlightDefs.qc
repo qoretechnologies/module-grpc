@@ -49,4 +49,18 @@ public namespace ArrowFlightDataProvider {
 
     #! Complete data type for Flight events
     public const FlightStreamCompleteDataType = new HashDataType("FlightStreamComplete");
+
+    #! Record batch event data type for DPAT_EVENT output_type
+    public const FlightBatchEventDataType = new HashDataType("FlightBatchEvent", {
+        "rows": {
+            "display_name": "Rows",
+            "type": AbstractDataProviderType::get(SoftListType),
+            "desc": "Row data from the record batch as a list of hashes",
+        },
+        "num_rows": {
+            "display_name": "Row Count",
+            "type": AbstractDataProviderType::get(IntType),
+            "desc": "Number of rows in the batch",
+        },
+    });
 }
