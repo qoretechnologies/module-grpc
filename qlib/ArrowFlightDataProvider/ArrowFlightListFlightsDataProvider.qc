@@ -37,7 +37,7 @@ public class ArrowFlightListFlightsDataProvider inherits AbstractDataProvider {
         };
 
         #! Response type: list of FlightInfo hashes
-        static FlightInfoListResponseDataType ResponseType();
+        static FlightInfoResponseDataType ResponseType();
 
         #! Request type: empty hash
         static HashDataType RequestType("ArrowFlightListFlightsRequest");
@@ -78,7 +78,7 @@ public class ArrowFlightListFlightsDataProvider inherits AbstractDataProvider {
 }
 
 #! Response data type for FlightInfo
-public class FlightInfoListResponseDataType inherits HashDataType {
+public class FlightInfoResponseDataType inherits HashDataType {
     public {
         const Fields = {
             "flight_descriptor": {

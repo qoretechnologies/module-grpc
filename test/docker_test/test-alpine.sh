@@ -26,8 +26,12 @@ echo "export QORE_GID=1000" >> ${ENV_FILE}
 export MAKE_JOBS=4
 
 # install interop test dependencies
-pip3 install --break-system-packages grpcio grpcio-tools pyarrow 2>/dev/null \
-    || pip3 install grpcio grpcio-tools pyarrow || true
+pip3 install --break-system-packages grpcio grpcio-tools 2>/dev/null \
+    || pip3 install grpcio grpcio-tools || true
+# pyarrow: only install from binary wheel (no source build on Alpine/musl);
+# interop tests gracefully skip if pyarrow is unavailable
+pip3 install --break-system-packages --only-binary :all: pyarrow 2>/dev/null \
+    || pip3 install --only-binary :all: pyarrow || true
 
 # install grpcurl for interop testing
 GRPCURL_VERSION=1.9.3

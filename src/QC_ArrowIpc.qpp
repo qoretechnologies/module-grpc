@@ -70,9 +70,10 @@ hash<ArrowIpcData> ipc = ArrowIpc::writeRecordBatch(batch);
 */
 qclass ArrowIpc [arg=void* dummy; ns=Qore::Grpc];
 
-//! Deserializes an ArrowSchema from IPC bytes
-/** @param ipc_data the IPC-serialized schema bytes (from \c SchemaResult.schema or the
-        first \c FlightData.data_header in a \c DoGet / \c DoPut stream)
+//! Deserializes an ArrowSchema from IPC bytes (encapsulated stream format)
+/** @param ipc_data the IPC-serialized schema bytes (from \c SchemaResult.schema or
+        \c FlightInfo.schema fields).  For \c FlightData.data_header, use
+        @ref readSchemaPayload() instead.
     @return an ArrowSchema object
 
     @throw ARROW-IPC-ERROR if the IPC data cannot be deserialized

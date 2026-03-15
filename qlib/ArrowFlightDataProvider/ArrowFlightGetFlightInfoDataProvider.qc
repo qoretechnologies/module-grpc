@@ -62,7 +62,7 @@ public class ArrowFlightGetFlightInfoDataProvider inherits AbstractDataProvider 
     }
 
     private *AbstractDataProviderType getResponseTypeImpl() {
-        return new FlightInfoListResponseDataType();
+        return new FlightInfoResponseDataType();
     }
 
     private auto doRequestImpl(auto req, *hash<auto> request_options) {
