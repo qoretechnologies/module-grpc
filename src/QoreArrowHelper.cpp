@@ -1587,8 +1587,9 @@ std::shared_ptr<arrow::Schema> QoreArrowHelper::deserializeSchemaPayload(
     auto buf = arrow::Buffer::Wrap(
         static_cast<const uint8_t*>(data->getPtr()), data->size());
 
-    // Open the raw flatbuffers Message (same format as record batch metadata)
-    auto msg_result = arrow::ipc::Message::Open(buf, nullptr);
+    // Open the raw flatbuffers Message (same format as record batch metadata);
+    // schema messages have no body, so pass an empty shared_ptr
+    auto msg_result = arrow::ipc::Message::Open(buf, std::shared_ptr<arrow::Buffer>());
     if (!msg_result.ok()) {
         xsink->raiseException("ARROW-IPC-ERROR",
             "failed to open IPC message for schema: %s",

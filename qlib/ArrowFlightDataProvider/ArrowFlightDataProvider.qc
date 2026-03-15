@@ -168,7 +168,17 @@ public class ArrowFlightDataProvider inherits AbstractDataProvider {
     }
 
     #! Returns a child provider by name (dataset or operation provider)
+    /** Datasets take priority over operation providers; if a dataset has the
+        same name as an operation provider, the dataset is returned.
+    */
     private *AbstractDataProvider getChildProviderImpl(string name) {
+        # Datasets take priority over operation providers to avoid name collisions
+        ensureFlightInfoCache();
+        *hash<auto> info = flight_info_cache{name};
+        if (info) {
+            return new ArrowFlightDatasetDataProvider(flight_client, name, info,
+                default_opts);
+        }
         switch (name) {
             case "list-flights":
                 return new ArrowFlightListFlightsDataProvider(flight_client);
@@ -179,12 +189,6 @@ public class ArrowFlightDataProvider inherits AbstractDataProvider {
             case "list-actions":
                 return new ArrowFlightListActionsDataProvider(flight_client);
         }
-        ensureFlightInfoCache();
-        *hash<auto> info = flight_info_cache{name};
-        if (!info) {
-            return NOTHING;
-        }
-        return new ArrowFlightDatasetDataProvider(flight_client, name, info, default_opts);
     }
 
     #! Returns static provider info
