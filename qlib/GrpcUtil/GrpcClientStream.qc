@@ -174,20 +174,9 @@ public class GrpcClientStream {
     writesDone() {
         if (!m_writes_done) {
             m_writes_done = True;
-            # Only send END_STREAM if the stream is still in a sendable state.
-            # For server-streaming, the client already sent END_STREAM with the
-            # request body, so the stream may already be complete.
-            if (!m_stream.isDone()) {
-                try {
-                    m_stream.sendData(binary(), True);
-                } catch (hash<ExceptionInfo> ex) {
-                    # Ignore state errors - the stream may have been closed by
-                    # the server between the isDone() check and sendData() call
-                    if (ex.err != "HTTPCLIENT-STATE-ERROR") {
-                        rethrow;
-                    }
-                }
-            }
+            # sendData(empty, end_stream=True) is idempotent — if the stream
+            # is already in a terminal state, it's a no-op at the HTTP/2 layer
+            m_stream.sendData(binary(), True);
         }
     }
 
