@@ -44,14 +44,30 @@ module ArrowFlightDataProvider {
         ConnectionSchemeCache::registerScheme("flight", ArrowFlightConnection::ConnectionScheme);
         ConnectionSchemeCache::registerScheme("flights", ArrowFlightConnection::ConnectionScheme);
 
+        # Path variable shared by all dataset-level actions
+        hash<string, hash<DataProviderPathVarInfo>> dataset_path_var = {
+            "dataset": <DataProviderPathVarInfo>{
+                "display_name": "Dataset",
+                "short_desc": "The Flight dataset name",
+                "desc": "The Arrow Flight dataset name as registered on the server",
+                "example_value": "my-dataset",
+            },
+        };
+
         # Register app in action catalog
         DataProviderActionCatalog::registerApp(<DataProviderAppInfo>{
             "name": ArrowFlightDataProvider::AppName,
             "display_name": "Arrow Flight",
             "short_desc": "Arrow Flight columnar data service",
-            "desc": "Connect to Arrow Flight services for high-performance columnar data "
-                "exchange using Apache Arrow IPC format, supporting DoGet, DoPut, and "
-                "DoExchange streaming patterns",
+            "desc": "Connect to [Apache Arrow Flight](https://arrow.apache.org/docs/format/"
+                "Flight.html) services for high-performance columnar data exchange using "
+                "Apache Arrow IPC format.\n\n"
+                "**Supported operations**:\n"
+                "- **DoGet**: streaming read of columnar data\n"
+                "- **DoPut**: streaming write of columnar data\n"
+                "- **DoExchange**: bidirectional streaming data transformation\n"
+                "- **DoAction**: execute custom server actions\n"
+                "- **ListFlights / GetFlightInfo**: dataset discovery and metadata",
             "scheme": "flight",
             "groups": (DataProvider::AppGroup::ApiIntegration,),
             "logo": ArrowFlightLogo,
@@ -59,24 +75,134 @@ module ArrowFlightDataProvider {
             "logo_file_name": "arrow-flight-logo.svg",
         });
 
-        # Register doGet action
+        # ---- DPAT_API actions: Data Operations ----
+
+        # Get Flight Data (DoGet)
         DataProviderActionCatalog::registerAction(<DataProviderActionInfo>{
             "app": ArrowFlightDataProvider::AppName,
             "path": "/{dataset}/get",
-            "path_vars": {
-                "dataset": <DataProviderPathVarInfo>{
-                    "display_name": "Dataset",
-                    "short_desc": "The Flight dataset name",
-                    "desc": "The Arrow Flight dataset name as registered on the server",
-                    "example_value": "my-dataset",
-                },
-            },
-            "action": "call",
+            "path_vars": dataset_path_var,
+            "action": "get-flight-data",
+            "groups": "Data Operations",
             "display_name": "Get Flight Data",
             "short_desc": "Retrieve data from an Arrow Flight dataset",
-            "desc": "Retrieves columnar data from an Arrow Flight service via DoGet",
+            "desc": "Retrieves columnar data from an Arrow Flight service via the DoGet "
+                "streaming RPC; returns all record batches as a list of row hashes",
             "action_code": DPAT_API,
+            "options": DataProviderActionCatalog::getActionOptionFromFields(
+                DoGetRequestFields),
+            "output_type": AbstractDataProviderType::get(SoftListType),
         });
+
+        # Put Flight Data (DoPut)
+        DataProviderActionCatalog::registerAction(<DataProviderActionInfo>{
+            "app": ArrowFlightDataProvider::AppName,
+            "path": "/{dataset}/put",
+            "path_vars": dataset_path_var,
+            "action": "put-flight-data",
+            "groups": "Data Operations",
+            "display_name": "Put Flight Data",
+            "short_desc": "Send data to an Arrow Flight dataset",
+            "desc": "Sends columnar data to an Arrow Flight service via the DoPut streaming "
+                "RPC; the data is sent as one or more Arrow record batches",
+            "action_code": DPAT_API,
+            "options": DataProviderActionCatalog::getActionOptionFromFields(
+                DoPutRequestFields),
+            "output_type": AbstractDataProviderType::get(AutoHashType),
+        });
+
+        # Exchange Flight Data (DoExchange)
+        DataProviderActionCatalog::registerAction(<DataProviderActionInfo>{
+            "app": ArrowFlightDataProvider::AppName,
+            "path": "/{dataset}/exchange",
+            "path_vars": dataset_path_var,
+            "action": "exchange-flight-data",
+            "groups": "Data Operations",
+            "display_name": "Exchange Flight Data",
+            "short_desc": "Bidirectional data exchange on an Arrow Flight dataset",
+            "desc": "Performs a bidirectional data exchange via the DoExchange streaming RPC; "
+                "sends input rows and receives transformed output rows",
+            "action_code": DPAT_API,
+            "options": DataProviderActionCatalog::getActionOptionFromFields(
+                DoExchangeRequestFields),
+            "output_type": AbstractDataProviderType::get(SoftListType),
+        });
+
+        # ---- DPAT_API actions: Discovery ----
+
+        # List Flights
+        DataProviderActionCatalog::registerAction(<DataProviderActionInfo>{
+            "app": ArrowFlightDataProvider::AppName,
+            "path": "/list-flights",
+            "action": "list-flights",
+            "groups": "Discovery",
+            "display_name": "List Flights",
+            "short_desc": "List available Arrow Flight datasets",
+            "desc": "Discovers available datasets on the Arrow Flight server via the "
+                "ListFlights RPC; returns a list of FlightInfo hashes with dataset metadata",
+            "action_code": DPAT_API,
+            "options": {},
+            "output_type": new SoftListDataType("FlightInfoList",
+                new FlightInfoResponseDataType()),
+        });
+
+        # Get Flight Info
+        DataProviderActionCatalog::registerAction(<DataProviderActionInfo>{
+            "app": ArrowFlightDataProvider::AppName,
+            "path": "/get-flight-info",
+            "action": "get-flight-info",
+            "groups": "Discovery",
+            "display_name": "Get Flight Info",
+            "short_desc": "Get metadata for an Arrow Flight dataset",
+            "desc": "Retrieves metadata for a specific dataset via the GetFlightInfo RPC, "
+                "including schema, record count, and endpoint information",
+            "action_code": DPAT_API,
+            "options": DataProviderActionCatalog::getActionOptionFromFields(
+                GetFlightInfoRequestDataType::Fields),
+            "output_type": new FlightInfoResponseDataType(),
+        });
+
+        # ---- DPAT_API actions: Actions ----
+
+        # Do Action
+        DataProviderActionCatalog::registerAction(<DataProviderActionInfo>{
+            "app": ArrowFlightDataProvider::AppName,
+            "path": "/do-action",
+            "action": "do-action",
+            "groups": "Actions",
+            "display_name": "Execute Flight Action",
+            "short_desc": "Execute a custom action on the Arrow Flight server",
+            "desc": "Executes a custom server-side action via the DoAction RPC; the action "
+                "type and optional binary body are sent to the server, which returns a list "
+                "of binary results",
+            "action_code": DPAT_API,
+            "options": DataProviderActionCatalog::getActionOptionFromFields(
+                DoActionRequestDataType::Fields),
+            "output_type": new SoftListDataType("DoActionResultList",
+                new DoActionResponseDataType()),
+        });
+
+        # List Actions
+        DataProviderActionCatalog::registerAction(<DataProviderActionInfo>{
+            "app": ArrowFlightDataProvider::AppName,
+            "path": "/list-actions",
+            "action": "list-actions",
+            "groups": "Actions",
+            "display_name": "List Flight Actions",
+            "short_desc": "List available actions on the Arrow Flight server",
+            "desc": "Lists custom actions available on the Arrow Flight server via the "
+                "ListActions RPC; each action has a type identifier and description",
+            "action_code": DPAT_API,
+            "options": {},
+            "output_type": new SoftListDataType("ActionTypeList",
+                new ActionTypeResponseDataType()),
+        });
+
+        # NOTE: DPAT_EVENT actions for DoGet/DoExchange stream events are not
+        # registered here because they require persistent streaming connections,
+        # which are not yet supported in the action catalog framework.  The event
+        # infrastructure (ArrowFlightStreamEventDataProvider) is fully functional
+        # and can be used programmatically via the data provider observer API.
     };
 }
 
@@ -211,6 +337,38 @@ printf("Got %d rows\n", rows.size());
 public namespace ArrowFlightDataProvider {
     #! MIME type for SVG images
     public const MimeTypeSvg = "image/svg+xml";
+
+    #! Static request fields for DoGet action registration
+    public const DoGetRequestFields = {
+        "ticket": {
+            "display_name": "Ticket",
+            "short_desc": "Flight ticket as binary data",
+            "type": AbstractDataProviderType::get(SoftBinaryOrNothingType),
+            "desc": "Optional flight ticket; defaults to the dataset path if not provided",
+        },
+    };
+
+    #! Static request fields for DoPut action registration
+    public const DoPutRequestFields = {
+        "rows": {
+            "display_name": "Rows",
+            "short_desc": "Row data to send",
+            "type": AbstractDataProviderType::get(SoftListType),
+            "desc": "List of row hashes to send as Arrow record batches",
+            "required": True,
+        },
+    };
+
+    #! Static request fields for DoExchange action registration
+    public const DoExchangeRequestFields = {
+        "rows": {
+            "display_name": "Rows",
+            "short_desc": "Input row data to send",
+            "type": AbstractDataProviderType::get(SoftListType),
+            "desc": "List of input row hashes to send for bidirectional exchange",
+            "required": True,
+        },
+    };
 
     #! Arrow Flight logo in SVG format for the action catalog
     public const ArrowFlightLogo = File::readTextFile(get_script_dir()

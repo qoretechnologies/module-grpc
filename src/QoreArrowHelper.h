@@ -131,20 +131,40 @@ public:
         const BinaryNode* data_header, const BinaryNode* data_body,
         ExceptionSink* xsink);
 
-    //! Serialize a Schema to IPC bytes
-    /** @param schema the Arrow schema
+    //! Serialize a Schema to IPC bytes (encapsulated stream format)
+    /** Used for SchemaResult.schema and FlightInfo.schema fields.
+        @param schema the Arrow schema
         @param xsink exception sink
         @return a new BinaryNode with IPC-serialized schema, or nullptr on error
     */
     DLLLOCAL static BinaryNode* serializeSchema(
         const std::shared_ptr<arrow::Schema>& schema, ExceptionSink* xsink);
 
-    //! Deserialize a Schema from IPC bytes
-    /** @param data the IPC-serialized schema bytes
+    //! Deserialize a Schema from IPC bytes (encapsulated stream format)
+    /** Used for SchemaResult.schema and FlightInfo.schema fields.
+        @param data the IPC-serialized schema bytes
         @param xsink exception sink
         @return a new Arrow Schema, or nullptr on error
     */
     DLLLOCAL static std::shared_ptr<arrow::Schema> deserializeSchema(
+        const BinaryNode* data, ExceptionSink* xsink);
+
+    //! Serialize a Schema to IPC payload metadata (raw flatbuffers Message)
+    /** Used for FlightData.data_header — the same format as record batch metadata.
+        @param schema the Arrow schema
+        @param xsink exception sink
+        @return a new BinaryNode with the raw IPC Message bytes, or nullptr on error
+    */
+    DLLLOCAL static BinaryNode* serializeSchemaPayload(
+        const std::shared_ptr<arrow::Schema>& schema, ExceptionSink* xsink);
+
+    //! Deserialize a Schema from IPC payload metadata (raw flatbuffers Message)
+    /** Used for FlightData.data_header.
+        @param data the raw IPC Message bytes
+        @param xsink exception sink
+        @return a new Arrow Schema, or nullptr on error
+    */
+    DLLLOCAL static std::shared_ptr<arrow::Schema> deserializeSchemaPayload(
         const BinaryNode* data, ExceptionSink* xsink);
 
 private:

@@ -1,7 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <rect x="4" y="4" width="56" height="56" rx="8" fill="#E8544E"/>
-  <path d="M16 44 L32 16 L48 44" stroke="white" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M24 36 L40 36" stroke="white" stroke-width="3" fill="none" stroke-linecap="round"/>
-  <path d="M32 44 L32 48" stroke="white" stroke-width="3" fill="none" stroke-linecap="round"/>
-  <path d="M44 20 L52 16 L48 24" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 1350 1350" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;">
+    <g transform="matrix(1,0,0,1,0,84.375)">
+        <path d="M168.75,168.75L590.62,590.62L168.75,1012.5L168.75,843.75L421.88,590.62L168.75,337.5L168.75,168.75Z" style="fill:white;fill-rule:nonzero;stroke:white;stroke-width:1.07px;"/>
+        <path d="M464.06,168.75L885.94,590.62L464.06,1012.5L464.06,843.75L717.19,590.62L464.06,337.5L464.06,168.75Z" style="fill:white;fill-rule:nonzero;stroke:white;stroke-width:1.07px;"/>
+        <path d="M759.38,168.75L1181.25,590.62L759.38,1012.5L759.38,843.75L1012.5,590.62L759.38,337.5L759.38,168.75Z" style="fill:white;fill-rule:nonzero;stroke:white;stroke-width:1.07px;"/>
+    </g>
 </svg>

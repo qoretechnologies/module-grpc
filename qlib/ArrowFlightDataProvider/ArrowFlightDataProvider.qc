@@ -157,20 +157,37 @@ public class ArrowFlightDataProvider inherits AbstractDataProvider {
         return "Arrow Flight data provider for high-performance columnar data exchange";
     }
 
-    #! Returns child provider names (dataset names discovered via ListFlights)
+    #! Non-dataset child provider names
+    const OperationChildren = ("list-flights", "get-flight-info", "do-action",
+        "list-actions");
+
+    #! Returns child provider names (dataset names + operation providers)
     private *list<string> getChildProviderNamesImpl() {
         ensureFlightInfoCache();
-        return keys flight_info_cache;
+        return keys flight_info_cache + OperationChildren;
     }
 
-    #! Returns a child provider by name (dataset provider)
+    #! Returns a child provider by name (dataset or operation provider)
+    /** Operation providers are returned directly without triggering a
+        ListFlights RPC.  Dataset names are resolved via the flight info cache.
+    */
     private *AbstractDataProvider getChildProviderImpl(string name) {
+        switch (name) {
+            case "list-flights":
+                return new ArrowFlightListFlightsDataProvider(flight_client);
+            case "get-flight-info":
+                return new ArrowFlightGetFlightInfoDataProvider(flight_client);
+            case "do-action":
+                return new ArrowFlightDoActionDataProvider(flight_client);
+            case "list-actions":
+                return new ArrowFlightListActionsDataProvider(flight_client);
+        }
         ensureFlightInfoCache();
         *hash<auto> info = flight_info_cache{name};
-        if (!info) {
-            return NOTHING;
+        if (info) {
+            return new ArrowFlightDatasetDataProvider(flight_client, name, info,
+                default_opts);
         }
-        return new ArrowFlightDatasetDataProvider(flight_client, name, info, default_opts);
     }
 
     #! Returns static provider info

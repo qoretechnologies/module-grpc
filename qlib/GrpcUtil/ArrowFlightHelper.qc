@@ -59,7 +59,7 @@ public class ArrowFlightHelper {
         if (!flight_data.data_header) {
             throw "ARROW-FLIGHT-ERROR", "FlightData message has no data_header for schema";
         }
-        return ArrowIpc::readSchema(flight_data.data_header);
+        return ArrowIpc::readSchemaPayload(flight_data.data_header);
     }
 
     #! Convert a FlightData message to an ArrowRecordBatch
@@ -98,7 +98,7 @@ public class ArrowFlightHelper {
     */
     static hash<auto> schemaToFlightData(ArrowSchema schema, *hash<auto> descriptor) {
         hash<auto> flight_data({
-            "data_header": ArrowIpc::writeSchema(schema),
+            "data_header": ArrowIpc::writeSchemaPayload(schema),
             "data_body": binary(),
         });
         if (descriptor) {
