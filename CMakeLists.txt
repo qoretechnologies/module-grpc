@@ -25,14 +25,30 @@ endif()
 find_package(Qore 2.0 REQUIRED)
 
 # Find protobuf - try config mode first (required for protobuf v5+), fall back to module mode
+# PROTOBUF_PREFIX env var or cmake var overrides auto-detection (e.g. /opt/local/libexec/protobuf5-cpp)
 # On macOS with MacPorts, protobuf is installed under /opt/local/libexec/protobufN-cpp/
-if(APPLE)
+# The system-level cmake config at /opt/local/lib/cmake/protobuf/ may reference UPB targets
+# from packages that aren't installed, so we must point Protobuf_DIR directly to the
+# per-version config to bypass the broken system-level config.
+if(NOT PROTOBUF_PREFIX AND DEFINED ENV{PROTOBUF_PREFIX})
+    set(PROTOBUF_PREFIX "$ENV{PROTOBUF_PREFIX}")
+endif()
+if(PROTOBUF_PREFIX)
+    list(APPEND CMAKE_PREFIX_PATH "${PROTOBUF_PREFIX}")
+    if(EXISTS "${PROTOBUF_PREFIX}/lib/cmake/protobuf")
+        set(Protobuf_DIR "${PROTOBUF_PREFIX}/lib/cmake/protobuf")
+    endif()
+    message(STATUS "Using PROTOBUF_PREFIX: ${PROTOBUF_PREFIX}")
+elseif(APPLE)
     file(GLOB _macports_protobuf_dirs "/opt/local/libexec/protobuf*-cpp")
     if(_macports_protobuf_dirs)
         # Use the last (highest version) match
         list(SORT _macports_protobuf_dirs)
         list(GET _macports_protobuf_dirs -1 _macports_protobuf_dir)
         list(APPEND CMAKE_PREFIX_PATH "${_macports_protobuf_dir}")
+        if(EXISTS "${_macports_protobuf_dir}/lib/cmake/protobuf")
+            set(Protobuf_DIR "${_macports_protobuf_dir}/lib/cmake/protobuf")
+        endif()
         message(STATUS "Auto-detected MacPorts protobuf: ${_macports_protobuf_dir}")
     endif()
 endif()
