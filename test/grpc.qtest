@@ -157,6 +157,7 @@ public class GrpcTest inherits QUnit::Test {
 
         # API getter tests
         addTestCase("client: getSchema returns schema", \testClientGetSchema());
+        addTestCase("server: getSchema returns schema", \testServerGetSchema());
         addTestCase("channel: target returns URL", \testChannelTarget());
         addTestCase("channel: getConnectionManager", \testChannelGetConnectionManager());
         addTestCase("server stream: clientMetadata", \testServerStreamClientMetadata());
@@ -1523,6 +1524,15 @@ public class GrpcTest inherits QUnit::Test {
         # Verify it's the same schema by checking message types
         assertEq(schema.messageTypes(), returned.messageTypes(),
             "getSchema returns same schema");
+    }
+
+    testServerGetSchema() {
+        ProtobufSchema schema(test_dir, "test.proto");
+        GrpcServer server(schema);
+        ProtobufSchema returned = server.getSchema();
+        # Verify it's the same schema by checking message types
+        assertEq(schema.messageTypes(), returned.messageTypes(),
+            "server getSchema returns same schema");
     }
 
     testChannelTarget() {

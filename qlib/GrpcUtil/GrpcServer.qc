@@ -135,6 +135,13 @@ public class GrpcServer {
         }
     }
 
+    #! Returns the protobuf schema used by this server
+    /** @return the ProtobufSchema instance
+    */
+    ProtobufSchema getSchema() {
+        return m_schema;
+    }
+
     #! Register a handler for a service method
     /** @param service the service name (e.g., "MyService")
         @param method the method name (e.g., "SayHello")

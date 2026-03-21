@@ -86,6 +86,15 @@ public class GrpcServerStream {
         binary m_read_buf = binary();
     }
 
+    #! Constructor for proxy/remote stream implementations
+    /** Subclasses override @ref read() and @ref write() to relay stream data
+        over a transport layer (e.g., ZeroMQ) instead of reading/writing from
+        an HTTP/2 socket directly.
+    */
+    private constructor() {
+        m_live = True;
+    }
+
     #! Create a server stream (buffered mode)
     /** @param socket the client Socket
         @param stream_id the HTTP/2 stream ID
