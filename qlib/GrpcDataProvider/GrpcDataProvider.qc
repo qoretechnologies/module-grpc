@@ -131,7 +131,7 @@ public class GrpcDataProvider inherits AbstractDataProvider {
         *hash<auto> default_opts;
 
         #! Service map: service name -> GrpcServiceInfo
-        hash<string, hash<GrpcServiceInfo>> service_map;
+        hash<string, hash<ProtobufServiceInfo>> service_map;
 
         #! Display name
         string display_name = "gRPC";
@@ -218,7 +218,7 @@ public class GrpcDataProvider inherits AbstractDataProvider {
 
     #! Returns a child provider by name (service provider)
     private *AbstractDataProvider getChildProviderImpl(string name) {
-        *hash<GrpcServiceInfo> sinfo = service_map{name};
+        *hash<ProtobufServiceInfo> sinfo = service_map{name};
         if (!sinfo) {
             return NOTHING;
         }
@@ -237,7 +237,7 @@ public class GrpcDataProvider inherits AbstractDataProvider {
 
     #! Populates the service map from the schema
     private setupServiceMap() {
-        list<hash<GrpcServiceInfo>> services = proto_schema.services();
+        list<auto> services = proto_schema.services();
         map (service_map{$1.name} = $1), services;
     }
 }

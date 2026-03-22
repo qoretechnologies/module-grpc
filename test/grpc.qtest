@@ -29,6 +29,7 @@
 
 %requires QUnit
 
+%requires protobuf
 %requires grpc
 %requires GrpcUtil
 
@@ -195,13 +196,13 @@ public class GrpcTest inherits QUnit::Test {
 
     testServiceDiscovery() {
         ProtobufSchema schema(test_dir, "test.proto");
-        list<hash<GrpcServiceInfo>> services = schema.services();
+        list<hash<ProtobufServiceInfo>> services = schema.services();
         assertEq(1, services.size(), "should have 1 service");
         assertEq("TestService", services[0].name, "service name");
         assertEq(4, services[0].methods.size(), "should have 4 methods");
 
         # Check unary method
-        hash<GrpcMethodInfo> unary = services[0].methods[0];
+        hash<ProtobufMethodInfo> unary = services[0].methods[0];
         assertEq("UnaryCall", unary.name, "unary method name");
         assertEq("/test.TestService/UnaryCall", unary.full_path, "unary full path");
         assertEq("test.SimpleRequest", unary.input_type, "unary input type");
@@ -210,17 +211,17 @@ public class GrpcTest inherits QUnit::Test {
         assertFalse(unary.server_streaming, "unary: no server streaming");
 
         # Check server streaming
-        hash<GrpcMethodInfo> server_stream = services[0].methods[1];
+        hash<ProtobufMethodInfo> server_stream = services[0].methods[1];
         assertFalse(server_stream.client_streaming, "server stream: no client streaming");
         assertTrue(server_stream.server_streaming, "server stream: server streaming");
 
         # Check client streaming
-        hash<GrpcMethodInfo> client_stream = services[0].methods[2];
+        hash<ProtobufMethodInfo> client_stream = services[0].methods[2];
         assertTrue(client_stream.client_streaming, "client stream: client streaming");
         assertFalse(client_stream.server_streaming, "client stream: no server streaming");
 
         # Check bidi streaming
-        hash<GrpcMethodInfo> bidi = services[0].methods[3];
+        hash<ProtobufMethodInfo> bidi = services[0].methods[3];
         assertTrue(bidi.client_streaming, "bidi: client streaming");
         assertTrue(bidi.server_streaming, "bidi: server streaming");
     }
@@ -615,7 +616,7 @@ public class GrpcTest inherits QUnit::Test {
             + "service Greeter { rpc Hello (Req) returns (Resp); }\n";
 
         ProtobufSchema schema(proto_content);
-        list<hash<GrpcServiceInfo>> services = schema.services();
+        list<hash<ProtobufServiceInfo>> services = schema.services();
         assertEq(1, services.size(), "service count");
         assertEq("Greeter", services[0].name, "service name");
     }
@@ -735,7 +736,7 @@ public class GrpcTest inherits QUnit::Test {
         GrpcChannel channel("https://localhost:50051");
         on_exit channel.shutdown();
         GrpcClient client(channel, schema, "TestService");
-        hash<GrpcServiceInfo> info = client.getServiceInfo();
+        hash<ProtobufServiceInfo> info = client.getServiceInfo();
         assertEq("TestService", info.name, "service name matches");
         assertEq(4, info.methods.size(), "method count matches");
     }

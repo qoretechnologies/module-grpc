@@ -11,6 +11,7 @@
 
 %requires QUnit
 
+%requires protobuf
 %requires grpc
 %requires GrpcUtil
 

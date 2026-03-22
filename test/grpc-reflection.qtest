@@ -11,6 +11,7 @@
 
 %requires QUnit
 
+%requires protobuf
 %requires grpc
 %requires GrpcUtil
 %requires GrpcDataProvider
@@ -72,7 +73,7 @@ public class GrpcReflectionTest inherits QUnit::Test {
 
         # Verify we can reconstruct a schema from the returned descriptors
         ProtobufSchema reconstructed(fds);
-        list<hash<GrpcServiceInfo>> services = reconstructed.services();
+        list<hash<ProtobufServiceInfo>> services = reconstructed.services();
         assertTrue(services.size() > 0, "reconstructed schema should have services");
         assertEq("TestService", services[0].name);
 
@@ -103,7 +104,7 @@ public class GrpcReflectionTest inherits QUnit::Test {
 
         # Verify round-trip: reconstruct schema and check services
         ProtobufSchema reconstructed(fds);
-        list<hash<GrpcServiceInfo>> services = reconstructed.services();
+        list<hash<ProtobufServiceInfo>> services = reconstructed.services();
         assertTrue(services.size() > 0, "reconstructed schema should have services");
     }
 
@@ -178,7 +179,7 @@ public class GrpcReflectionTest inherits QUnit::Test {
 
         # Verify we can build a working schema from the descriptors
         ProtobufSchema discovered(fds);
-        list<hash<GrpcServiceInfo>> services = discovered.services();
+        list<hash<ProtobufServiceInfo>> services = discovered.services();
         assertTrue(services.size() > 0, "discovered schema should have services");
         assertEq("TestService", services[0].name);
     }
@@ -250,7 +251,7 @@ public class GrpcReflectionTest inherits QUnit::Test {
         list<binary> fds = cast<list<binary>>(
             response.file_descriptor_response.file_descriptor_proto);
         ProtobufSchema reconstructed(fds);
-        list<hash<GrpcServiceInfo>> services = reconstructed.services();
+        list<hash<ProtobufServiceInfo>> services = reconstructed.services();
         assertTrue(services.size() > 0, "reconstructed schema should have services");
     }
 
@@ -392,7 +393,7 @@ public class GrpcReflectionTest inherits QUnit::Test {
         ProtobufSchema discovered = rc.discoverSchema();
 
         # Verify the discovered schema has the TestService
-        list<hash<GrpcServiceInfo>> services = discovered.services();
+        list<hash<ProtobufServiceInfo>> services = discovered.services();
         assertTrue(services.size() > 0, "discovered schema should have services");
 
         bool found_test_service = False;

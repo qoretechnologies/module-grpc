@@ -69,10 +69,10 @@ public class GrpcStreamEventDataProvider inherits AbstractDataProvider, DelayedO
         ProtobufSchema schema;
 
         #! The service info
-        hash<GrpcServiceInfo> service_info;
+        hash<ProtobufServiceInfo> service_info;
 
         #! The method info
-        hash<GrpcMethodInfo> method_info;
+        hash<ProtobufMethodInfo> method_info;
 
         #! Default options for calls
         *hash<auto> default_opts;
@@ -107,7 +107,7 @@ public class GrpcStreamEventDataProvider inherits AbstractDataProvider, DelayedO
         @param default_opts default options for calls
     */
     constructor(GrpcChannel channel, ProtobufSchema schema,
-            hash<GrpcServiceInfo> service_info, hash<GrpcMethodInfo> method_info,
+            hash<ProtobufServiceInfo> service_info, hash<ProtobufMethodInfo> method_info,
             *hash<auto> default_opts) {
         self.channel = channel;
         self.schema = schema;

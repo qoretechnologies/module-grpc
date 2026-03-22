@@ -25,13 +25,10 @@
 */
 
 #include "grpc-module.h"
-#include "QC_ProtobufSchema.h"
 
 #include "QC_ArrowSchema.h"
 #include "QC_ArrowRecordBatch.h"
 #include "QC_ArrowIpc.h"
-
-#include <google/protobuf/stubs/common.h>
 
 static void grpc_module_init(QoreModuleInitContext& ctx, ExceptionSink& xsink);
 static void grpc_module_ns_init(QoreNamespace* rns, QoreNamespace* qns, ExceptionSink& xsink);
@@ -40,7 +37,7 @@ static void grpc_module_delete();
 extern "C" DLLEXPORT void grpc_qore_module_desc(QoreModuleInfo& mod_info) {
     mod_info.name = "grpc";
     mod_info.version = "1.0.0";
-    mod_info.desc = "Qore gRPC/protobuf module";
+    mod_info.desc = "Qore gRPC module providing Arrow IPC/schema support and gRPC types";
     mod_info.author = "Qore Technologies, s.r.o.";
     mod_info.url = "https://github.com/qoretechnologies/module-grpc";
     mod_info.api_major = QORE_MODULE_API_MAJOR;
@@ -52,7 +49,7 @@ extern "C" DLLEXPORT void grpc_qore_module_desc(QoreModuleInfo& mod_info) {
     mod_info.license_str = "MIT";
 }
 
-// Global hashdecl pointers
+// Global gRPC hashdecl pointers
 const TypedHashDecl* hashdeclGrpcCallOptions = nullptr;
 const TypedHashDecl* hashdeclGrpcCallResult = nullptr;
 const TypedHashDecl* hashdeclGrpcSslOptions = nullptr;
@@ -68,7 +65,10 @@ const TypedHashDecl* hashdeclArrowIpcData = nullptr;
 QoreNamespace GrpcNs("Qore::Grpc");
 
 static void grpc_module_init(QoreModuleInitContext& ctx, ExceptionSink& xsink) {
-    // Initialize hashdecls (defined in QPP files for documentation)
+    // Initialize gRPC constants (GRPC_STATUS_* etc., defined in qc_grpc_types.qpp)
+    init_grpc_types_constants(GrpcNs);
+
+    // Initialize gRPC hashdecls (defined in qc_grpc_types.qpp)
     hashdeclGrpcMethodInfo = init_hashdecl_GrpcMethodInfo(GrpcNs);
     hashdeclGrpcServiceInfo = init_hashdecl_GrpcServiceInfo(GrpcNs);
     hashdeclGrpcCallOptions = init_hashdecl_GrpcCallOptions(GrpcNs);
@@ -76,9 +76,6 @@ static void grpc_module_init(QoreModuleInitContext& ctx, ExceptionSink& xsink) {
     hashdeclGrpcSslOptions = init_hashdecl_GrpcSslOptions(GrpcNs);
     hashdeclGrpcChannelOptions = init_hashdecl_GrpcChannelOptions(GrpcNs);
     hashdeclGrpcServerOptions = init_hashdecl_GrpcServerOptions(GrpcNs);
-
-    // Initialize ProtobufSchema class
-    GrpcNs.addSystemClass(initProtobufSchemaClass(GrpcNs));
 
     // Initialize Arrow hashdecls
     hashdeclArrowFieldInfo = init_hashdecl_ArrowFieldInfo(GrpcNs);
@@ -96,6 +93,5 @@ static void grpc_module_ns_init(QoreNamespace* rns, QoreNamespace* qns, Exceptio
 }
 
 static void grpc_module_delete() {
-    // Cleanup: shut down protobuf library
-    google::protobuf::ShutdownProtobufLibrary();
+    // protobuf shutdown is handled by the built-in protobuf module
 }

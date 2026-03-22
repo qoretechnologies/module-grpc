@@ -30,6 +30,7 @@
 
 %requires QUnit
 
+%requires protobuf
 %requires grpc
 %requires GrpcUtil
 
@@ -325,7 +326,7 @@ public class ArrowFlightTest inherits QUnit::Test {
 
     testFlightProtoSchema() {
         ProtobufSchema schema = FlightProto::get();
-        list<hash<GrpcServiceInfo>> services = schema.services();
+        list<hash<ProtobufServiceInfo>> services = schema.services();
         assertEq(1, services.size(), "one service");
         assertEq("FlightService", services[0].name, "service name");
 

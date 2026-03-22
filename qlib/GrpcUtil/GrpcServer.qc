@@ -68,10 +68,10 @@ public class GrpcServer {
         hash<string, code> m_handlers;
 
         #! Method info cache: key = "service/method"
-        hash<string, hash<GrpcMethodInfo>> m_method_info;
+        hash<string, hash<ProtobufMethodInfo>> m_method_info;
 
         #! Service info from schema
-        hash<string, hash<GrpcServiceInfo>> m_services;
+        hash<string, hash<ProtobufServiceInfo>> m_services;
 
         #! Listener sockets
         list<Socket> m_listeners;
@@ -120,11 +120,11 @@ public class GrpcServer {
         }
 
         # Index services from schema
-        list<hash<GrpcServiceInfo>> services = m_schema.services();
+        list<auto> services = m_schema.services();
         for (int i = 0; i < services.size(); ++i) {
             m_services{services[i].name} = services[i];
             for (int j = 0; j < services[i].methods.size(); ++j) {
-                hash<GrpcMethodInfo> method = services[i].methods[j];
+                hash<ProtobufMethodInfo> method = services[i].methods[j];
                 m_method_info{services[i].name + "/" + method.name} = method;
             }
         }
@@ -389,7 +389,7 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
                 if (headers_only) {
                     # Headers-only dispatch: determine method type and handle accordingly
                     string handler_key;
-                    *hash<GrpcMethodInfo> method_info = lookupMethodFromPath(
+                    *hash<ProtobufMethodInfo> method_info = lookupMethodFromPath(
                         request.path, \handler_key);
 
                     if (method_info && method_info.client_streaming) {
@@ -443,7 +443,7 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
     /** @param path the gRPC request path (e.g., "/package.Service/Method")
         @return the method info, or NOTHING if not found
     */
-    private *hash<GrpcMethodInfo> lookupMethodFromPath(string path, reference<string> handler_key) {
+    private *hash<ProtobufMethodInfo> lookupMethodFromPath(string path, reference<string> handler_key) {
         *list<string> parts = path.split("/");
         if (!parts || parts.size() < 3) {
             return NOTHING;
@@ -487,7 +487,7 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
         @param method_info the method info from schema
     */
     private handleRequestLive(Socket client, hash<auto> request,
-            hash<GrpcMethodInfo> method_info, string handler_key) {
+            hash<ProtobufMethodInfo> method_info, string handler_key) {
         int stream_id = request.stream_id;
         hash<string, string> metadata();
         if (request.headers) {
@@ -523,7 +523,7 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
     /** Handler reads and writes messages incrementally via the live GrpcServerStream.
     */
     private handleBidiStreamLive(Socket client, int stream_id, code handler,
-            hash<GrpcMethodInfo> method_info, hash<string, string> metadata,
+            hash<ProtobufMethodInfo> method_info, hash<string, string> metadata,
             *date deadline) {
         # Create live server stream
         GrpcServerStream stream(client, stream_id, m_schema,
@@ -559,7 +559,7 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
         and returns a single response hash.
     */
     private handleClientStreamLive(Socket client, int stream_id, code handler,
-            hash<GrpcMethodInfo> method_info, hash<string, string> metadata,
+            hash<ProtobufMethodInfo> method_info, hash<string, string> metadata,
             *date deadline) {
         # Create live server stream
         GrpcServerStream stream(client, stream_id, m_schema,
@@ -652,7 +652,7 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
             return;
         }
 
-        *hash<GrpcMethodInfo> method_info = m_method_info{handler_key};
+        *hash<ProtobufMethodInfo> method_info = m_method_info{handler_key};
         if (!method_info) {
             sendErrorResponse(client, stream_id, GRPC_STATUS_INTERNAL,
                 sprintf("method info not found: %s", handler_key));
@@ -691,7 +691,7 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
 
     #! Handle a unary RPC call
     private handleUnary(Socket client, int stream_id, code handler,
-            hash<GrpcMethodInfo> method_info, hash<string, string> metadata,
+            hash<ProtobufMethodInfo> method_info, hash<string, string> metadata,
             binary body_data, *date deadline) {
         # Decode request body
         hash<auto> request_body();
@@ -740,7 +740,7 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
         hash<string, string> metadata) {}
     */
     private handleServerStream(Socket client, int stream_id, code handler,
-            hash<GrpcMethodInfo> method_info, hash<string, string> metadata,
+            hash<ProtobufMethodInfo> method_info, hash<string, string> metadata,
             binary body_data, *date deadline) {
         # Decode single request
         hash<auto> request_body();
@@ -788,7 +788,7 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
         hash<string, string> metadata) {}
     */
     private handleClientStream(Socket client, int stream_id, code handler,
-            hash<GrpcMethodInfo> method_info, hash<string, string> metadata,
+            hash<ProtobufMethodInfo> method_info, hash<string, string> metadata,
             binary body_data, *date deadline) {
         # Parse all client messages from the request body
         list<hash<auto>> messages = ();
@@ -845,7 +845,7 @@ hash<auto> sub(hash<auto> request, hash<string, string> metadata) {}
         hash<string, string> metadata) {}
     */
     private handleBidiStream(Socket client, int stream_id, code handler,
-            hash<GrpcMethodInfo> method_info, hash<string, string> metadata,
+            hash<ProtobufMethodInfo> method_info, hash<string, string> metadata,
             binary body_data, *date deadline) {
         # Parse all client messages from the request body
         list<hash<auto>> messages = ();

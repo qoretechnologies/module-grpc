@@ -1,0 +1,224 @@
+/* -*- mode: c++; indent-tabs-mode: nil -*- */
+/** @file qc_grpc_types.cpp defines gRPC type constants and hashdecls */
+/*
+    Qore grpc module
+
+    Copyright (C) 2026 Qore Technologies, s.r.o.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+*/
+
+#include "grpc-module.h"
+
+/** @defgroup grpc_status_codes gRPC Status Codes
+    These constants define the standard gRPC status codes.
+
+    @see https://grpc.github.io/grpc/core/md_doc_statuscodes.html
+*/
+///@{
+//! The operation completed successfully
+const GRPC_STATUS_OK = 0;
+
+//! The operation was cancelled (typically by the caller)
+const GRPC_STATUS_CANCELLED = 1;
+
+//! Unknown error
+const GRPC_STATUS_UNKNOWN = 2;
+
+//! The client specified an invalid argument
+const GRPC_STATUS_INVALID_ARGUMENT = 3;
+
+//! The deadline expired before the operation could complete
+const GRPC_STATUS_DEADLINE_EXCEEDED = 4;
+
+//! The requested entity was not found
+const GRPC_STATUS_NOT_FOUND = 5;
+
+//! The entity already exists
+const GRPC_STATUS_ALREADY_EXISTS = 6;
+
+//! The caller does not have permission to execute the operation
+const GRPC_STATUS_PERMISSION_DENIED = 7;
+
+//! Some resource has been exhausted
+const GRPC_STATUS_RESOURCE_EXHAUSTED = 8;
+
+//! The system is not in a state required for the operation
+const GRPC_STATUS_FAILED_PRECONDITION = 9;
+
+//! The operation was aborted
+const GRPC_STATUS_ABORTED = 10;
+
+//! The operation was attempted past the valid range
+const GRPC_STATUS_OUT_OF_RANGE = 11;
+
+//! The operation is not implemented or not supported
+const GRPC_STATUS_UNIMPLEMENTED = 12;
+
+//! Internal error
+const GRPC_STATUS_INTERNAL = 13;
+
+//! The service is currently unavailable
+const GRPC_STATUS_UNAVAILABLE = 14;
+
+//! Unrecoverable data loss or corruption
+const GRPC_STATUS_DATA_LOSS = 15;
+
+//! The request does not have valid authentication credentials
+const GRPC_STATUS_UNAUTHENTICATED = 16;
+///@}
+
+//! Information about a gRPC method in a service
+/** @since %grpc 1.0
+*/
+hashdecl Qore::Grpc::GrpcMethodInfo {
+    //! The method name (e.g., "SayHello")
+    string name;
+
+    //! The full gRPC path (e.g., "/helloworld.Greeter/SayHello")
+    string full_path;
+
+    //! The fully-qualified input message type name
+    string input_type;
+
+    //! The fully-qualified output message type name
+    string output_type;
+
+    //! True if the client sends a stream of messages
+    bool client_streaming;
+
+    //! True if the server sends a stream of messages
+    bool server_streaming;
+}
+
+//! Information about a gRPC service
+/** @since %grpc 1.0
+*/
+hashdecl Qore::Grpc::GrpcServiceInfo {
+    //! The service name (e.g., "Greeter")
+    string name;
+
+    //! The methods defined in this service
+    list<hash<Qore::Grpc::GrpcMethodInfo>> methods;
+}
+
+//! Options for a gRPC call
+/** @since %grpc 1.0
+*/
+hashdecl Qore::Grpc::GrpcCallOptions {
+    //! Timeout in milliseconds
+    *int timeout_ms;
+
+    //! Metadata key-value pairs to send with the call
+    *hash<string, string> metadata;
+
+    //! Compression algorithm name (e.g., "gzip", "deflate")
+    *string compression;
+}
+
+//! Result of a gRPC call
+/** @since %grpc 1.0
+*/
+hashdecl Qore::Grpc::GrpcCallResult {
+    //! The response body as a Qore hash
+    hash<auto> body;
+
+    //! The gRPC status code (one of @ref grpc_status_codes)
+    int status_code;
+
+    //! The gRPC status message
+    string status_message;
+
+    //! Trailing metadata from the server
+    hash<string, string> trailing_metadata;
+
+    //! Initial metadata from the server
+    hash<string, string> initial_metadata;
+}
+
+//! SSL/TLS options for gRPC connections
+/** @since %grpc 1.0
+*/
+hashdecl Qore::Grpc::GrpcSslOptions {
+    //! PEM-encoded root CA certificates
+    *string root_certs;
+
+    //! PEM-encoded client certificate for mutual TLS
+    *string client_cert;
+
+    //! PEM-encoded client private key for mutual TLS
+    *string client_key;
+
+    //! PEM-encoded server certificate
+    *string server_cert;
+
+    //! PEM-encoded server private key
+    *string server_key;
+
+    //! If True, require client certificate for mutual TLS (server-side)
+    *bool require_client_auth;
+}
+
+//! Options for a gRPC channel
+/** @since %grpc 1.0
+*/
+hashdecl Qore::Grpc::GrpcChannelOptions {
+    //! Maximum message size in bytes (0 = unlimited)
+    *int max_message_size;
+
+    //! SSL/TLS options
+    *hash<Qore::Grpc::GrpcSslOptions> ssl;
+
+    //! Default compression algorithm
+    *string default_compression;
+
+    //! If True, enable keepalive pings
+    *bool keepalive;
+
+    //! Keepalive interval in milliseconds
+    *int keepalive_time_ms;
+}
+
+//! Options for a gRPC server
+/** @since %grpc 1.0
+*/
+hashdecl Qore::Grpc::GrpcServerOptions {
+    //! Maximum message size in bytes (0 = unlimited)
+    *int max_message_size;
+
+    //! Enable gRPC server reflection (grpc.reflection.v1) for client service discovery
+    /** When True, the server automatically registers the standard gRPC server reflection
+        service, allowing clients to discover services without local \c .proto files.
+
+        @par Example:
+        @code{.py}
+ProtobufSchema schema("./proto/", "service.proto");
+GrpcServer server(schema, <GrpcServerOptions>{"enable_reflection": True});
+server.registerHandler("MyService", "SayHello",
+    hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+        return {"message": "Hello, " + request.name};
+    });
+server.addInsecurePort("localhost:50051");
+server.start();
+        @endcode
+
+        @since %grpc 1.0
+    */
+    *bool enable_reflection;
+}

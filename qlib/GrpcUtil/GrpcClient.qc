@@ -49,9 +49,9 @@ public class GrpcClient {
         #! The service name
         string m_service_name;
         #! Service info from schema
-        hash<GrpcServiceInfo> m_service_info;
+        hash<ProtobufServiceInfo> m_service_info;
         #! Method info indexed by method name
-        hash<string, hash<GrpcMethodInfo>> m_methods;
+        hash<string, hash<ProtobufMethodInfo>> m_methods;
     }
 
     #! Create a new gRPC client bound to a service
@@ -69,7 +69,7 @@ public class GrpcClient {
         m_service_name = service_name;
 
         # Find the service in the schema
-        list<hash<GrpcServiceInfo>> services = schema.services();
+        list<auto> services = schema.services();
         bool found = False;
         for (int i = 0; i < services.size(); ++i) {
             if (services[i].name == service_name
@@ -104,7 +104,7 @@ public class GrpcClient {
         @since %GrpcUtil 1.0
     */
     hash<GrpcCallResult> call(string method, hash<auto> request, *hash<GrpcCallOptions> opts) {
-        hash<GrpcMethodInfo> method_info = getMethodInfo(method);
+        hash<ProtobufMethodInfo> method_info = getMethodInfo(method);
 
         # Encode request
         binary encoded = m_schema.encode(method_info.input_type, request);
@@ -143,7 +143,7 @@ public class GrpcClient {
     */
     GrpcClientStream serverStream(string method, hash<auto> request,
             *hash<GrpcCallOptions> opts) {
-        hash<GrpcMethodInfo> method_info = getMethodInfo(method);
+        hash<ProtobufMethodInfo> method_info = getMethodInfo(method);
 
         # Encode and frame the request
         binary encoded = m_schema.encode(method_info.input_type, request);
@@ -179,7 +179,7 @@ public class GrpcClient {
         @since %GrpcUtil 1.0
     */
     GrpcClientStream clientStream(string method, *hash<GrpcCallOptions> opts) {
-        hash<GrpcMethodInfo> method_info = getMethodInfo(method);
+        hash<ProtobufMethodInfo> method_info = getMethodInfo(method);
 
         # Build headers
         hash<string, string> headers = GrpcHelper::buildRequestHeaders(
@@ -217,7 +217,7 @@ public class GrpcClient {
 
         @since %GrpcUtil 1.0
     */
-    hash<GrpcServiceInfo> getServiceInfo() {
+    hash<ProtobufServiceInfo> getServiceInfo() {
         return m_service_info;
     }
 
@@ -253,8 +253,8 @@ public class GrpcClient {
         }
     }
 
-    private hash<GrpcMethodInfo> getMethodInfo(string method) {
-        *hash<GrpcMethodInfo> info = m_methods{method};
+    private hash<ProtobufMethodInfo> getMethodInfo(string method) {
+        *hash<ProtobufMethodInfo> info = m_methods{method};
         if (!info) {
             throw "GRPC-METHOD-ERROR",
                 sprintf("method '%s' not found in service '%s'; available: %y",

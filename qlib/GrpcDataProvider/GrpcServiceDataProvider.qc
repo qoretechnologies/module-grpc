@@ -50,10 +50,10 @@ public class GrpcServiceDataProvider inherits AbstractDataProvider {
         ProtobufSchema schema;
 
         #! The service info
-        hash<GrpcServiceInfo> service_info;
+        hash<ProtobufServiceInfo> service_info;
 
         #! Method map: method name -> GrpcMethodInfo
-        hash<string, hash<GrpcMethodInfo>> method_map;
+        hash<string, hash<ProtobufMethodInfo>> method_map;
 
         #! Default options for calls
         *hash<auto> default_opts;
@@ -66,7 +66,7 @@ public class GrpcServiceDataProvider inherits AbstractDataProvider {
         @param default_opts default options for calls
     */
     constructor(GrpcChannel channel, ProtobufSchema schema,
-            hash<GrpcServiceInfo> service_info, *hash<auto> default_opts) {
+            hash<ProtobufServiceInfo> service_info, *hash<auto> default_opts) {
         self.channel = channel;
         self.schema = schema;
         self.service_info = service_info;
@@ -94,7 +94,7 @@ public class GrpcServiceDataProvider inherits AbstractDataProvider {
 
     #! Returns a child provider by name
     private *AbstractDataProvider getChildProviderImpl(string name) {
-        *hash<GrpcMethodInfo> minfo = method_map{name};
+        *hash<ProtobufMethodInfo> minfo = method_map{name};
         if (!minfo) {
             return NOTHING;
         }

@@ -24,50 +24,6 @@ endif()
 
 find_package(Qore 2.0 REQUIRED)
 
-# Find protobuf - try config mode first (required for protobuf v5+), fall back to module mode
-# PROTOBUF_PREFIX env var or cmake var overrides auto-detection (e.g. /opt/local/libexec/protobuf5-cpp)
-# On macOS with MacPorts, protobuf is installed under /opt/local/libexec/protobufN-cpp/
-# The system-level cmake config at /opt/local/lib/cmake/protobuf/ may reference UPB targets
-# from packages that aren't installed, so we must point Protobuf_DIR directly to the
-# per-version config to bypass the broken system-level config.
-if(NOT PROTOBUF_PREFIX AND DEFINED ENV{PROTOBUF_PREFIX})
-    set(PROTOBUF_PREFIX "$ENV{PROTOBUF_PREFIX}")
-endif()
-if(PROTOBUF_PREFIX)
-    list(APPEND CMAKE_PREFIX_PATH "${PROTOBUF_PREFIX}")
-    if(EXISTS "${PROTOBUF_PREFIX}/lib/cmake/protobuf")
-        set(Protobuf_DIR "${PROTOBUF_PREFIX}/lib/cmake/protobuf")
-    endif()
-    message(STATUS "Using PROTOBUF_PREFIX: ${PROTOBUF_PREFIX}")
-elseif(APPLE)
-    file(GLOB _macports_protobuf_dirs "/opt/local/libexec/protobuf*-cpp")
-    if(_macports_protobuf_dirs)
-        # Use the last (highest version) match
-        list(SORT _macports_protobuf_dirs)
-        list(GET _macports_protobuf_dirs -1 _macports_protobuf_dir)
-        list(APPEND CMAKE_PREFIX_PATH "${_macports_protobuf_dir}")
-        if(EXISTS "${_macports_protobuf_dir}/lib/cmake/protobuf")
-            set(Protobuf_DIR "${_macports_protobuf_dir}/lib/cmake/protobuf")
-        endif()
-        message(STATUS "Auto-detected MacPorts protobuf: ${_macports_protobuf_dir}")
-    endif()
-endif()
-
-find_package(Protobuf CONFIG QUIET)
-if(NOT Protobuf_FOUND)
-    find_package(Protobuf REQUIRED)
-endif()
-
-# Config mode provides imported targets but not the legacy variables; set them for uniform usage
-if(TARGET protobuf::libprotobuf AND NOT Protobuf_LIBRARIES)
-    set(Protobuf_LIBRARIES protobuf::libprotobuf)
-    get_target_property(Protobuf_INCLUDE_DIRS protobuf::libprotobuf INTERFACE_INCLUDE_DIRECTORIES)
-endif()
-
-message(STATUS "Found Protobuf: ${Protobuf_VERSION}")
-message(STATUS "Protobuf include dirs: ${Protobuf_INCLUDE_DIRS}")
-message(STATUS "Protobuf libraries: ${Protobuf_LIBRARIES}")
-
 # Check for C++17
 include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-std=c++17" COMPILER_SUPPORTS_CXX17)
@@ -77,14 +33,13 @@ else()
     message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++17 support. Please use a different C++ compiler.")
 endif()
 
+# gRPC types QPP (hashdecls, constants — no ProtobufSchema, which is in the built-in protobuf module)
 set(QPP_SRC
-    src/QC_ProtobufSchema.qpp
+    src/qc_grpc_types.qpp
 )
 
 set(CPP_SRC
     src/grpc-module.cpp
-    src/QoreProtobufSchema.cpp
-    src/ProtobufHelper.cpp
 )
 
 # Apache Arrow is required for Arrow Flight support (IPC, schema, record batches)
@@ -124,13 +79,12 @@ add_library(${module_name} MODULE ${CPP_SRC} ${QPP_SOURCES})
 
 include_directories(${CMAKE_SOURCE_DIR}/src)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
-include_directories(${Protobuf_INCLUDE_DIRS})
 target_include_directories(${module_name} PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
 
 add_custom_target(QORE_INC_FILES DEPENDS ${QORE_INC_SRC})
 add_dependencies(${module_name} QORE_INC_FILES)
 
-target_link_libraries(${module_name} ${Protobuf_LIBRARIES} ${QORE_LIBRARY} Arrow::arrow_shared)
+target_link_libraries(${module_name} ${QORE_LIBRARY} Arrow::arrow_shared)
 # Link Arrow IPC target if split into a separate library (some Arrow builds)
 if(TARGET Arrow::arrow_ipc_shared)
     target_link_libraries(${module_name} Arrow::arrow_ipc_shared)

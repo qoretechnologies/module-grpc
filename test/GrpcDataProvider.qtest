@@ -30,6 +30,7 @@
 %requires QUnit
 %requires DataProvider
 %requires ConnectionProvider
+%requires protobuf
 %requires grpc
 %requires GrpcUtil
 %requires GrpcDataProvider

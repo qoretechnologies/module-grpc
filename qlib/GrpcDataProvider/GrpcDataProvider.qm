@@ -27,6 +27,7 @@
 
 %requires(reexport) DataProvider
 %requires(reexport) ConnectionProvider
+%requires protobuf
 %requires grpc
 %requires GrpcUtil
 

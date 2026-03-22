@@ -24,6 +24,7 @@
 
 %modern
 
+%requires protobuf
 %requires grpc
 %requires HttpClientIo
 %requires AsyncSocketIo
@@ -266,12 +267,12 @@ GrpcChannel channel("https://localhost:" + port);
 
     @section grpcutil_protobuf Standalone Protobuf Usage
 
-    The \c grpc binary module provides \c ProtobufSchema for protobuf
+    The \c protobuf built-in module provides \c ProtobufSchema for protobuf
     encoding/decoding independent of gRPC:
 
     @code{.py}
 %modern
-%requires grpc
+%requires protobuf
 
 ProtobufSchema schema("./proto/", "messages.proto");
 

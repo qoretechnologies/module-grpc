@@ -169,7 +169,7 @@ public class GrpcReflectionService {
 
         # Cache the fully-qualified service names
         m_service_names = ();
-        list<hash<GrpcServiceInfo>> services = user_schema.services();
+        list<auto> services = user_schema.services();
         for (int i = 0; i < services.size(); ++i) {
             if (services[i].methods.size() > 0) {
                 # Extract fully-qualified name from the first method's full_path
