@@ -455,6 +455,17 @@ public class GrpcDataProviderTest inherits QUnit::Test {
 
         # Enum fields should be int type
         assertEq("int", fields.status.getType().getBaseTypeName());
+
+        # Enum fields should have allowed_values from the protobuf enum definition
+        *list<hash<AllowedValueInfo>> allowed = fields.status.getAllowedValues();
+        assertEq(4, allowed.size(), "enum allowed_values count");
+
+        # Build a lookup map for verification (order may vary)
+        *hash<string, int> av_map = map {$1.display_name: $1.value}, allowed;
+        assertEq(0, av_map.UNKNOWN, "UNKNOWN enum value");
+        assertEq(1, av_map.ACTIVE, "ACTIVE enum value");
+        assertEq(2, av_map.INACTIVE, "INACTIVE enum value");
+        assertEq(3, av_map.DELETED, "DELETED enum value");
     }
 
     # ---------- Hierarchy Traversal Tests ----------

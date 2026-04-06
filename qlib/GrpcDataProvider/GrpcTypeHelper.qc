@@ -69,7 +69,17 @@ public class GrpcTypeHelper {
             field_type = new SoftListDataType(name, field_type);
         }
 
-        return new QoreDataField(name, sprintf("Protobuf %s field", field_info.type), field_type);
+        QoreDataField field(name, sprintf("Protobuf %s field", field_info.type), field_type);
+
+        # Set allowed_values for enum fields
+        if (field_info.type == "enum" && field_info.enum_values) {
+            field.setAllowedValues(map <AllowedValueInfo>{
+                "value": $1.value,
+                "display_name": $1.key,
+            }, field_info.enum_values.pairIterator());
+        }
+
+        return field;
     }
 
     #! Maps a protobuf field info hash to a DataProvider type
@@ -107,20 +117,8 @@ public class GrpcTypeHelper {
             case "bytes":
                 return AbstractDataProviderType::get(DataType);
 
-            case "enum": {
-                # Use SoftIntType with allowed_values from the enum
-                AbstractDataProviderType etype = AbstractDataProviderType::get(SoftIntType);
-                if (field_info.enum_values) {
-                    list<auto> allowed = map <AllowedValueInfo>{
-                        "value": $1.value,
-                        "display_name": $1.key,
-                    }, field_info.enum_values.pairIterator();
-                    etype = etype.getOrNothingType();
-                    # NOTE: allowed_values would need to be set differently if the
-                    # DataProvider API supports it; for now we return the base int type
-                }
-                return etype;
-            }
+            case "enum":
+                return AbstractDataProviderType::get(SoftIntType);
 
             case "message": {
                 if (!field_info.message_type) {
