@@ -138,7 +138,13 @@ public class GrpcClientStream {
                 if (data.error) {
                     throw "GRPC-STREAM-ERROR", sprintf("stream error: %y", data.error);
                 }
-                return NOTHING;
+                # Headers-only or other metadata hash (e.g. the status_code +
+                # headers event the H2 MultiplexPoll emits for non-CONNECT
+                # streaming streams before the first body fragment).  Per the
+                # HttpClientIo::Http2ClientStreamHandle::readData() contract
+                # ("callers handle unknown hashes by skipping them"), skip and
+                # keep reading for the actual gRPC DATA frames.
+                continue;
             }
 
             # Append data to buffer
