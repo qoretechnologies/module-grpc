@@ -272,17 +272,30 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
             return grpcResponseInfo();
         }
 
-        binary body_data = extractBody(info);
+        *code<nothing(Queue)> register_body_queue = info.header_info.register_body_queue;
+
         if (method_info.server_streaming && method_info.client_streaming) {
-            handleBidiStream(sock, stream_id, handler, method_info, metadata,
-                body_data, deadline, io_wake);
+            # Bidi: live+async mode — handler runs immediately, reads from an
+            # inbound Queue fed by the I/O thread, writes via *Async methods.
+            # No pre-drain of the request body — that would block the
+            # interactive read-write-read-write pattern.
+            handleBidiStreamLive(sock, stream_id, handler, method_info,
+                metadata, deadline, io_wake, register_body_queue,
+                info.header_info.body);
         } else if (method_info.server_streaming) {
+            binary body_data = extractBody(info);
             handleServerStream(sock, stream_id, handler, method_info, metadata,
                 body_data, deadline, io_wake);
         } else if (method_info.client_streaming) {
-            handleClientStream(sock, stream_id, handler, method_info, metadata,
-                body_data, deadline, io_wake);
+            # Client-streaming also benefits from live mode — handler can
+            # process messages as they arrive rather than waiting for
+            # END_STREAM — but the contract is a single response after the
+            # handler returns, so writes don't need to interleave with reads.
+            handleClientStreamLive(sock, stream_id, handler, method_info,
+                metadata, deadline, io_wake, register_body_queue,
+                info.header_info.body);
         } else {
+            binary body_data = extractBody(info);
             handleUnary(sock, stream_id, handler, method_info, metadata,
                 body_data, deadline, io_wake);
         }
@@ -485,35 +498,46 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
         }
     }
 
-    #! Parse and decode all client-streaming/bidi request messages from the
-    #! drained body, returning them in arrival order.
-    private list<hash<auto>> parseClientMessages(binary body_data,
-            hash<ProtobufMethodInfo> method_info) {
-        list<hash<auto>> messages = ();
-        if (body_data.size() >= 5) {
-            list<hash<auto>> frames = GrpcHelper::unframeMessages(body_data);
-            for (int i = 0; i < frames.size(); ++i) {
-                messages += m_schema.decode(method_info.input_type, frames[i].data);
-            }
+    #! Build the inbound Queue for live-mode client-streaming / bidi
+    /** If HttpServerAsyncIo provided a register_body_queue closure (standard
+        body_streaming dispatch), register our Queue with it so the I/O thread
+        streams DATA frames to us.  If the body was pre-buffered (headers had
+        END_STREAM, or the I/O thread pre-accumulated), push the body and a
+        NOTHING sentinel so the live reader sees the full input immediately.
+    */
+    private Queue buildInboundQueue(*code<nothing(Queue)> register_body_queue,
+            *auto prebuffered_body) {
+        Queue q(-1);
+        if (register_body_queue) {
+            register_body_queue(q);
+            return q;
         }
-        return messages;
+        # Fallback: no register_body_queue (e.g. headers_end_stream=True path).
+        # Push whatever body we have and a sentinel so read() returns NOTHING
+        # after the final frame.
+        if (exists prebuffered_body && prebuffered_body) {
+            q.push(prebuffered_body.typeCode() == NT_BINARY
+                ? prebuffered_body : binary(prebuffered_body));
+        }
+        q.push(NOTHING);
+        return q;
     }
 
-    #! Drive the client-streaming dispatch: pre-parsed client messages →
-    #! handler reads them via GrpcServerStream.read(), returns a single
+    #! Drive client-streaming in live mode: handler runs immediately, reads
+    #! inbound messages from the Queue as they arrive, returns a single
     #! response → encode → send headers + DATA + trailers.
     /** Handler signature: \c hash<auto> sub(GrpcServerStream stream,
         hash<string, string> metadata)
     */
-    private handleClientStream(Socket client, int stream_id, code handler,
+    private handleClientStreamLive(Socket client, int stream_id, code handler,
             hash<ProtobufMethodInfo> method_info, hash<string, string> metadata,
-            binary body_data, *date deadline, *code<nothing()> io_wake) {
-        list<hash<auto>> messages = parseClientMessages(body_data, method_info);
-
+            *date deadline, *code<nothing()> io_wake,
+            *code<nothing(Queue)> register_body_queue, *auto prebuffered_body) {
+        Queue inbound = buildInboundQueue(register_body_queue, prebuffered_body);
         AsyncSocketIo::AsyncHttp2ServerStream async_stream(
-            client, stream_id, makeServerStreamingInboundPlaceholder(), io_wake);
-        GrpcServerStream stream(async_stream, m_schema,
-            method_info.input_type, method_info.output_type, metadata, messages);
+            client, stream_id, inbound, io_wake);
+        GrpcServerStream stream(async_stream, inbound, m_schema,
+            method_info.input_type, method_info.output_type, metadata);
 
         hash<auto> response_body;
         try {
@@ -545,27 +569,27 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
         }
     }
 
-    #! Drive the bidirectional-streaming dispatch: pre-parsed client messages
-    #! + async write path.  Handler reads via GrpcServerStream.read() and
-    #! writes via GrpcServerStream.write(); server sends final trailers with
-    #! the handler's grpc-status result.
-    /** Handler signature: \c sub(GrpcServerStream stream,
+    #! Drive bidirectional-streaming in live mode — true gRPC bidi
+    /** Handler runs immediately.  Its @c stream.read() pulls binary DATA
+        chunks from the inbound Queue as they arrive (the I/O thread pushes
+        one @ref binary per HTTP/2 DATA frame) and parses gRPC frames
+        incrementally; its @c stream.write() enqueues responses via the
+        @c *Async Socket methods and wakes the I/O thread to flush.  Reads
+        and writes interleave freely — the classic echo / streaming
+        request-response pattern works.
+
+        Handler signature: \c sub(GrpcServerStream stream,
         hash<string, string> metadata)
-
-        Note: this is the "buffered" bidi shape — client body is drained and
-        decoded before the handler runs.  Truly-live bidi (handler reads and
-        writes interleaved with network I/O) would require a live mode on
-        the async read path; that's Phase 2d.
     */
-    private handleBidiStream(Socket client, int stream_id, code handler,
+    private handleBidiStreamLive(Socket client, int stream_id, code handler,
             hash<ProtobufMethodInfo> method_info, hash<string, string> metadata,
-            binary body_data, *date deadline, *code<nothing()> io_wake) {
-        list<hash<auto>> messages = parseClientMessages(body_data, method_info);
-
+            *date deadline, *code<nothing()> io_wake,
+            *code<nothing(Queue)> register_body_queue, *auto prebuffered_body) {
+        Queue inbound = buildInboundQueue(register_body_queue, prebuffered_body);
         AsyncSocketIo::AsyncHttp2ServerStream async_stream(
-            client, stream_id, makeServerStreamingInboundPlaceholder(), io_wake);
-        GrpcServerStream stream(async_stream, m_schema,
-            method_info.input_type, method_info.output_type, metadata, messages);
+            client, stream_id, inbound, io_wake);
+        GrpcServerStream stream(async_stream, inbound, m_schema,
+            method_info.input_type, method_info.output_type, metadata);
 
         int status_code = GRPC_STATUS_OK;
         string status_message = "OK";

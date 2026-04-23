@@ -97,6 +97,20 @@ public class GrpcServerStream {
             @since %GrpcUtil 1.0
         */
         *AsyncSocketIo::AsyncHttp2ServerStream m_async_stream;
+
+        #! Inbound @ref Queue "Queue" for live+async mode (client-streaming / bidi)
+        /** When set together with @ref m_async_stream, @ref read() pulls binary
+            DATA chunks from this Queue (populated by the HttpServerAsyncIo I/O
+            thread via @c header_info.register_body_queue) and parses gRPC
+            frames from the accumulated buffer.  A @c NOTHING sentinel on the
+            Queue signals END_STREAM.
+
+            @since %GrpcUtil 1.0
+        */
+        *Queue m_async_inbound_queue;
+
+        #! True after END_STREAM has been observed on @ref m_async_inbound_queue
+        bool m_async_reads_done = False;
     }
 
     #! Constructor for proxy/remote stream implementations
@@ -191,6 +205,45 @@ public class GrpcServerStream {
         m_messages = messages;
     }
 
+    #! Create a live+async server stream for interactive bidi / client-streaming
+    /** Unlike the buffered-mode async constructor above (which is handed a
+        pre-parsed list of client messages and is suitable for request patterns
+        where the full body has been drained before the handler runs), this
+        constructor wires @ref read() to pull binary DATA chunks from
+        @a inbound_queue in real time and parse gRPC frames incrementally —
+        the handler can interleave reads and writes and observe each client
+        message as it arrives on the wire.
+
+        @a inbound_queue must be the Queue registered via
+        @c HttpConnectionInfo.header_info.register_body_queue; the I/O thread
+        pushes one @ref binary per DATA frame and a @c NOTHING sentinel at
+        END_STREAM.
+
+        @param async_stream the write-side handle
+        @param inbound_queue the Queue populated by the I/O thread with inbound
+        DATA payloads
+        @param schema the protobuf schema
+        @param input_type the message type for decoding incoming messages
+        @param output_type the message type for encoding outgoing messages
+        @param metadata the client's request metadata
+
+        @since %GrpcUtil 1.0
+    */
+    constructor(AsyncSocketIo::AsyncHttp2ServerStream async_stream,
+            Queue inbound_queue, ProtobufSchema schema,
+            string input_type, string output_type,
+            hash<string, string> metadata) {
+        m_async_stream = async_stream;
+        m_async_inbound_queue = inbound_queue;
+        m_socket = async_stream.getSocket();
+        m_stream_id = async_stream.getStreamId();
+        m_schema = schema;
+        m_input_type = input_type;
+        m_output_type = output_type;
+        m_metadata = metadata;
+        m_live = True;
+    }
+
     #! Read the next client message
     /** For client-streaming and bidirectional-streaming handlers.
 
@@ -214,12 +267,55 @@ public class GrpcServerStream {
             return m_messages[m_read_pos++];
         }
 
-        # Live mode: read from HTTP/2 stream incrementally
         if (!timeout) {
             timeout = 30s;
         }
         date deadline = now_us() + milliseconds(timeout);
 
+        # Live+async mode: pull binary DATA chunks from the Queue that the
+        # HttpServerAsyncIo I/O thread populates, parse gRPC frames
+        # incrementally.  A NOTHING sentinel on the Queue signals END_STREAM.
+        if (exists m_async_inbound_queue) {
+            while (True) {
+                *hash<auto> msg = tryParseFrame();
+                if (msg) {
+                    return msg;
+                }
+                if (m_async_reads_done) {
+                    # drained + sentinel already seen — nothing more coming
+                    return NOTHING;
+                }
+                int remaining_ms = (deadline - now_us()).durationMilliseconds();
+                if (remaining_ms <= 0) {
+                    return NOTHING;  # timeout waiting for next chunk
+                }
+                try {
+                    auto v = m_async_inbound_queue.get(milliseconds(remaining_ms));
+                    if (v instanceof binary) {
+                        m_read_buf += v;
+                    } else {
+                        # NOTHING sentinel → END_STREAM observed by I/O thread.
+                        # Try one final parse for a complete frame that arrived
+                        # in the same batch as END_STREAM.  If the buffer has
+                        # partial data, it's unrecoverable (sender closed
+                        # mid-frame); discard to prevent infinite loop.
+                        m_async_reads_done = True;
+                        *hash<auto> final_msg = tryParseFrame();
+                        if (!final_msg && m_read_buf.size() > 0) {
+                            m_read_buf = binary();
+                        }
+                        return final_msg;
+                    }
+                } catch (hash<ExceptionInfo> ex) {
+                    if (ex.err == "QUEUE-TIMEOUT") {
+                        return NOTHING;
+                    }
+                    rethrow;
+                }
+            }
+        }
+
+        # Live mode: read from HTTP/2 stream incrementally (sync path)
         while (True) {
             # Try to parse a complete gRPC frame from buffer
             *hash<auto> msg = tryParseFrame();
@@ -285,6 +381,19 @@ public class GrpcServerStream {
     bool readsDone() {
         if (!m_live) {
             return m_read_pos >= m_messages.size();
+        }
+        if (exists m_async_inbound_queue) {
+            # Live+async: done when I/O thread pushed the NOTHING sentinel
+            # and the buffer has no complete frame left.
+            if (!m_async_reads_done) {
+                return False;
+            }
+            if (m_read_buf.size() < 5) {
+                return True;
+            }
+            int len = (m_read_buf[1] << 24) | (m_read_buf[2] << 16)
+                | (m_read_buf[3] << 8) | m_read_buf[4];
+            return m_read_buf.size() < 5 + len;
         }
         if (!m_socket.isHttp2StreamComplete(m_stream_id)) {
             return False;
