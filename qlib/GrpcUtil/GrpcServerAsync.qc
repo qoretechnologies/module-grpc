@@ -140,16 +140,13 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
     }
 
     #! Add a secure (TLS) listener
+    /** The cert/key are passed to @ref HttpServerAsyncIo::HttpAsyncSocketIoController::addListener
+        at start() time rather than installed on the Socket here — the async
+        controller performs the TLS handshake per accepted connection via its
+        HttpAcceptPollOperation, which needs the cert/key at accept time.
+    */
     int addSecurePort(string addr, hash<GrpcSslOptions> ssl) {
         Socket sock();
-        if (ssl.server_cert) {
-            SSLCertificate cert(ssl.server_cert);
-            sock.setCertificate(cert);
-        }
-        if (ssl.server_key) {
-            SSLPrivateKey key(ssl.server_key);
-            sock.setPrivateKey(key);
-        }
         try {
             sock.bind(addr);
             sock.listen();
@@ -185,9 +182,21 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
             string http_version = ssl
                 ? HttpServerAsyncIo::HttpVersionMode::Http20
                 : HttpServerAsyncIo::HttpVersionMode::H2c;
-            m_ctl.addListener(listener, self, ssl,
-                ssl_cfg.ssl.server_cert, ssl_cfg.ssl.server_key,
-                http_version);
+            # HttpAsyncSocketIoController::addListener expects SSLCertificate /
+            # SSLPrivateKey objects (the HttpServer.qm caller contract), not
+            # raw PEM strings.  Build them here from the PEM the user gave us
+            # in the GrpcSslOptions.
+            *SSLCertificate cert;
+            *SSLPrivateKey key;
+            if (ssl) {
+                if (ssl_cfg.ssl.server_cert) {
+                    cert = new SSLCertificate(ssl_cfg.ssl.server_cert);
+                }
+                if (ssl_cfg.ssl.server_key) {
+                    key = new SSLPrivateKey(ssl_cfg.ssl.server_key);
+                }
+            }
+            m_ctl.addListener(listener, self, ssl, cert, key, http_version);
         }
 
         m_lifecycle.inc();
