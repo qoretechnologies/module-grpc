@@ -28,6 +28,7 @@
 %requires grpc
 %requires HttpClientIo
 %requires AsyncSocketIo
+%requires HttpServerAsyncIo
 
 module GrpcUtil {
     version = "1.0";
