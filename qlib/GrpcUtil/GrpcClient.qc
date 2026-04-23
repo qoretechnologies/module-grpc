@@ -240,16 +240,8 @@ public class GrpcClient {
     private ensureStreamReady(HttpClientIo::HttpClientStreamHandle stream,
             timeout timeout_ms = 30s) {
         HttpClientIo::HttpClientConnection conn = stream.getConnection();
-        if (!conn.isReady()) {
-            if (conn.isControllerMode()) {
-                if (!conn.waitForReady(timeout_ms)) {
-                    throw "GRPC-ERROR", "HTTP/2 connection establishment timed out";
-                }
-            } else {
-                if (!conn.driveToReady(timeout_ms)) {
-                    throw "GRPC-ERROR", "HTTP/2 connection establishment timed out";
-                }
-            }
+        if (!conn.isReady() && !conn.waitForReady(timeout_ms)) {
+            throw "GRPC-ERROR", "HTTP/2 connection establishment timed out";
         }
     }
 
