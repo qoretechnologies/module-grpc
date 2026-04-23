@@ -74,6 +74,14 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
         #! Async I/O controller driving all listeners
         *HttpServerAsyncIo::HttpAsyncSocketIoController m_ctl;
 
+        #! Reflection service instance (kept alive for handler closures)
+        /** Set when @c opts.enable_reflection is True at construction — the
+            reflection service builds a combined schema (user schema + the
+            ServerReflection protobuf definitions) and registers a handler
+            for \c ServerReflection/ServerReflectionInfo on this server.
+        */
+        *GrpcReflectionService m_reflection;
+
         #! Counter used by @ref wait() for deterministic shutdown wakeup
         /** Incremented to 1 in start(), decremented to 0 in shutdown() */
         Counter m_lifecycle(0);
@@ -89,15 +97,12 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
         m_opts = opts;
 
         if (opts.enable_reflection) {
-            # GrpcReflectionService::registerHandlers(GrpcServer) is typed to
-            # the sync GrpcServer class.  Reflection integration for
-            # GrpcServerAsync requires either a shared base class or a
-            # refactored registerHandlers that accepts both — out of scope
-            # for the initial scaffold.
-            throw "GRPC-SERVER-ERROR", "enable_reflection is not yet supported "
-                "in GrpcServerAsync; use GrpcServer for reflection services";
+            GrpcReflectionService reflection(schema);
+            m_schema = reflection.getCombinedSchema();
+            m_reflection = reflection;
+        } else {
+            m_schema = schema;
         }
-        m_schema = schema;
 
         list<auto> services = m_schema.services();
         for (int i = 0; i < services.size(); ++i) {
@@ -106,6 +111,10 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
                 hash<ProtobufMethodInfo> method = services[i].methods[j];
                 m_method_info{services[i].name + "/" + method.name} = method;
             }
+        }
+
+        if (m_reflection) {
+            m_reflection.registerHandlers(self);
         }
     }
 

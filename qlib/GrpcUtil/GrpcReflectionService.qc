@@ -202,7 +202,10 @@ public class GrpcReflectionService {
 
         @since %GrpcUtil 1.0
     */
-    registerHandlers(GrpcServer server) {
+    registerHandlers(GrpcServerAsync server) {
+        # Typed to GrpcServerAsync because that's the canonical server class;
+        # GrpcServer inherits from it (Phase 4 alias swap) so a GrpcServer
+        # instance also satisfies this signature.
         server.registerHandler("ServerReflection", "ServerReflectionInfo",
             sub(GrpcServerStream stream, hash<string, string> metadata) {
                 handleReflectionInfo(stream);
