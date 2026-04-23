@@ -272,19 +272,15 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
             return grpcResponseInfo();
         }
 
-        # Client-streaming / bidi need an inbound DATA Queue plumbed through
-        # HttpServerAsyncIo's H2 dispatch (body_streaming: True path).  That
-        # work is Phase 2c; refuse for now with a clean gRPC error.
-        if (method_info.client_streaming) {
-            sendGrpcError(sock, stream_id, GRPC_STATUS_UNIMPLEMENTED,
-                "client-streaming / bidi not yet implemented in GrpcServerAsync; "
-                "use GrpcServer or wait for the next landing", io_wake);
-            return grpcResponseInfo();
-        }
-
         binary body_data = extractBody(info);
-        if (method_info.server_streaming) {
+        if (method_info.server_streaming && method_info.client_streaming) {
+            handleBidiStream(sock, stream_id, handler, method_info, metadata,
+                body_data, deadline, io_wake);
+        } else if (method_info.server_streaming) {
             handleServerStream(sock, stream_id, handler, method_info, metadata,
+                body_data, deadline, io_wake);
+        } else if (method_info.client_streaming) {
+            handleClientStream(sock, stream_id, handler, method_info, metadata,
                 body_data, deadline, io_wake);
         } else {
             handleUnary(sock, stream_id, handler, method_info, metadata,
@@ -384,17 +380,15 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
     }
 
     #! Collect the request body from HttpConnectionInfo
-    /** If HttpServerAsyncIo has already buffered the body (HEADERS had
-        END_STREAM or the I/O thread pre-accumulated), use it.  Otherwise
-        (the typical gRPC shape: END_STREAM rides on the DATA frame), drain
-        the stream via @c Socket::readHttp2StreamDataBlock() until
-        END_STREAM.
-
-        @note This is the one remaining sync-ish read in the async-path
-        scaffold.  A Phase 2c follow-up will plumb an inbound Queue through
-        Http2PollOperation so the I/O thread drains the stream body into a
-        Qore Queue and the handler does @c Queue::get(timeout) — matching
-        the pattern introduced for QUIC datagrams in Phase C.
+    /** Three cases:
+        - HEADERS had END_STREAM (no body) → return empty
+        - HttpServerAsyncIo pre-buffered the body (non-streaming dispatch) →
+          return @c header_info.body as-is
+        - Streaming dispatch (gRPC's typical shape: END_STREAM on DATA) →
+          register a Qore Queue via @c header_info.register_body_queue,
+          consume DATA payloads from it until the I/O thread pushes the
+          @c NOTHING end-of-stream sentinel.  All I/O runs on the I/O thread;
+          the handler only @c Queue::get(timeout)s.
     */
     private binary extractBody(hash<HttpConnectionInfo> info) {
         *auto body = info.header_info.body;
@@ -404,27 +398,29 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
         if (info.header_info.headers_end_stream) {
             return binary();
         }
-        # Drain DATA frames until END_STREAM (or timeout).  Synchronous on
-        # this handler thread until Phase 2c moves reads to a Queue.
-        Socket sock = info.sock;
-        int stream_id = info.header_info.stream_id;
-        binary out = binary();
-        while (!sock.isHttp2StreamComplete(stream_id)) {
-            *binary chunk = sock.readHttp2StreamDataBlock(stream_id, 30s);
-            if (chunk) {
-                out += chunk;
-            } else {
-                break;  # timeout
-            }
+
+        # Streaming body dispatch: drive it through the inbound Queue so no
+        # handler-thread socket reads happen.  register_body_queue drains any
+        # already-buffered DATA frames into the Queue and wakes the I/O
+        # thread to pull more.
+        *code<nothing(Queue)> register_body_queue = info.header_info.register_body_queue;
+        if (!register_body_queue) {
+            # Should not happen for body_streaming dispatches, but be defensive
+            throw "GRPC-SERVER-ERROR",
+                "body_streaming dispatch missing register_body_queue closure "
+                "(HttpServerAsyncIo >= 1.0 required)";
         }
-        # Drain any residual data that arrived with END_STREAM
-        try {
-            *binary remaining = sock.readHttp2StreamDataBlock(stream_id, 0ms);
-            if (remaining) {
-                out += remaining;
+        Queue body_queue(-1);
+        register_body_queue(body_queue);
+
+        binary out = binary();
+        while (True) {
+            auto v = body_queue.get(30s);
+            if (!(v instanceof binary)) {
+                # NOTHING sentinel → END_STREAM observed by I/O thread
+                break;
             }
-        } catch () {
-            # Stream already cleaned up — ignore
+            out += v;
         }
         return out;
     }
@@ -479,6 +475,113 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
         # Ensure HEADERS went out even for an empty stream (trailers require
         # initial HEADERS on the wire per gRPC).  Then send trailers with the
         # status + any trailing metadata the handler accumulated.
+        stream.ensureHeadersSent();
+        hash<string, string> trailers = stream.getTrailingMetadata();
+        trailers."grpc-status" = string(status_code);
+        trailers."grpc-message" = status_message;
+        client.sendHttp2TrailersAsync(stream_id, trailers);
+        if (io_wake) {
+            io_wake();
+        }
+    }
+
+    #! Parse and decode all client-streaming/bidi request messages from the
+    #! drained body, returning them in arrival order.
+    private list<hash<auto>> parseClientMessages(binary body_data,
+            hash<ProtobufMethodInfo> method_info) {
+        list<hash<auto>> messages = ();
+        if (body_data.size() >= 5) {
+            list<hash<auto>> frames = GrpcHelper::unframeMessages(body_data);
+            for (int i = 0; i < frames.size(); ++i) {
+                messages += m_schema.decode(method_info.input_type, frames[i].data);
+            }
+        }
+        return messages;
+    }
+
+    #! Drive the client-streaming dispatch: pre-parsed client messages →
+    #! handler reads them via GrpcServerStream.read(), returns a single
+    #! response → encode → send headers + DATA + trailers.
+    /** Handler signature: \c hash<auto> sub(GrpcServerStream stream,
+        hash<string, string> metadata)
+    */
+    private handleClientStream(Socket client, int stream_id, code handler,
+            hash<ProtobufMethodInfo> method_info, hash<string, string> metadata,
+            binary body_data, *date deadline, *code<nothing()> io_wake) {
+        list<hash<auto>> messages = parseClientMessages(body_data, method_info);
+
+        AsyncSocketIo::AsyncHttp2ServerStream async_stream(
+            client, stream_id, makeServerStreamingInboundPlaceholder(), io_wake);
+        GrpcServerStream stream(async_stream, m_schema,
+            method_info.input_type, method_info.output_type, metadata, messages);
+
+        hash<auto> response_body;
+        try {
+            response_body = handler(stream, metadata);
+        } catch (hash<ExceptionInfo> ex) {
+            sendGrpcError(client, stream_id, exceptionToStatusCode(ex.err),
+                sprintf("%s: %s", ex.err, ex.desc), io_wake);
+            return;
+        }
+
+        if (deadline && now_us() > deadline) {
+            sendGrpcError(client, stream_id, GRPC_STATUS_DEADLINE_EXCEEDED,
+                "deadline exceeded", io_wake);
+            return;
+        }
+
+        binary encoded = m_schema.encode(method_info.output_type, response_body);
+        binary framed = GrpcHelper::frameMessage(encoded);
+        hash<string, string> trailers = stream.getTrailingMetadata();
+        trailers."grpc-status" = string(GRPC_STATUS_OK);
+        trailers."grpc-message" = "OK";
+
+        client.submitHttp2StreamingResponseHeadersAsync(stream_id, 200,
+            {"content-type": "application/grpc+proto"});
+        client.sendHttp2StreamDataAsync(stream_id, framed, False);
+        client.sendHttp2TrailersAsync(stream_id, trailers);
+        if (io_wake) {
+            io_wake();
+        }
+    }
+
+    #! Drive the bidirectional-streaming dispatch: pre-parsed client messages
+    #! + async write path.  Handler reads via GrpcServerStream.read() and
+    #! writes via GrpcServerStream.write(); server sends final trailers with
+    #! the handler's grpc-status result.
+    /** Handler signature: \c sub(GrpcServerStream stream,
+        hash<string, string> metadata)
+
+        Note: this is the "buffered" bidi shape — client body is drained and
+        decoded before the handler runs.  Truly-live bidi (handler reads and
+        writes interleaved with network I/O) would require a live mode on
+        the async read path; that's Phase 2d.
+    */
+    private handleBidiStream(Socket client, int stream_id, code handler,
+            hash<ProtobufMethodInfo> method_info, hash<string, string> metadata,
+            binary body_data, *date deadline, *code<nothing()> io_wake) {
+        list<hash<auto>> messages = parseClientMessages(body_data, method_info);
+
+        AsyncSocketIo::AsyncHttp2ServerStream async_stream(
+            client, stream_id, makeServerStreamingInboundPlaceholder(), io_wake);
+        GrpcServerStream stream(async_stream, m_schema,
+            method_info.input_type, method_info.output_type, metadata, messages);
+
+        int status_code = GRPC_STATUS_OK;
+        string status_message = "OK";
+
+        try {
+            handler(stream, metadata);
+        } catch (hash<ExceptionInfo> ex) {
+            status_code = exceptionToStatusCode(ex.err);
+            status_message = sprintf("%s: %s", ex.err, ex.desc);
+        }
+
+        if (status_code == GRPC_STATUS_OK && deadline && now_us() > deadline) {
+            status_code = GRPC_STATUS_DEADLINE_EXCEEDED;
+            status_message = "deadline exceeded";
+        }
+
         stream.ensureHeadersSent();
         hash<string, string> trailers = stream.getTrailingMetadata();
         trailers."grpc-status" = string(status_code);
