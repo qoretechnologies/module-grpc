@@ -84,6 +84,19 @@ public class GrpcServerStream {
         bool m_live = False;
         #! Read buffer for accumulating partial gRPC frames (live mode)
         binary m_read_buf = binary();
+
+        #! Async-mode write handle used by @ref GrpcServerAsync
+        /** When set, @ref write() / @ref ensureHeadersSent() / @ref sendInitialMetadata()
+            route through this handle's @c *Async Socket methods (no handler-thread
+            @c priv->m holds) instead of the sync @c Socket::sendHttp2StreamData /
+            @c submitHttp2StreamingResponseHeaders path.  Set only by the
+            async-mode constructor; @c m_socket is also populated (for legacy
+            @ref read() / @ref readsDone() callers in client-streaming scenarios)
+            but is NOT used for writes in this mode.
+
+            @since %GrpcUtil 1.0
+        */
+        *AsyncSocketIo::AsyncHttp2ServerStream m_async_stream;
     }
 
     #! Constructor for proxy/remote stream implementations
@@ -139,6 +152,43 @@ public class GrpcServerStream {
         m_output_type = output_type;
         m_metadata = metadata;
         m_live = live;
+    }
+
+    #! Create a server stream backed by an async HTTP/2 stream handle
+    /** Used by @ref GrpcServerAsync for server-streaming dispatch (pre-parsed
+        request body, async-only response writes via the @c *Async Socket
+        methods).  The @a messages argument is typically a single-element list
+        for server-streaming (one request, many responses) or the full decoded
+        client-stream buffer for client-streaming / bidi.
+
+        Writes (@ref write(), @ref ensureHeadersSent(), @ref sendInitialMetadata())
+        all route through @a async_stream; no handler-thread @c priv->m hold on
+        HTTP/2 operations.
+
+        @param async_stream the @ref AsyncSocketIo::AsyncHttp2ServerStream
+        "AsyncHttp2ServerStream" handle driving response I/O
+        @param schema the protobuf schema
+        @param input_type the message type for incoming (client) messages
+        @param output_type the message type for outgoing (server) messages
+        @param metadata the client's request metadata
+        @param messages pre-parsed list of client messages
+
+        @since %GrpcUtil 1.0
+    */
+    constructor(AsyncSocketIo::AsyncHttp2ServerStream async_stream,
+            ProtobufSchema schema, string input_type, string output_type,
+            hash<string, string> metadata, list<hash<auto>> messages = ()) {
+        m_async_stream = async_stream;
+        # Populate socket/stream_id so read()/readsDone() have context if the
+        # handler calls them in client-streaming (buffered) mode; writes go
+        # through m_async_stream regardless.
+        m_socket = async_stream.getSocket();
+        m_stream_id = async_stream.getStreamId();
+        m_schema = schema;
+        m_input_type = input_type;
+        m_output_type = output_type;
+        m_metadata = metadata;
+        m_messages = messages;
     }
 
     #! Read the next client message
@@ -265,9 +315,16 @@ public class GrpcServerStream {
         ensureHeadersSent();
         binary encoded = m_schema.encode(m_output_type, message);
         binary framed = GrpcHelper::frameMessage(encoded);
-        m_socket.sendHttp2StreamData(m_stream_id, framed, False);
-        if (m_live) {
-            m_socket.flushHttp2();
+        if (exists m_async_stream) {
+            # Async mode: enqueue via the AsyncHttp2ServerStream; the I/O
+            # thread flushes the DATA frame asynchronously — no handler-thread
+            # flushHttp2() call.
+            m_async_stream.sendData(framed, False);
+        } else {
+            m_socket.sendHttp2StreamData(m_stream_id, framed, False);
+            if (m_live) {
+                m_socket.flushHttp2();
+            }
         }
     }
 
@@ -302,9 +359,13 @@ public class GrpcServerStream {
     */
     sendInitialMetadata(hash<string, string> metadata) {
         if (!m_headers_sent) {
-            hash<auto> headers = {"content-type": "application/grpc+proto"};
+            hash<string, string> headers = {"content-type": "application/grpc+proto"};
             map headers{$1.key} = $1.value, metadata.pairIterator();
-            m_socket.submitHttp2StreamingResponseHeaders(m_stream_id, 200, headers);
+            if (exists m_async_stream) {
+                m_async_stream.sendHeaders(200, headers);
+            } else {
+                m_socket.submitHttp2StreamingResponseHeaders(m_stream_id, 200, headers);
+            }
             m_headers_sent = True;
         }
     }
@@ -353,8 +414,13 @@ stream.setTrailingMetadata({"x-server-timing": "dur=42"});
     */
     ensureHeadersSent() {
         if (!m_headers_sent) {
-            m_socket.submitHttp2StreamingResponseHeaders(m_stream_id, 200,
-                {"content-type": "application/grpc+proto"});
+            if (exists m_async_stream) {
+                m_async_stream.sendHeaders(200,
+                    {"content-type": "application/grpc+proto"});
+            } else {
+                m_socket.submitHttp2StreamingResponseHeaders(m_stream_id, 200,
+                    {"content-type": "application/grpc+proto"});
+            }
             m_headers_sent = True;
         }
     }

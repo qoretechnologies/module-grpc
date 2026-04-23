@@ -178,8 +178,16 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
             Socket listener = m_listeners[i];
             int port = listener.getPort();
             *hash<auto> ssl_cfg = getSslConfig(port);
-            m_ctl.addListener(listener, self, exists ssl_cfg,
-                ssl_cfg.ssl.server_cert, ssl_cfg.ssl.server_key);
+            bool ssl = exists ssl_cfg;
+            # gRPC is HTTP/2 only — pin the version so the listener does not
+            # fall back to HTTP/1.x.  Plaintext (h2c) for insecure ports,
+            # TLS + ALPN-negotiated h2 for secure ports.
+            string http_version = ssl
+                ? HttpServerAsyncIo::HttpVersionMode::Http20
+                : HttpServerAsyncIo::HttpVersionMode::H2c;
+            m_ctl.addListener(listener, self, ssl,
+                ssl_cfg.ssl.server_cert, ssl_cfg.ssl.server_key,
+                http_version);
         }
 
         m_lifecycle.inc();
@@ -243,12 +251,16 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
         hash<string, string> metadata = extractMetadata(info.hdr);
         *date deadline = parseDeadline(\metadata);
 
+        # Extract io_wake early — every outgoing write below requires it to
+        # ensure prompt I/O-thread flushes of the pending frames.
+        *code<nothing()> io_wake = info.header_info.io_wake;
+
         # Route: /<full_service>/<method>
         string path = info.hdr."path" ?? info.hdr.":path" ?? "";
         *hash<auto> route = resolveRoute(path);
         if (!route) {
             sendGrpcError(sock, stream_id, GRPC_STATUS_UNIMPLEMENTED,
-                sprintf("invalid gRPC path: %y", path));
+                sprintf("invalid gRPC path: %y", path), io_wake);
             return grpcResponseInfo();
         }
         string handler_key = route.handler_key;
@@ -256,24 +268,28 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
         *code handler = m_handlers{handler_key};
         if (!handler) {
             sendGrpcError(sock, stream_id, GRPC_STATUS_UNIMPLEMENTED,
-                sprintf("method not found: %s", handler_key));
+                sprintf("method not found: %s", handler_key), io_wake);
             return grpcResponseInfo();
         }
 
-        # Unary body is already collected by the I/O thread and attached to hdr
-        # (or absent if the client didn't send one).  Streaming dispatches are
-        # not yet implemented in this scaffold; reject them explicitly so they
-        # don't silently mis-dispatch as unary.
-        if (method_info.server_streaming || method_info.client_streaming) {
+        # Client-streaming / bidi need an inbound DATA Queue plumbed through
+        # HttpServerAsyncIo's H2 dispatch (body_streaming: True path).  That
+        # work is Phase 2c; refuse for now with a clean gRPC error.
+        if (method_info.client_streaming) {
             sendGrpcError(sock, stream_id, GRPC_STATUS_UNIMPLEMENTED,
-                "streaming RPC paths not yet implemented in GrpcServerAsync; "
-                "use GrpcServer or wait for the next landing");
+                "client-streaming / bidi not yet implemented in GrpcServerAsync; "
+                "use GrpcServer or wait for the next landing", io_wake);
             return grpcResponseInfo();
         }
 
         binary body_data = extractBody(info);
-        handleUnary(sock, stream_id, handler, method_info, metadata,
-            body_data, deadline);
+        if (method_info.server_streaming) {
+            handleServerStream(sock, stream_id, handler, method_info, metadata,
+                body_data, deadline, io_wake);
+        } else {
+            handleUnary(sock, stream_id, handler, method_info, metadata,
+                body_data, deadline, io_wake);
+        }
         return grpcResponseInfo();
     }
 
@@ -367,24 +383,116 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
         return {"handler_key": handler_key, "method_info": mi};
     }
 
-    #! Collect the request body from HttpConnectionInfo — unary path only
+    #! Collect the request body from HttpConnectionInfo
+    /** If HttpServerAsyncIo has already buffered the body (HEADERS had
+        END_STREAM or the I/O thread pre-accumulated), use it.  Otherwise
+        (the typical gRPC shape: END_STREAM rides on the DATA frame), drain
+        the stream via @c Socket::readHttp2StreamDataBlock() until
+        END_STREAM.
+
+        @note This is the one remaining sync-ish read in the async-path
+        scaffold.  A Phase 2c follow-up will plumb an inbound Queue through
+        Http2PollOperation so the I/O thread drains the stream body into a
+        Qore Queue and the handler does @c Queue::get(timeout) — matching
+        the pattern introduced for QUIC datagrams in Phase C.
+    */
     private binary extractBody(hash<HttpConnectionInfo> info) {
-        # The HttpServerAsyncIo controller collects the H2 DATA for non-
-        # body-streaming dispatches into header_info.body
-        # (HttpAsyncSocketIoController.qc line 3009 in the pre-change file).
-        # body_streaming case is not yet handled — onHttpRequest rejects
-        # streaming RPCs in this scaffold.
         *auto body = info.header_info.body;
-        if (!exists body) {
+        if (exists body && body) {
+            return body.typeCode() == NT_BINARY ? body : binary(body);
+        }
+        if (info.header_info.headers_end_stream) {
             return binary();
         }
-        return body.typeCode() == NT_BINARY ? body : binary(body);
+        # Drain DATA frames until END_STREAM (or timeout).  Synchronous on
+        # this handler thread until Phase 2c moves reads to a Queue.
+        Socket sock = info.sock;
+        int stream_id = info.header_info.stream_id;
+        binary out = binary();
+        while (!sock.isHttp2StreamComplete(stream_id)) {
+            *binary chunk = sock.readHttp2StreamDataBlock(stream_id, 30s);
+            if (chunk) {
+                out += chunk;
+            } else {
+                break;  # timeout
+            }
+        }
+        # Drain any residual data that arrived with END_STREAM
+        try {
+            *binary remaining = sock.readHttp2StreamDataBlock(stream_id, 0ms);
+            if (remaining) {
+                out += remaining;
+            }
+        } catch () {
+            # Stream already cleaned up — ignore
+        }
+        return out;
+    }
+
+    #! Build a Queue for stream inbound data (server-streaming doesn't use it,
+    #! but AsyncHttp2ServerStream's constructor requires one).  A max=-1 Queue
+    #! is safe because nothing will ever be pushed to it — the server-streaming
+    #! dispatch consumes the request body out-of-band.
+    private Queue makeServerStreamingInboundPlaceholder() {
+        return new Queue(-1);
+    }
+
+    #! Drive the server-streaming dispatch: decode single request →
+    #! create GrpcServerStream(async-mode) → handler writes N messages →
+    #! send final trailers (with grpc-status + handler's trailing metadata).
+    private handleServerStream(Socket client, int stream_id, code handler,
+            hash<ProtobufMethodInfo> method_info, hash<string, string> metadata,
+            binary body_data, *date deadline, *code<nothing()> io_wake) {
+        hash<auto> request_body();
+        if (body_data.size() >= 5) {
+            hash<auto> unframed = GrpcHelper::unframeMessage(body_data);
+            request_body = m_schema.decode(method_info.input_type, unframed.data);
+        }
+
+        # Build the async stream handle and hand it to GrpcServerStream's
+        # async-mode constructor so handlers using stream.write() route
+        # through the *Async Socket methods.  io_wake (provided by
+        # HttpServerAsyncIo in header_info) is required for the I/O thread
+        # to flush pending DATA/HEADERS promptly — without it, frames sit in
+        # the nghttp2 outbound buffer until the next scheduled controller tick.
+        AsyncSocketIo::AsyncHttp2ServerStream async_stream(
+            client, stream_id, makeServerStreamingInboundPlaceholder(), io_wake);
+        GrpcServerStream stream(async_stream, m_schema,
+            method_info.input_type, method_info.output_type, metadata);
+
+        int status_code = GRPC_STATUS_OK;
+        string status_message = "OK";
+
+        try {
+            handler(request_body, stream, metadata);
+        } catch (hash<ExceptionInfo> ex) {
+            status_code = exceptionToStatusCode(ex.err);
+            status_message = sprintf("%s: %s", ex.err, ex.desc);
+        }
+
+        # Deadline check after handler returns
+        if (status_code == GRPC_STATUS_OK && deadline && now_us() > deadline) {
+            status_code = GRPC_STATUS_DEADLINE_EXCEEDED;
+            status_message = "deadline exceeded";
+        }
+
+        # Ensure HEADERS went out even for an empty stream (trailers require
+        # initial HEADERS on the wire per gRPC).  Then send trailers with the
+        # status + any trailing metadata the handler accumulated.
+        stream.ensureHeadersSent();
+        hash<string, string> trailers = stream.getTrailingMetadata();
+        trailers."grpc-status" = string(status_code);
+        trailers."grpc-message" = status_message;
+        client.sendHttp2TrailersAsync(stream_id, trailers);
+        if (io_wake) {
+            io_wake();
+        }
     }
 
     #! Drive the unary dispatch: decode → handler → encode → send via AsyncHttp2ServerStream
     private handleUnary(Socket client, int stream_id, code handler,
             hash<ProtobufMethodInfo> method_info, hash<string, string> metadata,
-            binary body_data, *date deadline) {
+            binary body_data, *date deadline, *code<nothing()> io_wake) {
         hash<auto> request_body();
         if (body_data.size() >= 5) {
             hash<auto> unframed = GrpcHelper::unframeMessage(body_data);
@@ -396,13 +504,13 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
             response_body = handler(request_body, metadata);
         } catch (hash<ExceptionInfo> ex) {
             sendGrpcError(client, stream_id, exceptionToStatusCode(ex.err),
-                sprintf("%s: %s", ex.err, ex.desc));
+                sprintf("%s: %s", ex.err, ex.desc), io_wake);
             return;
         }
 
         if (deadline && now_us() > deadline) {
             sendGrpcError(client, stream_id, GRPC_STATUS_DEADLINE_EXCEEDED,
-                "deadline exceeded");
+                "deadline exceeded", io_wake);
             return;
         }
 
@@ -410,8 +518,9 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
         binary framed = GrpcHelper::frameMessage(encoded);
 
         # Writes go through the new async C++ methods — no priv->m acquisition
-        # on this handler thread.  The I/O thread flushes the pending DATA and
-        # trailer frames asynchronously.
+        # on this handler thread.  io_wake signals the I/O thread to flush
+        # the pending DATA and trailer frames; without the final wake the
+        # response can sit in nghttp2's outbound buffer until the next tick.
         client.submitHttp2StreamingResponseHeadersAsync(stream_id, 200,
             {"content-type": "application/grpc+proto"});
         client.sendHttp2StreamDataAsync(stream_id, framed, False);
@@ -419,16 +528,23 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
             "grpc-status": string(GRPC_STATUS_OK),
             "grpc-message": "OK",
         });
+        if (io_wake) {
+            io_wake();
+        }
     }
 
     #! Trailers-only error response for gRPC failures
-    private sendGrpcError(Socket client, int stream_id, int status_code, string message) {
+    private sendGrpcError(Socket client, int stream_id, int status_code,
+            string message, *code<nothing()> io_wake) {
         client.submitHttp2StreamingResponseHeadersAsync(stream_id, 200,
             {"content-type": "application/grpc+proto"});
         client.sendHttp2TrailersAsync(stream_id, {
             "grpc-status": string(status_code),
             "grpc-message": message,
         });
+        if (io_wake) {
+            io_wake();
+        }
     }
 
     #! Map a Qore exception err-string to a gRPC status code
