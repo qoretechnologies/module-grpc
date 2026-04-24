@@ -60,10 +60,19 @@ server.registerHandler("MyService", "ClientStream",
 */
 public class GrpcServerStream {
     private {
-        #! The underlying Socket
-        Socket m_socket;
-        #! The HTTP/2 stream ID
-        int m_stream_id;
+        #! Async-mode write handle (the only outbound transport)
+        /** Set by both public constructors.  All writes — @ref write(),
+            @ref ensureHeadersSent(), @ref sendInitialMetadata() — route
+            through this handle's @c *Async Socket methods so handler threads
+            never hold @c my_socket_priv::m for HTTP/2 operations.
+
+            Optional only so that the private no-arg constructor can be used
+            by proxy/remote subclasses that override @ref read() / @ref write()
+            and never touch the HTTP/2 transport directly.
+
+            @since %GrpcUtil 1.0
+        */
+        *AsyncSocketIo::AsyncHttp2ServerStream m_async_stream;
         #! Protobuf schema for encoding/decoding
         ProtobufSchema m_schema;
         #! Message type for encoding outgoing messages
@@ -80,30 +89,15 @@ public class GrpcServerStream {
         bool m_headers_sent = False;
         #! Custom trailing metadata set by the handler
         hash<string, string> m_trailing_metadata();
-        #! Live mode: read from socket incrementally (vs pre-parsed buffer)
-        bool m_live = False;
-        #! Read buffer for accumulating partial gRPC frames (live mode)
+        #! Read buffer for accumulating partial gRPC frames (live+async mode)
         binary m_read_buf = binary();
 
-        #! Async-mode write handle used by @ref GrpcServerAsync
-        /** When set, @ref write() / @ref ensureHeadersSent() / @ref sendInitialMetadata()
-            route through this handle's @c *Async Socket methods (no handler-thread
-            @c priv->m holds) instead of the sync @c Socket::sendHttp2StreamData /
-            @c submitHttp2StreamingResponseHeaders path.  Set only by the
-            async-mode constructor; @c m_socket is also populated (for legacy
-            @ref read() / @ref readsDone() callers in client-streaming scenarios)
-            but is NOT used for writes in this mode.
-
-            @since %GrpcUtil 1.0
-        */
-        *AsyncSocketIo::AsyncHttp2ServerStream m_async_stream;
-
         #! Inbound @ref Queue "Queue" for live+async mode (client-streaming / bidi)
-        /** When set together with @ref m_async_stream, @ref read() pulls binary
-            DATA chunks from this Queue (populated by the HttpServerAsyncIo I/O
-            thread via @c header_info.register_body_queue) and parses gRPC
-            frames from the accumulated buffer.  A @c NOTHING sentinel on the
-            Queue signals END_STREAM.
+        /** When set, @ref read() pulls binary DATA chunks from this Queue
+            (populated by the HttpServerAsyncIo I/O thread via
+            @c header_info.register_body_queue) and parses gRPC frames from the
+            accumulated buffer.  A @c NOTHING sentinel on the Queue signals
+            END_STREAM.
 
             @since %GrpcUtil 1.0
         */
@@ -113,67 +107,13 @@ public class GrpcServerStream {
         bool m_async_reads_done = False;
     }
 
-    #! Constructor for proxy/remote stream implementations
-    /** Subclasses override @ref read() and @ref write() to relay stream data
-        over a transport layer (e.g., ZeroMQ) instead of reading/writing from
-        an HTTP/2 socket directly.
-    */
-    private constructor() {
-        m_live = True;
-    }
-
-    #! Create a server stream (buffered mode)
-    /** @param socket the client Socket
-        @param stream_id the HTTP/2 stream ID
-        @param schema the protobuf schema
-        @param input_type the message type for incoming (client) messages
-        @param output_type the message type for outgoing (server) messages
-        @param metadata the client's request metadata
-        @param messages pre-parsed list of client messages (for client-streaming/bidi)
-
-        @since %GrpcUtil 1.0
-    */
-    constructor(Socket socket, int stream_id, ProtobufSchema schema,
-            string input_type, string output_type,
-            hash<string, string> metadata, list<hash<auto>> messages = ()) {
-        m_socket = socket;
-        m_stream_id = stream_id;
-        m_schema = schema;
-        m_input_type = input_type;
-        m_output_type = output_type;
-        m_metadata = metadata;
-        m_messages = messages;
-    }
-
-    #! Create a server stream (live mode for incremental reading)
-    /** @param socket the client Socket
-        @param stream_id the HTTP/2 stream ID
-        @param schema the protobuf schema
-        @param input_type the message type for incoming (client) messages
-        @param output_type the message type for outgoing (server) messages
-        @param metadata the client's request metadata
-        @param live if True, read from the HTTP/2 stream incrementally
-
-        @since %GrpcUtil 1.0
-    */
-    constructor(Socket socket, int stream_id, ProtobufSchema schema,
-            string input_type, string output_type,
-            hash<string, string> metadata, bool live) {
-        m_socket = socket;
-        m_stream_id = stream_id;
-        m_schema = schema;
-        m_input_type = input_type;
-        m_output_type = output_type;
-        m_metadata = metadata;
-        m_live = live;
-    }
-
     #! Create a server stream backed by an async HTTP/2 stream handle
-    /** Used by @ref GrpcServerAsync for server-streaming dispatch (pre-parsed
-        request body, async-only response writes via the @c *Async Socket
-        methods).  The @a messages argument is typically a single-element list
-        for server-streaming (one request, many responses) or the full decoded
-        client-stream buffer for client-streaming / bidi.
+    /** Used by @ref GrpcServerAsync for server-streaming and unary dispatch
+        (pre-parsed request body, async-only response writes via the @c *Async
+        Socket methods).  The @a messages argument is typically a single-element
+        list for server-streaming (one request, many responses) or the full
+        decoded client-stream buffer for client-streaming / bidi when the body
+        is drained before the handler runs.
 
         Writes (@ref write(), @ref ensureHeadersSent(), @ref sendInitialMetadata())
         all route through @a async_stream; no handler-thread @c priv->m hold on
@@ -193,11 +133,6 @@ public class GrpcServerStream {
             ProtobufSchema schema, string input_type, string output_type,
             hash<string, string> metadata, list<hash<auto>> messages = ()) {
         m_async_stream = async_stream;
-        # Populate socket/stream_id so read()/readsDone() have context if the
-        # handler calls them in client-streaming (buffered) mode; writes go
-        # through m_async_stream regardless.
-        m_socket = async_stream.getSocket();
-        m_stream_id = async_stream.getStreamId();
         m_schema = schema;
         m_input_type = input_type;
         m_output_type = output_type;
@@ -206,13 +141,13 @@ public class GrpcServerStream {
     }
 
     #! Create a live+async server stream for interactive bidi / client-streaming
-    /** Unlike the buffered-mode async constructor above (which is handed a
-        pre-parsed list of client messages and is suitable for request patterns
-        where the full body has been drained before the handler runs), this
-        constructor wires @ref read() to pull binary DATA chunks from
-        @a inbound_queue in real time and parse gRPC frames incrementally —
-        the handler can interleave reads and writes and observe each client
-        message as it arrives on the wire.
+    /** Unlike the buffered-mode constructor above (which is handed a pre-parsed
+        list of client messages and is suitable for request patterns where the
+        full body has been drained before the handler runs), this constructor
+        wires @ref read() to pull binary DATA chunks from @a inbound_queue in
+        real time and parse gRPC frames incrementally — the handler can
+        interleave reads and writes and observe each client message as it
+        arrives on the wire.
 
         @a inbound_queue must be the Queue registered via
         @c HttpConnectionInfo.header_info.register_body_queue; the I/O thread
@@ -235,32 +170,40 @@ public class GrpcServerStream {
             hash<string, string> metadata) {
         m_async_stream = async_stream;
         m_async_inbound_queue = inbound_queue;
-        m_socket = async_stream.getSocket();
-        m_stream_id = async_stream.getStreamId();
         m_schema = schema;
         m_input_type = input_type;
         m_output_type = output_type;
         m_metadata = metadata;
-        m_live = True;
+    }
+
+    #! Constructor for proxy/remote stream implementations
+    /** Subclasses override @ref read() and @ref write() to relay stream data
+        over a transport layer (e.g., ZeroMQ) instead of using the HTTP/2
+        async stream directly.
+    */
+    private constructor() {
     }
 
     #! Read the next client message
     /** For client-streaming and bidirectional-streaming handlers.
 
-        In buffered mode, returns pre-parsed messages one at a time.
-        In live mode, blocks until a complete gRPC frame arrives from the HTTP/2
-        stream, the stream completes (END_STREAM), or the timeout expires.
+        When the stream was constructed with a pre-parsed @c messages list,
+        returns the messages one at a time.  When constructed with an
+        @c inbound_queue, blocks until a complete gRPC frame arrives from the
+        HTTP/2 stream, the stream completes (END_STREAM), or the timeout
+        expires.
 
-        @param timeout read timeout (default 30s); only used in live mode
+        @param timeout read timeout (default 30s); only used in live+async mode
 
-        @return the next decoded message hash, or NOTHING when all messages have
-        been read (buffered mode) or on timeout/end-of-stream (live mode)
+        @return the next decoded message hash, or NOTHING when all messages
+        have been read (buffered mode) or on timeout/end-of-stream (live+async
+        mode)
 
         @since %GrpcUtil 1.0
     */
     *hash<auto> read(*timeout timeout) {
-        if (!m_live) {
-            # Buffered mode (unchanged)
+        if (!exists m_async_inbound_queue) {
+            # Buffered mode: pre-parsed messages
             if (m_read_pos >= m_messages.size()) {
                 return NOTHING;
             }
@@ -272,97 +215,42 @@ public class GrpcServerStream {
         }
         date deadline = now_us() + milliseconds(timeout);
 
-        # Live+async mode: pull binary DATA chunks from the Queue that the
+        # Live+async: pull binary DATA chunks from the Queue that the
         # HttpServerAsyncIo I/O thread populates, parse gRPC frames
         # incrementally.  A NOTHING sentinel on the Queue signals END_STREAM.
-        if (exists m_async_inbound_queue) {
-            while (True) {
-                *hash<auto> msg = tryParseFrame();
-                if (msg) {
-                    return msg;
-                }
-                if (m_async_reads_done) {
-                    # drained + sentinel already seen — nothing more coming
-                    return NOTHING;
-                }
-                int remaining_ms = (deadline - now_us()).durationMilliseconds();
-                if (remaining_ms <= 0) {
-                    return NOTHING;  # timeout waiting for next chunk
-                }
-                try {
-                    auto v = m_async_inbound_queue.get(milliseconds(remaining_ms));
-                    if (v instanceof binary) {
-                        m_read_buf += v;
-                    } else {
-                        # NOTHING sentinel → END_STREAM observed by I/O thread.
-                        # Try one final parse for a complete frame that arrived
-                        # in the same batch as END_STREAM.  If the buffer has
-                        # partial data, it's unrecoverable (sender closed
-                        # mid-frame); discard to prevent infinite loop.
-                        m_async_reads_done = True;
-                        *hash<auto> final_msg = tryParseFrame();
-                        if (!final_msg && m_read_buf.size() > 0) {
-                            m_read_buf = binary();
-                        }
-                        return final_msg;
-                    }
-                } catch (hash<ExceptionInfo> ex) {
-                    if (ex.err == "QUEUE-TIMEOUT") {
-                        return NOTHING;
-                    }
-                    rethrow;
-                }
-            }
-        }
-
-        # Live mode: read from HTTP/2 stream incrementally (sync path)
         while (True) {
-            # Try to parse a complete gRPC frame from buffer
             *hash<auto> msg = tryParseFrame();
             if (msg) {
                 return msg;
             }
-
-            # Check if stream is complete (END_STREAM received)
-            if (m_socket.isHttp2StreamComplete(m_stream_id)) {
-                # Drain any remaining data from the HTTP/2 stream buffer
-                # (DATA may have arrived in the same batch as HEADERS + END_STREAM)
-                try {
-                    *binary remaining = m_socket.readHttp2StreamDataBlock(
-                        m_stream_id, 0ms);
-                    if (remaining) {
-                        m_read_buf += remaining;
-                    }
-                } catch () {
-                    # Ignore errors draining a completed stream
-                }
-                # Try to parse remaining buffered data; if the buffer contains an
-                # incomplete frame after END_STREAM, discard it to prevent infinite
-                # loops (the sender closed the stream mid-frame — data is unrecoverable)
-                *hash<auto> result = tryParseFrame();
-                if (!result && m_read_buf.size() > 0) {
-                    m_read_buf = binary();
-                }
-                return result;
+            if (m_async_reads_done) {
+                # drained + sentinel already seen — nothing more coming
+                return NOTHING;
             }
-
-            # Calculate remaining timeout
             int remaining_ms = (deadline - now_us()).durationMilliseconds();
             if (remaining_ms <= 0) {
-                return NOTHING;  # Timeout
+                return NOTHING;  # timeout waiting for next chunk
             }
-
-            # Blocking read from HTTP/2 stream
             try {
-                *binary chunk = m_socket.readHttp2StreamDataBlock(m_stream_id,
-                    milliseconds(remaining_ms));
-                if (chunk) {
-                    m_read_buf += chunk;
+                auto v = m_async_inbound_queue.get(milliseconds(remaining_ms));
+                if (v instanceof binary) {
+                    m_read_buf += v;
+                } else {
+                    # NOTHING sentinel → END_STREAM observed by I/O thread.
+                    # Try one final parse for a complete frame that arrived
+                    # in the same batch as END_STREAM.  If the buffer has
+                    # partial data, it's unrecoverable (sender closed
+                    # mid-frame); discard to prevent infinite loop.
+                    m_async_reads_done = True;
+                    *hash<auto> final_msg = tryParseFrame();
+                    if (!final_msg && m_read_buf.size() > 0) {
+                        m_read_buf = binary();
+                    }
+                    return final_msg;
                 }
             } catch (hash<ExceptionInfo> ex) {
-                if (ex.err == "HTTP2-STREAM-TIMEOUT"
-                        || ex.err == "HTTP2-STREAM-ERROR") {
-                    return NOTHING;  # Timeout or stream not found
+                if (ex.err == "QUEUE-TIMEOUT") {
+                    return NOTHING;
                 }
                 rethrow;
             }
@@ -373,48 +261,34 @@ public class GrpcServerStream {
     /** @return True if all messages have been consumed
 
         In buffered mode, returns True when all pre-parsed messages have been
-        returned by read(). In live mode, returns True when END_STREAM has been
-        received and there is no more buffered data to parse.
+        returned by read().  In live+async mode, returns True when END_STREAM
+        has been received and there is no more buffered data to parse.
 
         @since %GrpcUtil 1.0
     */
     bool readsDone() {
-        if (!m_live) {
+        if (!exists m_async_inbound_queue) {
             return m_read_pos >= m_messages.size();
         }
-        if (exists m_async_inbound_queue) {
-            # Live+async: done when I/O thread pushed the NOTHING sentinel
-            # and the buffer has no complete frame left.
-            if (!m_async_reads_done) {
-                return False;
-            }
-            if (m_read_buf.size() < 5) {
-                return True;
-            }
-            int len = (m_read_buf[1] << 24) | (m_read_buf[2] << 16)
-                | (m_read_buf[3] << 8) | m_read_buf[4];
-            return m_read_buf.size() < 5 + len;
-        }
-        if (!m_socket.isHttp2StreamComplete(m_stream_id)) {
+        # Live+async: done when I/O thread pushed the NOTHING sentinel
+        # and the buffer has no complete frame left.
+        if (!m_async_reads_done) {
             return False;
         }
-        # Stream complete; check if there's a parseable frame remaining
         if (m_read_buf.size() < 5) {
             return True;
         }
         int len = (m_read_buf[1] << 24) | (m_read_buf[2] << 16)
             | (m_read_buf[3] << 8) | m_read_buf[4];
-        # If buffer doesn't contain a complete frame, the data is
-        # unrecoverable (sender closed mid-frame) — treat as done
         return m_read_buf.size() < 5 + len;
     }
 
     #! Write a response message
     /** For server-streaming and bidirectional-streaming handlers.
-        Encodes and sends a gRPC-framed protobuf message.
-
-        In live mode, the HTTP/2 session is flushed after each write to ensure
-        immediate delivery to the client.
+        Encodes and sends a gRPC-framed protobuf message via the
+        @ref AsyncSocketIo::AsyncHttp2ServerStream "AsyncHttp2ServerStream"
+        handle.  The I/O thread flushes the DATA frame asynchronously — no
+        handler-thread H2 session lock acquisition.
 
         @param message the message data as a Qore hash
 
@@ -424,17 +298,7 @@ public class GrpcServerStream {
         ensureHeadersSent();
         binary encoded = m_schema.encode(m_output_type, message);
         binary framed = GrpcHelper::frameMessage(encoded);
-        if (exists m_async_stream) {
-            # Async mode: enqueue via the AsyncHttp2ServerStream; the I/O
-            # thread flushes the DATA frame asynchronously — no handler-thread
-            # flushHttp2() call.
-            m_async_stream.sendData(framed, False);
-        } else {
-            m_socket.sendHttp2StreamData(m_stream_id, framed, False);
-            if (m_live) {
-                m_socket.flushHttp2();
-            }
-        }
+        m_async_stream.sendData(framed, False);
     }
 
     #! Try to parse a complete gRPC frame from the read buffer (live mode)
@@ -470,11 +334,7 @@ public class GrpcServerStream {
         if (!m_headers_sent) {
             hash<string, string> headers = {"content-type": "application/grpc+proto"};
             map headers{$1.key} = $1.value, metadata.pairIterator();
-            if (exists m_async_stream) {
-                m_async_stream.sendHeaders(200, headers);
-            } else {
-                m_socket.submitHttp2StreamingResponseHeaders(m_stream_id, 200, headers);
-            }
+            m_async_stream.sendHeaders(200, headers);
             m_headers_sent = True;
         }
     }
@@ -523,13 +383,8 @@ stream.setTrailingMetadata({"x-server-timing": "dur=42"});
     */
     ensureHeadersSent() {
         if (!m_headers_sent) {
-            if (exists m_async_stream) {
-                m_async_stream.sendHeaders(200,
-                    {"content-type": "application/grpc+proto"});
-            } else {
-                m_socket.submitHttp2StreamingResponseHeaders(m_stream_id, 200,
-                    {"content-type": "application/grpc+proto"});
-            }
+            m_async_stream.sendHeaders(200,
+                {"content-type": "application/grpc+proto"});
             m_headers_sent = True;
         }
     }
