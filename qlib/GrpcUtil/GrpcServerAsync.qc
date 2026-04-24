@@ -506,7 +506,7 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
         hash<string, string> trailers = stream.getTrailingMetadata();
         trailers."grpc-status" = string(status_code);
         trailers."grpc-message" = status_message;
-        client.sendHttp2TrailersAsync(stream_id, trailers);
+        client.sendHttp2Trailers(stream_id, trailers);
         if (io_wake) {
             io_wake();
         }
@@ -574,10 +574,10 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
         trailers."grpc-status" = string(GRPC_STATUS_OK);
         trailers."grpc-message" = "OK";
 
-        client.submitHttp2StreamingResponseHeadersAsync(stream_id, 200,
+        client.submitHttp2StreamingResponseHeaders(stream_id, 200,
             {"content-type": "application/grpc+proto"});
-        client.sendHttp2StreamDataAsync(stream_id, framed, False);
-        client.sendHttp2TrailersAsync(stream_id, trailers);
+        client.sendHttp2StreamData(stream_id, framed, False);
+        client.sendHttp2Trailers(stream_id, trailers);
         if (io_wake) {
             io_wake();
         }
@@ -624,7 +624,7 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
         hash<string, string> trailers = stream.getTrailingMetadata();
         trailers."grpc-status" = string(status_code);
         trailers."grpc-message" = status_message;
-        client.sendHttp2TrailersAsync(stream_id, trailers);
+        client.sendHttp2Trailers(stream_id, trailers);
         if (io_wake) {
             io_wake();
         }
@@ -662,10 +662,10 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
         # on this handler thread.  io_wake signals the I/O thread to flush
         # the pending DATA and trailer frames; without the final wake the
         # response can sit in nghttp2's outbound buffer until the next tick.
-        client.submitHttp2StreamingResponseHeadersAsync(stream_id, 200,
+        client.submitHttp2StreamingResponseHeaders(stream_id, 200,
             {"content-type": "application/grpc+proto"});
-        client.sendHttp2StreamDataAsync(stream_id, framed, False);
-        client.sendHttp2TrailersAsync(stream_id, {
+        client.sendHttp2StreamData(stream_id, framed, False);
+        client.sendHttp2Trailers(stream_id, {
             "grpc-status": string(GRPC_STATUS_OK),
             "grpc-message": "OK",
         });
@@ -677,9 +677,9 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
     #! Trailers-only error response for gRPC failures
     private sendGrpcError(Socket client, int stream_id, int status_code,
             string message, *code<nothing()> io_wake) {
-        client.submitHttp2StreamingResponseHeadersAsync(stream_id, 200,
+        client.submitHttp2StreamingResponseHeaders(stream_id, 200,
             {"content-type": "application/grpc+proto"});
-        client.sendHttp2TrailersAsync(stream_id, {
+        client.sendHttp2Trailers(stream_id, {
             "grpc-status": string(status_code),
             "grpc-message": message,
         });
