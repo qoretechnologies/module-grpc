@@ -35,8 +35,6 @@ public namespace Grpc {
 ProtobufSchema schema = FlightProto::get();
 GrpcClient client(channel, schema, "FlightService");
     @endcode
-
-    @since GrpcUtil 1.0
 */
 public class FlightProto {
     public {
@@ -180,8 +178,6 @@ message PutResult {
         Thread-safe.
 
         @return the @ref ProtobufSchema for the Arrow Flight protocol
-
-        @since %GrpcUtil 1.0
     */
     static ProtobufSchema get() {
         if (m_schema) {

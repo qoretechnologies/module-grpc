@@ -25,8 +25,6 @@
 public namespace ArrowFlightDataProvider {
 
 #! Maps Arrow schema fields to DataProvider types
-/** @since ArrowFlightDataProvider 1.0
-*/
 public class ArrowFlightTypeHelper {
     #! Convert an ArrowSchema to a DataProvider HashDataType
     /** @param schema the Arrow schema

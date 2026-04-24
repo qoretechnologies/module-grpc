@@ -61,14 +61,10 @@ class SalesDataHandler inherits ArrowFlightDatasetHandler {
     }
 }
     @endcode
-
-    @since GrpcUtil 1.0
 */
 public class ArrowFlightDatasetHandler {
     #! Returns the Arrow schema for this dataset
     /** @return the ArrowSchema describing the dataset's columns
-
-        @since %GrpcUtil 1.0
     */
     abstract ArrowSchema getSchema();
 
@@ -76,8 +72,6 @@ public class ArrowFlightDatasetHandler {
     /** @param descriptor the FlightDescriptor from the client's request
 
         @return a FlightInfo hash with schema, endpoints, and metadata
-
-        @since %GrpcUtil 1.0
     */
     abstract hash<auto> getFlightInfo(hash<auto> descriptor);
 
@@ -90,8 +84,6 @@ public class ArrowFlightDatasetHandler {
 
         @param ticket the Ticket from the client's request
         @param stream the server stream to write FlightData messages to
-
-        @since %GrpcUtil 1.0
     */
     abstract nothing doGet(hash<auto> ticket, GrpcServerStream stream);
 
@@ -102,8 +94,6 @@ public class ArrowFlightDatasetHandler {
         @param stream the server stream for reading incoming FlightData messages
 
         @return a PutResult hash
-
-        @since %GrpcUtil 1.0
     */
     hash<auto> doPut(hash<auto> descriptor, GrpcServerStream stream) {
         throw "GRPC-UNIMPLEMENTED", "DoPut not implemented for this dataset";
@@ -114,8 +104,6 @@ public class ArrowFlightDatasetHandler {
 
         @param descriptor the FlightDescriptor from the first FlightData
         @param stream the server stream for bidirectional FlightData exchange
-
-        @since %GrpcUtil 1.0
     */
     nothing doExchange(hash<auto> descriptor, GrpcServerStream stream) {
         throw "GRPC-UNIMPLEMENTED", "DoExchange not implemented for this dataset";

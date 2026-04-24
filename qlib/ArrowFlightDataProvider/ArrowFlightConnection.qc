@@ -29,8 +29,6 @@ public namespace ArrowFlightDataProvider {
 /** Supports \c flight:// (plaintext h2c) and \c flights:// (TLS) URL schemes.
     The URL is automatically converted to the appropriate \c http:// or \c https://
     scheme for the underlying HTTP/2 transport.
-
-    @since ArrowFlightDataProvider 1.0
 */
 public class ArrowFlightConnection inherits ConnectionProvider::AbstractConnectionWithInfo {
     public {

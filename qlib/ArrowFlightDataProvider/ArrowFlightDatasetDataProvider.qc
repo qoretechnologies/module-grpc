@@ -28,8 +28,6 @@ public namespace ArrowFlightDataProvider {
 #! Dataset-level data provider that contains method child providers
 /** Each Arrow Flight dataset is represented by one instance of this class.
     Its children are the available operations: \c get, \c put, and \c exchange.
-
-    @since ArrowFlightDataProvider 1.0
 */
 public class ArrowFlightDatasetDataProvider inherits AbstractDataProvider {
     public {

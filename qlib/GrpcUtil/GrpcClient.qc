@@ -37,8 +37,6 @@ hash<GrpcCallResult> result = client.call("SayHello", {"name": "World"});
 printf("Response: %y\n", result.body);
 printf("Status: %d %s\n", result.status_code, result.status_message);
     @endcode
-
-    @since GrpcUtil 1.0
 */
 public class GrpcClient {
     private {
@@ -60,8 +58,6 @@ public class GrpcClient {
         @param service_name the fully-qualified service name (e.g., "mypackage.MyService")
 
         @throw GRPC-SERVICE-ERROR if the service is not found in the schema
-
-        @since %GrpcUtil 1.0
     */
     constructor(GrpcChannel channel, ProtobufSchema schema, string service_name) {
         m_channel = channel;
@@ -100,8 +96,6 @@ public class GrpcClient {
 
         @throw GRPC-METHOD-ERROR if the method is not found
         @throw GRPC-ERROR if the call fails at the transport level
-
-        @since %GrpcUtil 1.0
     */
     hash<GrpcCallResult> call(string method, hash<auto> request, *hash<GrpcCallOptions> opts) {
         hash<ProtobufMethodInfo> method_info = getMethodInfo(method);
@@ -138,8 +132,6 @@ public class GrpcClient {
 
         @throw GRPC-METHOD-ERROR if the method is not found
         @throw GRPC-ERROR if starting the stream fails
-
-        @since %GrpcUtil 1.0
     */
     GrpcClientStream serverStream(string method, hash<auto> request,
             *hash<GrpcCallOptions> opts) {
@@ -175,8 +167,6 @@ public class GrpcClient {
 
         @throw GRPC-METHOD-ERROR if the method is not found
         @throw GRPC-ERROR if starting the stream fails
-
-        @since %GrpcUtil 1.0
     */
     GrpcClientStream clientStream(string method, *hash<GrpcCallOptions> opts) {
         hash<ProtobufMethodInfo> method_info = getMethodInfo(method);
@@ -204,8 +194,6 @@ public class GrpcClient {
 
         @throw GRPC-METHOD-ERROR if the method is not found
         @throw GRPC-ERROR if starting the stream fails
-
-        @since %GrpcUtil 1.0
     */
     GrpcClientStream bidiStream(string method, *hash<GrpcCallOptions> opts) {
         # bidi uses same setup as client streaming
@@ -214,8 +202,6 @@ public class GrpcClient {
 
     #! Get service info
     /** @return the @ref GrpcServiceInfo for the bound service
-
-        @since %GrpcUtil 1.0
     */
     hash<ProtobufServiceInfo> getServiceInfo() {
         return m_service_info;
@@ -223,8 +209,6 @@ public class GrpcClient {
 
     #! Get the schema
     /** @return the protobuf schema
-
-        @since %GrpcUtil 1.0
     */
     ProtobufSchema getSchema() {
         return m_schema;

@@ -28,8 +28,6 @@ public namespace GrpcDataProvider {
 #! Service-level data provider that contains method child providers
 /** Each gRPC service in a protobuf schema is represented by one instance of this class.
     Its children are the individual RPC methods defined in the service.
-
-    @since GrpcDataProvider 1.0
 */
 public class GrpcServiceDataProvider inherits AbstractDataProvider {
     public {

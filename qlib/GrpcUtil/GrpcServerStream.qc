@@ -55,8 +55,6 @@ server.registerHandler("MyService", "ClientStream",
         return {"message": names.join(", "), "status": 0};
     });
     @endcode
-
-    @since GrpcUtil 1.0
 */
 public class GrpcServerStream {
     private {
@@ -69,8 +67,6 @@ public class GrpcServerStream {
             Optional only so that the private no-arg constructor can be used
             by proxy/remote subclasses that override @ref read() / @ref write()
             and never touch the HTTP/2 transport directly.
-
-            @since %GrpcUtil 1.0
         */
         *AsyncSocketIo::AsyncHttp2ServerStream m_async_stream;
         #! Protobuf schema for encoding/decoding
@@ -98,8 +94,6 @@ public class GrpcServerStream {
             @c header_info.register_body_queue) and parses gRPC frames from the
             accumulated buffer.  A @c NOTHING sentinel on the Queue signals
             END_STREAM.
-
-            @since %GrpcUtil 1.0
         */
         *Queue m_async_inbound_queue;
 
@@ -126,8 +120,6 @@ public class GrpcServerStream {
         @param output_type the message type for outgoing (server) messages
         @param metadata the client's request metadata
         @param messages pre-parsed list of client messages
-
-        @since %GrpcUtil 1.0
     */
     constructor(AsyncSocketIo::AsyncHttp2ServerStream async_stream,
             ProtobufSchema schema, string input_type, string output_type,
@@ -161,8 +153,6 @@ public class GrpcServerStream {
         @param input_type the message type for decoding incoming messages
         @param output_type the message type for encoding outgoing messages
         @param metadata the client's request metadata
-
-        @since %GrpcUtil 1.0
     */
     constructor(AsyncSocketIo::AsyncHttp2ServerStream async_stream,
             Queue inbound_queue, ProtobufSchema schema,
@@ -198,8 +188,6 @@ public class GrpcServerStream {
         @return the next decoded message hash, or NOTHING when all messages
         have been read (buffered mode) or on timeout/end-of-stream (live+async
         mode)
-
-        @since %GrpcUtil 1.0
     */
     *hash<auto> read(*timeout timeout) {
         if (!exists m_async_inbound_queue) {
@@ -263,8 +251,6 @@ public class GrpcServerStream {
         In buffered mode, returns True when all pre-parsed messages have been
         returned by read().  In live+async mode, returns True when END_STREAM
         has been received and there is no more buffered data to parse.
-
-        @since %GrpcUtil 1.0
     */
     bool readsDone() {
         if (!exists m_async_inbound_queue) {
@@ -291,8 +277,6 @@ public class GrpcServerStream {
         handler-thread H2 session lock acquisition.
 
         @param message the message data as a Qore hash
-
-        @since %GrpcUtil 1.0
     */
     write(hash<auto> message) {
         ensureHeadersSent();
@@ -327,8 +311,6 @@ public class GrpcServerStream {
 
         @note Must be called before the first write() call. If called after write(),
         the metadata is silently ignored since headers have already been sent.
-
-        @since %GrpcUtil 1.0
     */
     sendInitialMetadata(hash<string, string> metadata) {
         if (!m_headers_sent) {
@@ -349,8 +331,6 @@ public class GrpcServerStream {
         @code{.py}
 stream.setTrailingMetadata({"x-server-timing": "dur=42"});
         @endcode
-
-        @since %GrpcUtil 1.0
     */
     setTrailingMetadata(hash<string, string> metadata) {
         map m_trailing_metadata{$1.key} = $1.value, metadata.pairIterator();
@@ -358,8 +338,6 @@ stream.setTrailingMetadata({"x-server-timing": "dur=42"});
 
     #! Get the custom trailing metadata set by the handler
     /** @return the custom trailing metadata
-
-        @since %GrpcUtil 1.0
     */
     hash<string, string> getTrailingMetadata() {
         return m_trailing_metadata;
@@ -367,8 +345,6 @@ stream.setTrailingMetadata({"x-server-timing": "dur=42"});
 
     #! Get the client's request metadata
     /** @return the metadata from the client's request headers
-
-        @since %GrpcUtil 1.0
     */
     hash<string, string> clientMetadata() {
         return m_metadata;
@@ -378,8 +354,6 @@ stream.setTrailingMetadata({"x-server-timing": "dur=42"});
     /** Called automatically by write(), but also called by the server
         before sending trailers in case the handler wrote nothing (e.g.,
         an empty server-stream).
-
-        @since %GrpcUtil 1.0
     */
     ensureHeadersSent() {
         if (!m_headers_sent) {

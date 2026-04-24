@@ -56,8 +56,6 @@ events.observersReady();
 events.sendMessage(MESSAGE_FLIGHT_SEND_BATCH, {"rows": my_rows});
 events.stopEvents();
     @endcode
-
-    @since ArrowFlightDataProvider 1.0
 */
 public class ArrowFlightStreamEventDataProvider inherits AbstractDataProvider, DelayedObservable {
     private {
@@ -180,8 +178,6 @@ public class ArrowFlightStreamEventDataProvider inherits AbstractDataProvider, D
         @return True if the stream is ready, False on timeout
 
         @note Only meaningful for DoExchange
-
-        @since ArrowFlightDataProvider 1.0
     */
     bool waitForReady(timeout timeout = 10s) {
         AutoLock al(m);
@@ -199,8 +195,6 @@ public class ArrowFlightStreamEventDataProvider inherits AbstractDataProvider, D
     #! Blocks until the stream is no longer active
     /** @param timeout maximum time to wait
         @return True if the stream became inactive, False on timeout
-
-        @since ArrowFlightDataProvider 1.0
     */
     bool waitForInactive(timeout timeout = 10s) {
         AutoLock al(m);

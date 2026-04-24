@@ -26,8 +26,6 @@
 public namespace ArrowFlightDataProvider {
 
 #! Data provider for executing custom Arrow Flight actions via DoAction
-/** @since ArrowFlightDataProvider 1.0
-*/
 public class ArrowFlightDoActionDataProvider inherits AbstractDataProvider {
     public {
         #! Provider info

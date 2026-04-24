@@ -33,8 +33,6 @@ public namespace Grpc {
 GrpcChannel channel("https://localhost:50051");
 GrpcClient client(channel, schema, "MyService");
     @endcode
-
-    @since GrpcUtil 1.0
 */
 public class GrpcChannel {
     private {
@@ -47,8 +45,6 @@ public class GrpcChannel {
     #! Create a new gRPC channel to the given target
     /** @param target the target URL (e.g., \c "https://localhost:50051" or \c "http://localhost:50051")
         @param opts optional channel options
-
-        @since %GrpcUtil 1.0
     */
     constructor(string target, *hash<GrpcChannelOptions> opts) {
         m_target = target;
@@ -79,8 +75,6 @@ public class GrpcChannel {
 
     #! Shut down the channel and close all connections
     /** Should be called when the channel is no longer needed.
-
-        @since %GrpcUtil 1.0
     */
     shutdown() {
         m_mgr.closeAll();
@@ -88,8 +82,6 @@ public class GrpcChannel {
 
     #! Get the target URL
     /** @return the target URL
-
-        @since %GrpcUtil 1.0
     */
     string target() {
         return m_target;
@@ -97,8 +89,6 @@ public class GrpcChannel {
 
     #! Acquire an HTTP/2 stream handle for a request
     /** @return a new stream handle from the connection pool
-
-        @since %GrpcUtil 1.0
     */
     HttpClientIo::HttpClientStreamHandle acquireStream() {
         return m_mgr.acquireStream(m_target);
@@ -107,8 +97,6 @@ public class GrpcChannel {
     #! Get the underlying connection manager
     /** @return the @ref HttpClientIo::HttpClientConnectionManager "HttpClientConnectionManager"
         used by this channel
-
-        @since %GrpcUtil 1.0
     */
     HttpClientIo::HttpClientConnectionManager getConnectionManager() {
         return m_mgr;

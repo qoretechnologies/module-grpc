@@ -44,8 +44,6 @@ server.start();
 printf("Flight server on port %d\n", port);
 server.wait();
     @endcode
-
-    @since GrpcUtil 1.0
 */
 public class ArrowFlightServer {
     private {
@@ -67,8 +65,6 @@ public class ArrowFlightServer {
 
     #! Create a new Arrow Flight server
     /** @param opts optional gRPC server options (max message size, etc.)
-
-        @since %GrpcUtil 1.0
     */
     constructor(*hash<GrpcServerOptions> opts) {
         m_server = new GrpcServer(FlightProto::get(), opts);
@@ -133,8 +129,6 @@ public class ArrowFlightServer {
     /** @param name the dataset name (used as the first element of
         FlightDescriptor.path and as the Ticket)
         @param handler the dataset handler implementation
-
-        @since %GrpcUtil 1.0
     */
     registerDataset(string name, ArrowFlightDatasetHandler handler) {
         AutoLock al(m_mutex);
@@ -143,8 +137,6 @@ public class ArrowFlightServer {
 
     #! Remove a registered dataset
     /** @param name the dataset name to remove
-
-        @since %GrpcUtil 1.0
     */
     removeDataset(string name) {
         AutoLock al(m_mutex);
@@ -156,8 +148,6 @@ public class ArrowFlightServer {
         @param description human-readable description of the action
         @param handler the action handler; receives the action body (binary)
         and returns a list of Result hashes
-
-        @since %GrpcUtil 1.0
     */
     registerAction(string action_type, string description, code handler) {
         AutoLock al(m_mutex);
@@ -167,8 +157,6 @@ public class ArrowFlightServer {
 
     #! Remove a registered action
     /** @param action_type the action type to remove
-
-        @since %GrpcUtil 1.0
     */
     removeAction(string action_type) {
         AutoLock al(m_mutex);
@@ -179,8 +167,6 @@ public class ArrowFlightServer {
     #! Add an insecure (plaintext) listener
     /** @param addr the address to bind (e.g., "localhost:0")
         @return the port number bound
-
-        @since %GrpcUtil 1.0
     */
     int addInsecurePort(string addr) {
         return m_server.addInsecurePort(addr);
@@ -190,31 +176,23 @@ public class ArrowFlightServer {
     /** @param addr the address to bind
         @param ssl SSL/TLS options
         @return the port number bound
-
-        @since %GrpcUtil 1.0
     */
     int addSecurePort(string addr, hash<GrpcSslOptions> ssl) {
         return m_server.addSecurePort(addr, ssl);
     }
 
     #! Start the server
-    /** @since %GrpcUtil 1.0
-    */
     start() {
         m_server.start();
     }
 
     #! Wait for the server to shut down
-    /** @since %GrpcUtil 1.0
-    */
     wait() {
         m_server.wait();
     }
 
     #! Shut down the server gracefully
     /** @param timeout_ms optional shutdown timeout in milliseconds
-
-        @since %GrpcUtil 1.0
     */
     shutdown(*int timeout_ms) {
         m_server.shutdown(timeout_ms);
@@ -222,8 +200,6 @@ public class ArrowFlightServer {
 
     #! Check if the server is running
     /** @return True if the server is running
-
-        @since %GrpcUtil 1.0
     */
     bool isRunning() {
         return m_server.isRunning();
@@ -231,8 +207,6 @@ public class ArrowFlightServer {
 
     #! Get the underlying GrpcServer
     /** @return the internal GrpcServer
-
-        @since %GrpcUtil 1.0
     */
     GrpcServer getGrpcServer() {
         return m_server;

@@ -46,8 +46,6 @@ stream.write({"name": "msg2"});
 stream.writesDone();
 hash<GrpcCallResult> result = stream.finish();
     @endcode
-
-    @since GrpcUtil 1.0
 */
 public class GrpcClientStream {
     private {
@@ -82,8 +80,6 @@ public class GrpcClientStream {
         @param read_type message type for decoding received messages
         @param write_type message type for encoding sent messages
         @param writes_done if True, writes are already complete (server-streaming)
-
-        @since %GrpcUtil 1.0
     */
     constructor(HttpClientIo::HttpClientStreamHandle stream,
             ProtobufSchema schema, string read_type, string write_type,
@@ -100,8 +96,6 @@ public class GrpcClientStream {
         @return a decoded message hash, or NOTHING if the stream has ended
 
         @throw GRPC-STREAM-ERROR if a stream error occurs
-
-        @since %GrpcUtil 1.0
     */
     *hash<auto> read(*timeout timeout) {
         if (m_reads_done) {
@@ -160,8 +154,6 @@ public class GrpcClientStream {
     /** @param message the message to send
 
         @throw GRPC-STREAM-ERROR if the stream is not writable
-
-        @since %GrpcUtil 1.0
     */
     write(hash<auto> message) {
         binary encoded = m_schema.encode(m_write_type, message);
@@ -174,8 +166,6 @@ public class GrpcClientStream {
         can send its response for client-streaming calls.
 
         Safe to call multiple times; subsequent calls are no-ops.
-
-        @since %GrpcUtil 1.0
     */
     writesDone() {
         if (!m_writes_done) {
@@ -191,8 +181,6 @@ public class GrpcClientStream {
         Reads any remaining messages and extracts the gRPC status from trailers.
 
         @return a @ref GrpcCallResult with response body and status info
-
-        @since %GrpcUtil 1.0
     */
     hash<GrpcCallResult> finish() {
         # Auto-close writes if needed
@@ -236,8 +224,6 @@ public class GrpcClientStream {
 
     #! Returns True if the stream has received END_STREAM from the server
     /** @return True if reads are done and no more data will arrive
-
-        @since %GrpcUtil 1.0
     */
     bool readsDone() {
         return m_reads_done;
@@ -245,8 +231,6 @@ public class GrpcClientStream {
 
     #! Cancel the stream
     /** Sends RST_STREAM to abort the stream. Any unread messages are discarded.
-
-        @since %GrpcUtil 1.0
     */
     cancel() {
         m_reads_done = True;

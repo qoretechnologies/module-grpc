@@ -26,8 +26,6 @@
 public namespace ArrowFlightDataProvider {
 
 #! Data provider for getting Arrow Flight dataset metadata via GetFlightInfo
-/** @since ArrowFlightDataProvider 1.0
-*/
 public class ArrowFlightGetFlightInfoDataProvider inherits AbstractDataProvider {
     public {
         #! Provider info

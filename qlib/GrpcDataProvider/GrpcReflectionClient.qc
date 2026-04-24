@@ -29,8 +29,6 @@ public namespace GrpcDataProvider {
 /** Implements the gRPC Server Reflection protocol
     (\c grpc.reflection.v1.ServerReflection) for dynamically discovering
     services and their schemas from a running gRPC server.
-
-    @since GrpcDataProvider 1.0
 */
 public class GrpcReflectionClient {
     #! The embedded reflection proto definition

@@ -29,8 +29,6 @@ public namespace GrpcDataProvider {
 /** Supports \c grpc:// (plaintext h2c) and \c grpcs:// (TLS) URL schemes.
     The URL is automatically converted to the appropriate \c http:// or \c https://
     scheme for the underlying HTTP/2 transport.
-
-    @since GrpcDataProvider 1.0
 */
 public class GrpcConnection inherits ConnectionProvider::AbstractConnectionWithInfo {
     public {

@@ -26,8 +26,6 @@
 public namespace ArrowFlightDataProvider {
 
 #! Data provider for listing available Arrow Flight datasets via ListFlights
-/** @since ArrowFlightDataProvider 1.0
-*/
 public class ArrowFlightListFlightsDataProvider inherits AbstractDataProvider {
     public {
         #! Provider info

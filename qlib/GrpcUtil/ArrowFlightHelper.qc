@@ -38,8 +38,6 @@ hash<auto> flight_data = ArrowFlightHelper::schemaToFlightData(schema);
 # Convert FlightData back to an ArrowSchema
 ArrowSchema schema = ArrowFlightHelper::flightDataToSchema(flight_data);
     @endcode
-
-    @since GrpcUtil 1.0
 */
 public class ArrowFlightHelper {
     #! Convert a FlightData message to an ArrowSchema
@@ -52,8 +50,6 @@ public class ArrowFlightHelper {
         @return the deserialized ArrowSchema
 
         @throw ARROW-FLIGHT-ERROR if the FlightData message has no data_header
-
-        @since %GrpcUtil 1.0
     */
     static ArrowSchema flightDataToSchema(hash<auto> flight_data) {
         if (!flight_data.data_header) {
@@ -73,8 +69,6 @@ public class ArrowFlightHelper {
         @return the deserialized ArrowRecordBatch
 
         @throw ARROW-FLIGHT-ERROR if the FlightData message has no data_header
-
-        @since %GrpcUtil 1.0
     */
     static ArrowRecordBatch flightDataToBatch(ArrowSchema schema, hash<auto> flight_data) {
         if (!flight_data.data_header) {
@@ -93,8 +87,6 @@ public class ArrowFlightHelper {
         @param descriptor optional FlightDescriptor to include in the message
 
         @return a FlightData message hash
-
-        @since %GrpcUtil 1.0
     */
     static hash<auto> schemaToFlightData(ArrowSchema schema, *hash<auto> descriptor) {
         hash<auto> flight_data({
@@ -114,8 +106,6 @@ public class ArrowFlightHelper {
         @param app_metadata optional application-specific metadata
 
         @return a FlightData message hash
-
-        @since %GrpcUtil 1.0
     */
     static hash<auto> batchToFlightData(ArrowRecordBatch batch, *binary app_metadata) {
         hash<auto> ipc = ArrowIpc::writeRecordBatch(batch);
@@ -133,8 +123,6 @@ public class ArrowFlightHelper {
     /** @param path the dataset path (first element used as dataset name)
 
         @return a FlightDescriptor hash with type PATH
-
-        @since %GrpcUtil 1.0
     */
     static hash<auto> pathDescriptor(string path) {
         return {
@@ -147,8 +135,6 @@ public class ArrowFlightHelper {
     /** @param path_elements list of path elements
 
         @return a FlightDescriptor hash with type PATH
-
-        @since %GrpcUtil 1.0
     */
     static hash<auto> pathDescriptor(list<string> path_elements) {
         return {
@@ -161,8 +147,6 @@ public class ArrowFlightHelper {
     /** @param cmd the command string (sent as bytes)
 
         @return a FlightDescriptor hash with type CMD
-
-        @since %GrpcUtil 1.0
     */
     static hash<auto> cmdDescriptor(string cmd) {
         return {

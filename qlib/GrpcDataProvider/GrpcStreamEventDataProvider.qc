@@ -57,8 +57,6 @@ event_prov.observersReady();
 event_prov.sendMessage(MESSAGE_GRPC_STREAM_SEND, {"name": "hello"});
 event_prov.stopEvents();
     @endcode
-
-    @since GrpcDataProvider 1.0
 */
 public class GrpcStreamEventDataProvider inherits AbstractDataProvider, DelayedObservable {
     private {
@@ -182,8 +180,6 @@ public class GrpcStreamEventDataProvider inherits AbstractDataProvider, DelayedO
 
         @note Only meaningful for bidi-streaming methods; for server-streaming methods,
         the stream is ready as soon as observersReady() is called
-
-        @since GrpcDataProvider 1.0
     */
     bool waitForReady(timeout timeout = 10s) {
         AutoLock al(m);
@@ -201,8 +197,6 @@ public class GrpcStreamEventDataProvider inherits AbstractDataProvider, DelayedO
     #! Blocks until the stream is no longer active
     /** @param timeout maximum time to wait
         @return True if the stream became inactive, False on timeout
-
-        @since GrpcDataProvider 1.0
     */
     bool waitForInactive(timeout timeout = 10s) {
         AutoLock al(m);

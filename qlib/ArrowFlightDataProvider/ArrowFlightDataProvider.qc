@@ -43,8 +43,6 @@ public const AppName = "ArrowFlight";
 ArrowFlightDataProvider provider({"url": "http://localhost:8815"});
 auto rows = provider.getChildProvider("sales").getChildProvider("get").doRequest(NOTHING);
     @endcode
-
-    @since ArrowFlightDataProvider 1.0
 */
 public class ArrowFlightDataProvider inherits AbstractDataProvider {
     public {

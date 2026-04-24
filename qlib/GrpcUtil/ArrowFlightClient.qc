@@ -47,8 +47,6 @@ while (*ArrowRecordBatch batch = reader.read()) {
     printf("Got %d rows\n", batch.numRows());
 }
     @endcode
-
-    @since GrpcUtil 1.0
 */
 public class ArrowFlightClient {
     private {
@@ -61,8 +59,6 @@ public class ArrowFlightClient {
 
     #! Create a new Arrow Flight client
     /** @param channel the gRPC channel for connections
-
-        @since %GrpcUtil 1.0
     */
     constructor(GrpcChannel channel) {
         m_channel = channel;
@@ -75,8 +71,6 @@ public class ArrowFlightClient {
         @param opts optional call options
 
         @return a list of FlightInfo hashes
-
-        @since %GrpcUtil 1.0
     */
     list<hash<auto>> listFlights(*hash<auto> criteria, *hash<GrpcCallOptions> opts) {
         hash<auto> request = criteria ?? {"expression": binary()};
@@ -94,8 +88,6 @@ public class ArrowFlightClient {
         @param opts optional call options
 
         @return a FlightInfo hash
-
-        @since %GrpcUtil 1.0
     */
     hash<auto> getFlightInfo(hash<auto> descriptor, *hash<GrpcCallOptions> opts) {
         hash<GrpcCallResult> result = m_client.call("GetFlightInfo", descriptor, opts);
@@ -111,8 +103,6 @@ public class ArrowFlightClient {
         @param opts optional call options
 
         @return a PollInfo hash
-
-        @since %GrpcUtil 1.0
     */
     hash<auto> pollFlightInfo(hash<auto> descriptor, *hash<GrpcCallOptions> opts) {
         hash<GrpcCallResult> result = m_client.call("PollFlightInfo", descriptor, opts);
@@ -128,8 +118,6 @@ public class ArrowFlightClient {
         @param opts optional call options
 
         @return the ArrowSchema deserialized from the SchemaResult
-
-        @since %GrpcUtil 1.0
     */
     ArrowSchema getSchema(hash<auto> descriptor, *hash<GrpcCallOptions> opts) {
         hash<GrpcCallResult> result = m_client.call("GetSchema", descriptor, opts);
@@ -147,8 +135,6 @@ public class ArrowFlightClient {
     /** @param opts optional call options
 
         @return a list of ActionType hashes with \c type and \c description fields
-
-        @since %GrpcUtil 1.0
     */
     list<hash<auto>> listActions(*hash<GrpcCallOptions> opts) {
         GrpcClientStream stream = m_client.serverStream("ListActions", {}, opts);
@@ -167,8 +153,6 @@ public class ArrowFlightClient {
         @param opts optional call options
 
         @return an ArrowFlightStreamReader for reading record batches
-
-        @since %GrpcUtil 1.0
     */
     ArrowFlightStreamReader doGet(hash<auto> ticket, *hash<GrpcCallOptions> opts) {
         GrpcClientStream stream = m_client.serverStream("DoGet", ticket, opts);
@@ -183,8 +167,6 @@ public class ArrowFlightClient {
         @param opts optional call options
 
         @return an ArrowFlightStreamWriter for writing record batches
-
-        @since %GrpcUtil 1.0
     */
     ArrowFlightStreamWriter doPut(hash<auto> descriptor, ArrowSchema schema,
             *hash<GrpcCallOptions> opts) {
@@ -200,8 +182,6 @@ public class ArrowFlightClient {
         @param opts optional call options
 
         @return an ArrowFlightExchangeStream for bidirectional data exchange
-
-        @since %GrpcUtil 1.0
     */
     ArrowFlightExchangeStream doExchange(hash<auto> descriptor,
             *ArrowSchema write_schema, *hash<GrpcCallOptions> opts) {
@@ -214,8 +194,6 @@ public class ArrowFlightClient {
         @param opts optional call options
 
         @return a list of Result hashes
-
-        @since %GrpcUtil 1.0
     */
     list<hash<auto>> doAction(hash<auto> action, *hash<GrpcCallOptions> opts) {
         GrpcClientStream stream = m_client.serverStream("DoAction", action, opts);
@@ -229,8 +207,6 @@ public class ArrowFlightClient {
 
     #! Get the underlying GrpcClient
     /** @return the GrpcClient used by this Flight client
-
-        @since %GrpcUtil 1.0
     */
     GrpcClient getGrpcClient() {
         return m_client;
@@ -238,8 +214,6 @@ public class ArrowFlightClient {
 
     #! Get the gRPC channel
     /** @return the GrpcChannel used by this Flight client
-
-        @since %GrpcUtil 1.0
     */
     GrpcChannel getChannel() {
         return m_channel;

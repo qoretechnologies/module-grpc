@@ -30,8 +30,6 @@ public namespace ArrowFlightDataProvider {
     - @b get (DoGet): retrieve data as a list of row hashes
     - @b put (DoPut): send data as a list of row hashes
     - @b exchange (DoExchange): bidirectional data exchange
-
-    @since ArrowFlightDataProvider 1.0
 */
 public class ArrowFlightMethodDataProvider inherits AbstractDataProvider {
     public {

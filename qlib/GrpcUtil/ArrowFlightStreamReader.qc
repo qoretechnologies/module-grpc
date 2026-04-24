@@ -37,8 +37,6 @@ while (*ArrowRecordBatch batch = reader.read()) {
     printf("Rows: %d\n", batch.numRows());
 }
     @endcode
-
-    @since GrpcUtil 1.0
 */
 public class ArrowFlightStreamReader {
     private {
@@ -60,8 +58,6 @@ public class ArrowFlightStreamReader {
 
     #! Create a new Arrow Flight stream reader
     /** @param stream the gRPC client stream from a DoGet call
-
-        @since %GrpcUtil 1.0
     */
     constructor(GrpcClientStream stream) {
         m_stream = stream;
@@ -73,8 +69,6 @@ public class ArrowFlightStreamReader {
         @return the Arrow schema
 
         @throw ARROW-FLIGHT-ERROR if no schema could be read from the stream
-
-        @since %GrpcUtil 1.0
     */
     ArrowSchema schema() {
         if (!m_schema_read) {
@@ -92,8 +86,6 @@ public class ArrowFlightStreamReader {
         @param timeout optional read timeout
 
         @return the next ArrowRecordBatch, or NOTHING when the stream has ended
-
-        @since %GrpcUtil 1.0
     */
     *ArrowRecordBatch read(*timeout timeout) {
         if (m_done) {
@@ -138,16 +130,12 @@ public class ArrowFlightStreamReader {
 
     #! Returns True if the stream has been fully consumed
     /** @return True if no more record batches will arrive
-
-        @since %GrpcUtil 1.0
     */
     bool readsDone() {
         return m_done || m_stream.readsDone();
     }
 
     #! Cancel the stream
-    /** @since %GrpcUtil 1.0
-    */
     cancel() {
         m_done = True;
         m_stream.cancel();
@@ -155,8 +143,6 @@ public class ArrowFlightStreamReader {
 
     #! Returns the last app_metadata received with a FlightData message
     /** @return the last application metadata, or NOTHING if none was received
-
-        @since %GrpcUtil 1.0
     */
     *binary appMetadata() {
         return m_app_metadata;
@@ -164,8 +150,6 @@ public class ArrowFlightStreamReader {
 
     #! Get the final call result
     /** @return a @ref GrpcCallResult with status information
-
-        @since %GrpcUtil 1.0
     */
     hash<GrpcCallResult> finish() {
         return m_stream.finish();

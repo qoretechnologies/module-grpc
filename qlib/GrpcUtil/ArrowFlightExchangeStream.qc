@@ -44,8 +44,6 @@ while (*ArrowRecordBatch batch = exchange.read()) {
     printf("Result rows: %d\n", batch.numRows());
 }
     @endcode
-
-    @since GrpcUtil 1.0
 */
 public class ArrowFlightExchangeStream {
     private {
@@ -70,8 +68,6 @@ public class ArrowFlightExchangeStream {
         @param write_schema optional Arrow schema for outgoing data; if provided,
         an initial FlightData message with the schema is sent
         @param descriptor optional FlightDescriptor to include in the first message
-
-        @since %GrpcUtil 1.0
     */
     constructor(GrpcClientStream stream, *ArrowSchema write_schema,
             *hash<auto> descriptor) {
@@ -99,8 +95,6 @@ public class ArrowFlightExchangeStream {
         @return the Arrow schema for incoming data
 
         @throw ARROW-FLIGHT-ERROR if no schema could be read
-
-        @since %GrpcUtil 1.0
     */
     ArrowSchema readSchema() {
         if (!m_read_schema_detected) {
@@ -116,8 +110,6 @@ public class ArrowFlightExchangeStream {
     /** @param timeout optional read timeout
 
         @return the next ArrowRecordBatch, or NOTHING when the stream has ended
-
-        @since %GrpcUtil 1.0
     */
     *ArrowRecordBatch read(*timeout timeout) {
         if (m_done) {
@@ -156,8 +148,6 @@ public class ArrowFlightExchangeStream {
 
     #! Returns True if the read side of the stream has ended
     /** @return True if no more record batches will arrive
-
-        @since %GrpcUtil 1.0
     */
     bool readsDone() {
         return m_done || m_stream.readsDone();
@@ -166,8 +156,6 @@ public class ArrowFlightExchangeStream {
     #! Write an ArrowRecordBatch to the stream
     /** @param batch the record batch to write
         @param app_metadata optional application-specific metadata
-
-        @since %GrpcUtil 1.0
     */
     write(ArrowRecordBatch batch, *binary app_metadata) {
         hash<auto> flight_data = ArrowFlightHelper::batchToFlightData(batch, app_metadata);
@@ -175,15 +163,11 @@ public class ArrowFlightExchangeStream {
     }
 
     #! Signal that no more batches will be written
-    /** @since %GrpcUtil 1.0
-    */
     writesDone() {
         m_stream.writesDone();
     }
 
     #! Cancel the stream
-    /** @since %GrpcUtil 1.0
-    */
     cancel() {
         m_done = True;
         m_stream.cancel();
@@ -191,8 +175,6 @@ public class ArrowFlightExchangeStream {
 
     #! Returns the last app_metadata received
     /** @return the last application metadata, or NOTHING if none was received
-
-        @since %GrpcUtil 1.0
     */
     *binary appMetadata() {
         return m_app_metadata;
@@ -200,8 +182,6 @@ public class ArrowFlightExchangeStream {
 
     #! Get the final call result
     /** @return a @ref GrpcCallResult with status information
-
-        @since %GrpcUtil 1.0
     */
     hash<GrpcCallResult> finish() {
         return m_stream.finish();

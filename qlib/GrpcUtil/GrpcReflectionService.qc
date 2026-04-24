@@ -79,8 +79,6 @@ GrpcReflectionClient rc(channel);
 list<string> services = rc.listServices();
 ProtobufSchema discovered = rc.discoverSchema();
     @endcode
-
-    @since GrpcUtil 1.0
 */
 public class GrpcReflectionService {
     #! The embedded reflection proto definition (grpc.reflection.v1)
@@ -155,8 +153,6 @@ public class GrpcReflectionService {
         the reflection service itself.
 
         @param user_schema the user's protobuf schema containing service definitions
-
-        @since %GrpcUtil 1.0
     */
     constructor(ProtobufSchema user_schema) {
         m_user_schema = user_schema;
@@ -188,8 +184,6 @@ public class GrpcReflectionService {
         knows about the \c ServerReflection service and its methods.
 
         @return the combined ProtobufSchema
-
-        @since %GrpcUtil 1.0
     */
     ProtobufSchema getCombinedSchema() {
         return m_combined_schema;
@@ -199,8 +193,6 @@ public class GrpcReflectionService {
     /** Must be called after the server is constructed with getCombinedSchema().
 
         @param server the GrpcServer to register the reflection handler on
-
-        @since %GrpcUtil 1.0
     */
     registerHandlers(GrpcServerAsync server) {
         # Typed to GrpcServerAsync because that's the canonical server class;

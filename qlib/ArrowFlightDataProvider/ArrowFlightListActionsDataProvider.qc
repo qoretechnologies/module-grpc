@@ -26,8 +26,6 @@
 public namespace ArrowFlightDataProvider {
 
 #! Data provider for listing available server actions via ListActions
-/** @since ArrowFlightDataProvider 1.0
-*/
 public class ArrowFlightListActionsDataProvider inherits AbstractDataProvider {
     public {
         #! Provider info

@@ -37,8 +37,6 @@ writer.write(batch1);
 writer.write(batch2);
 hash<auto> result = writer.finish();
     @endcode
-
-    @since GrpcUtil 1.0
 */
 public class ArrowFlightStreamWriter {
     private {
@@ -56,8 +54,6 @@ public class ArrowFlightStreamWriter {
         @param stream the gRPC client stream from a DoPut call
         @param schema the Arrow schema for the data being written
         @param descriptor optional FlightDescriptor to include in the first message
-
-        @since %GrpcUtil 1.0
     */
     constructor(GrpcClientStream stream, ArrowSchema schema, *hash<auto> descriptor) {
         m_stream = stream;
@@ -73,8 +69,6 @@ public class ArrowFlightStreamWriter {
 
         @param batch the record batch to write
         @param app_metadata optional application-specific metadata
-
-        @since %GrpcUtil 1.0
     */
     write(ArrowRecordBatch batch, *binary app_metadata) {
         hash<auto> flight_data = ArrowFlightHelper::batchToFlightData(batch, app_metadata);
@@ -82,16 +76,12 @@ public class ArrowFlightStreamWriter {
     }
 
     #! Signal that no more batches will be written
-    /** @since %GrpcUtil 1.0
-    */
     writesDone() {
         m_stream.writesDone();
     }
 
     #! Cancel the stream
     /** Aborts the DoPut stream, signalling cancellation to the server.
-
-        @since %GrpcUtil 1.0
     */
     cancel() {
         m_stream.cancel();
@@ -101,8 +91,6 @@ public class ArrowFlightStreamWriter {
     /** Automatically calls writesDone() if not already called.
 
         @return a @ref GrpcCallResult with status information and PutResult
-
-        @since %GrpcUtil 1.0
     */
     hash<GrpcCallResult> finish() {
         return m_stream.finish();

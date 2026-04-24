@@ -39,8 +39,6 @@ public namespace Grpc {
     client-streaming, and bidi paths will follow once the unary canary is
     green against the @c module-grpc test suite; see
     @c qore/design/grpc-server-async-migration.md.
-
-    @since GrpcUtil 1.0
 */
 public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
     private {
@@ -90,8 +88,6 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
     #! Create an async gRPC server
     /** @param schema the protobuf schema containing service definitions
         @param opts optional server options (same shape as @ref GrpcServer)
-
-        @since %GrpcUtil 1.0
     */
     constructor(ProtobufSchema schema, *hash<GrpcServerOptions> opts) {
         m_opts = opts;

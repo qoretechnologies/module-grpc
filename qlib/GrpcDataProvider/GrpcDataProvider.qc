@@ -45,8 +45,6 @@ GrpcDataProvider provider({
 });
 auto result = provider.getChildProvider("MyService").getChildProvider("MyMethod").doRequest({"name": "World"});
     @endcode
-
-    @since GrpcDataProvider 1.0
 */
 public class GrpcDataProvider inherits AbstractDataProvider {
     public {

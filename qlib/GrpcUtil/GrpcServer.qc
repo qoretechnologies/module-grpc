@@ -81,15 +81,11 @@ server.registerHandler("MyService", "Chat",
         }
     });
     @endcode
-
-    @since GrpcUtil 1.0
 */
 public class GrpcServer inherits GrpcServerAsync {
     #! Create a gRPC server
     /** @param schema the protobuf schema containing service definitions
         @param opts optional server options
-
-        @since %GrpcUtil 1.0
     */
     constructor(ProtobufSchema schema, *hash<GrpcServerOptions> opts)
             : GrpcServerAsync(schema, opts) {

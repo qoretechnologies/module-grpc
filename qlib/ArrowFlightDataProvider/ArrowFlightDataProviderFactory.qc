@@ -26,8 +26,6 @@
 public namespace ArrowFlightDataProvider {
 
 #! The Arrow Flight data provider factory
-/** @since ArrowFlightDataProvider 1.0
-*/
 public class ArrowFlightDataProviderFactory inherits AbstractDataProviderFactory {
     private {
         #! Data provider type info

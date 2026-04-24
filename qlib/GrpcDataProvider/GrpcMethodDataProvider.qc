@@ -31,8 +31,6 @@ public namespace GrpcDataProvider {
     - **Server streaming**: single request, multiple responses (returned as list)
     - **Client streaming**: multiple requests (sent from `messages` list), single response
     - **Bidirectional streaming**: multiple requests, multiple responses
-
-    @since GrpcDataProvider 1.0
 */
 public class GrpcMethodDataProvider inherits AbstractDataProvider {
     public {
