@@ -110,6 +110,58 @@ ArrowRecordBatch::constructor(ArrowSchema[QoreArrowSchemaHolder] schema, binary 
     self->setPrivate(CID_ARROWRECORDBATCH, new QoreArrowRecordBatchHolder(batch));
 }
 
+//! Creates an ArrowRecordBatch from a Qore SQL ColumnarResult
+/** Primitive \c buffer<T> columns are exported to Arrow without copying when
+    their physical storage is contiguous and byte-aligned.  Other columns are
+    converted through Arrow builders while preserving \c ColumnarResult::schemaV2()
+    metadata where possible.
+
+    @param columnar_result a \c Qore::SQL::ColumnarResult object
+
+    @throw ARROW-COLUMNAR-ERROR if the argument is not a ColumnarResult or a column
+        cannot be converted to Arrow
+
+    @par Example: Sending a SQL columnar result through Arrow Flight
+    @code{.py}
+ColumnarResult orders = ds.selectColumnar("select id, total from orders");
+ArrowRecordBatch batch(orders);
+hash<ArrowIpcData> ipc = batch.toIpc();
+    @endcode
+
+    @since %grpc 1.0
+*/
+ArrowRecordBatch::constructor(auto columnar_result) {
+#ifdef QORE_GRPC_HAVE_COLUMNAR_RESULT_V2
+    if (columnar_result.getType() != NT_OBJECT) {
+        xsink->raiseException("ARROW-COLUMNAR-ERROR",
+            "ArrowRecordBatch() expects a ColumnarResult object, got '%s'",
+            columnar_result.getTypeName());
+        return;
+    }
+
+    QoreObject* result_obj = columnar_result.get<QoreObject>();
+    ReferenceHolder<QoreColumnarResult> result_data(qore_columnar_result_try_from_object(result_obj, xsink), xsink);
+    if (*xsink) {
+        return;
+    }
+    if (!result_data) {
+        xsink->raiseException("ARROW-COLUMNAR-ERROR",
+            "ArrowRecordBatch() expects a ColumnarResult object, got class '%s'",
+            result_obj->getClassName());
+        return;
+    }
+
+    auto batch = QoreArrowHelper::columnarResultToRecordBatch(*result_data, xsink);
+    if (!batch) {
+        return;
+    }
+    self->setPrivate(CID_ARROWRECORDBATCH, new QoreArrowRecordBatchHolder(batch));
+#else
+    xsink->raiseException("ARROW-COLUMNAR-ERROR",
+        "ArrowRecordBatch(ColumnarResult) requires qore with ColumnarResult v2 support");
+#endif
+}
+
 //! Creates an ArrowRecordBatch from columnar data (hash of lists)
 /** @param schema the Arrow schema defining the columns
     @param columns a hash where each key is a column name and the value is a list of column values;
@@ -138,6 +190,9 @@ ArrowRecordBatch::constructor(ArrowSchema[QoreArrowSchemaHolder] schema, hash<au
     int64_t num_rows = -1;
 
     for (int i = 0; i < arrow_schema->num_fields(); ++i) {
+        if (i && !(i % 100) && qore_check_cancel(xsink, "building Arrow columns from hash")) {
+            return;
+        }
         auto field = arrow_schema->field(i);
         QoreValue col_val = columns->getKeyValue(field->name().c_str());
         const QoreListNode* list = col_val.get<QoreListNode>();
@@ -196,16 +251,25 @@ ArrowRecordBatch::constructor(ArrowSchema[QoreArrowSchemaHolder] schema, list<ha
     // Transpose rows to columns
     std::vector<std::shared_ptr<arrow::Array>> arrays;
     for (int i = 0; i < arrow_schema->num_fields(); ++i) {
+        if (i && !(i % 100) && qore_check_cancel(xsink, "building Arrow columns from rows")) {
+            return;
+        }
         auto field = arrow_schema->field(i);
 
         // Build a list of values for this column from all rows
         ReferenceHolder<QoreListNode> col_list(new QoreListNode(autoTypeInfo), xsink);
         for (int64_t r = 0; r < num_rows; ++r) {
+            if (r && !(r % 100) && qore_check_cancel(xsink, "transposing rows to Arrow columns")) {
+                return;
+            }
             const QoreHashNode* row = rows->retrieveEntry(r).get<QoreHashNode>();
             if (row) {
                 col_list->push(row->getKeyValue(field->name().c_str()).refSelf(), xsink);
             } else {
                 col_list->push(QoreValue(), xsink);
+            }
+            if (*xsink) {
+                return;
             }
         }
 
@@ -288,6 +352,9 @@ hash<auto> ArrowRecordBatch::toColumns() {
     ReferenceHolder<QoreHashNode> hash(new QoreHashNode(autoTypeInfo), xsink);
 
     for (int i = 0; i < holder->batch->num_columns(); ++i) {
+        if (i && !(i % 100) && qore_check_cancel(xsink, "converting Arrow RecordBatch to columns")) {
+            return QoreValue();
+        }
         auto array = holder->batch->column(i);
         auto name = holder->batch->schema()->field(i)->name();
         QoreListNode* list = QoreArrowHelper::arrayToList(array, xsink);
@@ -295,6 +362,9 @@ hash<auto> ArrowRecordBatch::toColumns() {
             return QoreValue();
         }
         hash->setKeyValue(name, list, xsink);
+        if (*xsink) {
+            return QoreValue();
+        }
     }
 
     return hash.release();
@@ -329,6 +399,9 @@ list<hash<auto>> ArrowRecordBatch::toRows() {
     ReferenceHolder<QoreListNode> col_list_holder(new QoreListNode(autoTypeInfo), xsink);
     std::vector<QoreListNode*> col_lists;
     for (int c = 0; c < num_cols; ++c) {
+        if (c && !(c % 100) && qore_check_cancel(xsink, "materializing Arrow columns for row conversion")) {
+            return QoreValue();
+        }
         auto array = holder->batch->column(c);
         QoreListNode* list = QoreArrowHelper::arrayToList(array, xsink);
         if (*xsink) {
@@ -336,15 +409,30 @@ list<hash<auto>> ArrowRecordBatch::toRows() {
         }
         col_lists.push_back(list);
         col_list_holder->push(list, xsink);
+        if (*xsink) {
+            return QoreValue();
+        }
     }
 
     for (int64_t r = 0; r < num_rows; ++r) {
+        if (r && !(r % 100) && qore_check_cancel(xsink, "converting Arrow RecordBatch to rows")) {
+            return QoreValue();
+        }
         ReferenceHolder<QoreHashNode> row(new QoreHashNode(autoTypeInfo), xsink);
         for (int c = 0; c < num_cols; ++c) {
+            if (c && !(c % 100) && qore_check_cancel(xsink, "setting Arrow row fields")) {
+                return QoreValue();
+            }
             auto name = holder->batch->schema()->field(c)->name();
             row->setKeyValue(name, col_lists[c]->retrieveEntry(r).refSelf(), xsink);
+            if (*xsink) {
+                return QoreValue();
+            }
         }
         rows->push(row.release(), xsink);
+        if (*xsink) {
+            return QoreValue();
+        }
     }
 
     return rows.release();
@@ -400,6 +488,37 @@ list<auto> ArrowRecordBatch::column(int index) {
     }
     auto array = holder->batch->column(index);
     return QoreArrowHelper::arrayToList(array, xsink);
+}
+
+//! Converts the RecordBatch to a Qore SQL ColumnarResult
+/** @return a \c Qore::SQL::ColumnarResult object
+
+    Fixed-width Arrow columns such as \c int64, \c float64, and \c bool become
+    dense \c buffer<T> columns without copying when the qore runtime supports
+    external buffer storage.  Nested, string, binary, decimal, date, and timestamp
+    columns are returned as lists while their Arrow logical type metadata is
+    preserved in \c schemaV2().
+
+    @throw ARROW-COLUMNAR-ERROR if conversion fails
+
+    @par Example: Converting Arrow Flight data for DataFrame analytics
+    @code{.py}
+ArrowRecordBatch batch = reader.read();
+ColumnarResult columns = batch.toColumnarResult();
+DataFrame::DataFrame df = DataFrame::DataFrame::fromColumnarResult(columns);
+    @endcode
+
+    @since %grpc 1.0
+*/
+auto ArrowRecordBatch::toColumnarResult() [flags=RET_VALUE_ONLY] {
+#ifdef QORE_GRPC_HAVE_COLUMNAR_RESULT_V2
+    return qore_columnar_result_to_object(
+        QoreArrowHelper::recordBatchToColumnarResult(holder->batch, xsink), xsink);
+#else
+    xsink->raiseException("ARROW-COLUMNAR-ERROR",
+        "ArrowRecordBatch::toColumnarResult() requires qore with ColumnarResult v2 support");
+    return QoreValue();
+#endif
 }
 
 //! Serializes the RecordBatch to IPC data_header + data_body pair for Arrow Flight transport

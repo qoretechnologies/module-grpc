@@ -32,6 +32,10 @@
 #include <arrow/api.h>
 #include <arrow/ipc/api.h>
 
+#ifdef QORE_GRPC_HAVE_COLUMNAR_RESULT_V2
+#include <qore/QoreColumnarResult.h>
+#endif
+
 #include <memory>
 #include <string>
 
@@ -106,10 +110,11 @@ public:
 
     //! Convert a Qore hash to Arrow KeyValueMetadata
     /** @param hash the Qore hash
+        @param xsink optional exception sink for cancellation
         @return Arrow KeyValueMetadata, or nullptr if hash is null
     */
     DLLLOCAL static std::shared_ptr<arrow::KeyValueMetadata> hashToMetadata(
-        const QoreHashNode* hash);
+        const QoreHashNode* hash, ExceptionSink* xsink = nullptr);
 
     //! Serialize a RecordBatch to IPC data_header + data_body pair
     /** @param batch the record batch
@@ -130,6 +135,24 @@ public:
         const std::shared_ptr<arrow::Schema>& schema,
         const BinaryNode* data_header, const BinaryNode* data_body,
         ExceptionSink* xsink);
+
+#ifdef QORE_GRPC_HAVE_COLUMNAR_RESULT_V2
+    //! Converts a Qore ColumnarResult to an Arrow RecordBatch
+    /** @param result the Qore columnar result
+        @param xsink exception sink
+        @return a new Arrow RecordBatch, or nullptr on error
+    */
+    DLLLOCAL static std::shared_ptr<arrow::RecordBatch> columnarResultToRecordBatch(
+        const QoreColumnarResult* result, ExceptionSink* xsink);
+
+    //! Converts an Arrow RecordBatch to a Qore ColumnarResult
+    /** @param batch the Arrow record batch
+        @param xsink exception sink
+        @return a new QoreColumnarResult, or nullptr on error
+    */
+    DLLLOCAL static QoreColumnarResult* recordBatchToColumnarResult(
+        const std::shared_ptr<arrow::RecordBatch>& batch, ExceptionSink* xsink);
+#endif
 
     //! Serialize a Schema to IPC bytes (encapsulated stream format)
     /** Used for SchemaResult.schema and FlightInfo.schema fields.

@@ -51,6 +51,7 @@ public class ArrowIpcTest inherits QUnit::Test {
         addTestCase("batch column by name", \testBatchColumnByName());
         addTestCase("batch column by index", \testBatchColumnByIndex());
         addTestCase("batch schema access", \testBatchSchemaAccess());
+        addTestCase("batch ColumnarResult round-trip", \testBatchColumnarResultRoundTrip());
 
         # Type conversion tests
         addTestCase("int types", \testIntTypes());
@@ -267,6 +268,84 @@ public class ArrowIpcTest inherits QUnit::Test {
         ArrowSchema batch_schema = batch.schema();
         assertEq(2, batch_schema.numFields());
         assertEq(("id", "name"), batch_schema.fieldNames());
+    }
+
+    testBatchColumnarResultRoundTrip() {
+        Program p = new Program(PO_NEW_STYLE);
+        p.loadModule("grpc");
+        try {
+            p.parse('
+                hash<auto> sub run() {
+                    ColumnarResult columns = ColumnarResult::fromColumnHash({
+                        "id": new buffer<int64>((1001, 1002, 1003)),
+                        "score": new buffer<*float64>((95.5, NOTHING, 88.25)),
+                        "customer": ("Acme Corp", "Globex Inc", "Initech LLC"),
+                        "total": (123.45n, 678.90n, 12.30n),
+                    }, {
+                        "total": {"native_type": "decimal(18, 2)", "nullable": False},
+                    });
+
+                    ArrowRecordBatch batch(columns);
+                    ColumnarResult restored = batch.toColumnarResult();
+                    list<hash<auto>> schema = restored.schemaV2();
+                    hash<auto> ipc = batch.toIpc();
+                    ArrowRecordBatch ipc_batch(batch.schema(), ipc.data_header, ipc.data_body);
+                    ColumnarResult from_ipc = ipc_batch.toColumnarResult();
+
+                    return {
+                        "rows": batch.numRows(),
+                        "cols": batch.numColumns(),
+                        "id": restored.getColumn("id").toList(),
+                        "score": restored.getColumn("score").toList(),
+                        "customer": restored.getColumn("customer"),
+                        "total0": restored.getColumn("total")[0],
+                        "id_type": restored.getColumn("id").fullType(),
+                        "score_type": restored.getColumn("score").fullType(),
+                        "schema_kind0": schema[0].kind,
+                        "schema_buffer0": schema[0].buffer_type,
+                        "schema_kind3": schema[3].kind,
+                        "schema_precision3": schema[3].precision,
+                        "schema_scale3": schema[3].scale,
+                        "ipc_id": from_ipc.getColumn("id").toList(),
+                        "ipc_score": from_ipc.getColumn("score").toList(),
+                    };
+                }
+            ', "arrow-columnar-result");
+        } catch (hash<ExceptionInfo> ex) {
+            if (ex.err == "UNKNOWN-CLASS" || ex.err == "PARSE-EXCEPTION") {
+                testSkip("ColumnarResult is not available in this qore build");
+                return;
+            }
+            rethrow;
+        }
+
+        hash<auto> result;
+        try {
+            result = p.callFunction("run");
+        } catch (hash<ExceptionInfo> ex) {
+            if (ex.err == "ARROW-COLUMNAR-ERROR"
+                    && ex.desc =~ /requires qore with ColumnarResult v2 support/) {
+                testSkip("ColumnarResult v2 is not available in this qore build");
+                return;
+            }
+            rethrow;
+        }
+
+        assertEq(3, result.rows);
+        assertEq(4, result.cols);
+        assertEq((1001, 1002, 1003), result.id);
+        assertEq((95.5, NOTHING, 88.25), result.score);
+        assertEq(("Acme Corp", "Globex Inc", "Initech LLC"), result.customer);
+        assertTrue(abs(result.total0 - 123.45n) < 0.001n);
+        assertEq("buffer<int64>", result.id_type);
+        assertEq("buffer<*float64>", result.score_type);
+        assertEq("int", result.schema_kind0);
+        assertEq("int64", result.schema_buffer0);
+        assertEq("decimal128", result.schema_kind3);
+        assertEq(18, result.schema_precision3);
+        assertEq(2, result.schema_scale3);
+        assertEq((1001, 1002, 1003), result.ipc_id);
+        assertEq((95.5, NOTHING, 88.25), result.ipc_score);
     }
 
     # --- Type conversion tests ---

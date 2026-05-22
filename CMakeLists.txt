@@ -23,6 +23,69 @@ if (UNIX AND NOT APPLE)
 endif()
 
 find_package(Qore 2.0 REQUIRED)
+include(CheckCXXSourceCompiles)
+
+if(DEFINED QORE_HAVE_COLUMNAR_RESULT_V2)
+    set(QORE_GRPC_HAVE_COLUMNAR_RESULT_V2 ${QORE_HAVE_COLUMNAR_RESULT_V2})
+else()
+    set(_save_CMAKE_REQUIRED_INCLUDES "${CMAKE_REQUIRED_INCLUDES}")
+    set(_save_CMAKE_REQUIRED_LIBRARIES "${CMAKE_REQUIRED_LIBRARIES}")
+    set(CMAKE_REQUIRED_INCLUDES ${QORE_INCLUDE_DIRS})
+    set(CMAKE_REQUIRED_LIBRARIES ${QORE_LIBRARY})
+    check_cxx_source_compiles("
+#include <qore/Qore.h>
+
+#ifndef QORE_HAVE_COLUMNAR_RESULT_V2
+#error missing QORE_HAVE_COLUMNAR_RESULT_V2
+#endif
+
+#include <qore/QoreColumnarResult.h>
+
+int main() {
+    (void)&QoreColumnarResult::getSchemaV2;
+    return 0;
+}
+" QORE_GRPC_HAVE_COLUMNAR_RESULT_V2)
+    set(CMAKE_REQUIRED_INCLUDES "${_save_CMAKE_REQUIRED_INCLUDES}")
+    set(CMAKE_REQUIRED_LIBRARIES "${_save_CMAKE_REQUIRED_LIBRARIES}")
+endif()
+
+if(QORE_GRPC_HAVE_COLUMNAR_RESULT_V2)
+    add_definitions(-DQORE_GRPC_HAVE_COLUMNAR_RESULT_V2=1)
+endif()
+message(STATUS "Qore ColumnarResult v2 API support: ${QORE_GRPC_HAVE_COLUMNAR_RESULT_V2}")
+
+if(DEFINED QORE_HAVE_EXTERNAL_BUFFER_STORAGE)
+    set(QORE_GRPC_HAVE_EXTERNAL_BUFFER_STORAGE ${QORE_HAVE_EXTERNAL_BUFFER_STORAGE})
+elseif(QORE_GRPC_HAVE_COLUMNAR_RESULT_V2)
+    set(_save_CMAKE_REQUIRED_INCLUDES "${CMAKE_REQUIRED_INCLUDES}")
+    set(_save_CMAKE_REQUIRED_LIBRARIES "${CMAKE_REQUIRED_LIBRARIES}")
+    set(CMAKE_REQUIRED_INCLUDES ${QORE_INCLUDE_DIRS})
+    set(CMAKE_REQUIRED_LIBRARIES ${QORE_LIBRARY})
+    check_cxx_source_compiles("
+#include <qore/Qore.h>
+
+#ifndef QORE_HAVE_EXTERNAL_BUFFER_STORAGE
+#error missing QORE_HAVE_EXTERNAL_BUFFER_STORAGE
+#endif
+
+#include <qore/QoreBufferNode.h>
+
+int main() {
+    const QoreBufferNode* b = nullptr;
+    (void)b->getRawValidityData();
+    (void)b->hasExternalStorage();
+    return 0;
+}
+" QORE_GRPC_HAVE_EXTERNAL_BUFFER_STORAGE)
+    set(CMAKE_REQUIRED_INCLUDES "${_save_CMAKE_REQUIRED_INCLUDES}")
+    set(CMAKE_REQUIRED_LIBRARIES "${_save_CMAKE_REQUIRED_LIBRARIES}")
+endif()
+
+if(QORE_GRPC_HAVE_EXTERNAL_BUFFER_STORAGE)
+    add_definitions(-DQORE_GRPC_HAVE_EXTERNAL_BUFFER_STORAGE=1)
+endif()
+message(STATUS "Qore external buffer storage API support: ${QORE_GRPC_HAVE_EXTERNAL_BUFFER_STORAGE}")
 
 # Check for C++17
 include(CheckCXXCompilerFlag)
