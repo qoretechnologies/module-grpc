@@ -221,9 +221,10 @@ public class ArrowFlightStreamEventDataProvider inherits AbstractDataProvider, D
         return info;
     }
 
-    #! Sends a batch of rows on the DoExchange stream
+    #! Sends a row or columnar batch on the DoExchange stream
     /** @param message_id the message ID (must be @ref MESSAGE_FLIGHT_SEND_BATCH)
-        @param msg the message data with a \c rows field containing row hashes
+        @param msg the message data with a \c rows field containing row hashes, a hash-of-lists,
+        a ColumnarResult, a DataFrame, or an ArrowRecordBatch
         @param send_message_options optional send options (unused)
 
         @throw ARROW-FLIGHT-STREAM-ERROR if the stream is not active or method is not exchange
@@ -247,7 +248,7 @@ public class ArrowFlightStreamEventDataProvider inherits AbstractDataProvider, D
             }
             sch = cached_schema;
         }
-        ArrowRecordBatch batch(sch, msg.rows);
+        ArrowRecordBatch batch = ArrowFlightHelper::toRecordBatch(msg.rows, sch);
         AutoLock al(m);
         if (!exchange_stream || stopping) {
             throw "ARROW-FLIGHT-STREAM-ERROR", "exchange stream is not active";
@@ -260,20 +261,13 @@ public class ArrowFlightStreamEventDataProvider inherits AbstractDataProvider, D
         if (method_type != "exchange") {
             return {};
         }
-        *AbstractDataProviderType row_type = getRowType();
         HashDataType msg_type("FlightSendBatchMessage");
-        if (row_type) {
-            msg_type.addField(new QoreDataField("rows",
-                "List of row hashes to send as a batch",
-                new SoftListDataType("rows", row_type)));
-        } else {
-            msg_type.addField(new QoreDataField("rows",
-                "List of row hashes to send as a batch",
-                AbstractDataProviderType::get(SoftListType)));
-        }
+        msg_type.addField(new QoreDataField("rows",
+            "Rows or a columnar batch to send as an Arrow record batch",
+            AbstractDataProviderType::get(AutoType)));
         return {
             MESSAGE_FLIGHT_SEND_BATCH: <DataProviderMessageInfo>{
-                "desc": "Send rows as an Arrow record batch on the DoExchange stream",
+                "desc": "Send rows or a columnar batch as an Arrow record batch on the DoExchange stream",
                 "type": msg_type,
             },
         };

@@ -194,13 +194,17 @@ public class ArrowFlightDataProviderTest inherits QUnit::Test {
 
         # DoGet tests
         addTestCase("doGet via data provider", \testDoGetRequest());
+        addTestCase("doGet columnar request", \testDoGetColumnarRequest());
+        addTestCase("doGet bulk columnar read", \testDoGetBulkColumnarRead());
         addTestCase("doGet with empty dataset", \testDoGetEmpty());
 
         # DoPut tests
         addTestCase("doPut via data provider", \testDoPutRequest());
+        addTestCase("doPut columnar request", \testDoPutColumnarRequest());
 
         # DoExchange tests
         addTestCase("doExchange via data provider", \testDoExchangeRequest());
+        addTestCase("doExchange columnar request", \testDoExchangeColumnarRequest());
 
         # Type introspection tests
         addTestCase("type introspection: get", \testTypeIntrospectionGet());
@@ -317,6 +321,8 @@ public class ArrowFlightDataProviderTest inherits QUnit::Test {
 
         hash<DataProviderInfo> info = get_method.getInfo();
         assertTrue(info.supports_request);
+        assertTrue(info.supports_read);
+        assertTrue(info.supports_bulk_read);
         assertTrue(info.supports_children);
 
         # Get method should have events child
@@ -344,6 +350,46 @@ public class ArrowFlightDataProviderTest inherits QUnit::Test {
 
         assertEq(3, result[2].id);
         assertEq("Gizmo", result[2].product);
+    }
+
+    testDoGetColumnarRequest() {
+        if (!ArrowRecordBatch::supportsColumnarResult()) {
+            testSkip("ColumnarResult v2 is not available in this qore build");
+        }
+
+        ArrowFlightDataProvider provider({"url": url});
+        auto result = provider.getChildProvider("sales")
+            .getChildProvider("get")
+            .doRequest({"output_shape": "columnar"});
+
+        assertEq(1, result.size(), "one record batch returned");
+        assertEq("ColumnarResult", result[0].className(), "batch returned as ColumnarResult");
+        assertEq(3, result[0].numRows(), "columnar batch row count");
+        list<hash<auto>> rows = result[0].toRows();
+        assertEq("Widget", rows[0].product);
+        assertFloatEq(24.99, rows[1].amount, 0.001);
+    }
+
+    testDoGetBulkColumnarRead() {
+        ArrowFlightDataProvider provider({"url": url});
+        AbstractDataProvider get_method = provider.getChildProvider("sales")
+            .getChildProvider("get");
+
+        AbstractDataProviderBulkRecordInterface bulk = get_method.searchRecordsBulk(1000);
+        if (ArrowRecordBatch::supportsColumnarResult()) {
+            assertEq(DataProviderShape::BufferColumns, bulk.getValueShape(),
+                "Flight bulk reads advertise BufferColumns");
+            auto block = bulk.getShapedValue();
+            assertEq("ColumnarResult", block.className(), "Flight bulk read preserves ColumnarResult");
+            assertEq(3, block.numRows(), "Flight bulk block row count");
+            assertEq("Gizmo", block.toRows()[2].product, "Flight bulk block data");
+        } else {
+            assertEq(DataProviderShape::HashOfLists, bulk.getValueShape(),
+                "Flight bulk read falls back to hash-of-lists without ColumnarResult support");
+            hash<auto> block = bulk.getShapedValue();
+            assertEq(3, block.id.size(), "fallback bulk block row count");
+        }
+        assertNothing(bulk.getShapedValue(), "Flight bulk iterator ends after one batch");
     }
 
     testDoGetEmpty() {
@@ -378,6 +424,29 @@ public class ArrowFlightDataProviderTest inherits QUnit::Test {
         assertEq(200, received[1].value);
     }
 
+    testDoPutColumnarRequest() {
+        if (!ArrowRecordBatch::supportsColumnarResult()) {
+            testSkip("ColumnarResult v2 is not available in this qore build");
+        }
+
+        ArrowFlightDataProvider provider({"url": url});
+        list<hash<auto>> rows = (
+            {"key": "gamma", "value": 300},
+            {"key": "delta", "value": 400},
+        );
+        auto columns = (new ArrowRecordBatch(writable_handler.getSchema(), rows)).toColumnarResult();
+
+        provider.getChildProvider("writable")
+            .getChildProvider("put")
+            .doRequest({"rows": columns});
+
+        list<hash<auto>> received = writable_handler.received_batches[
+            writable_handler.received_batches.size() - 1];
+        assertEq(2, received.size());
+        assertEq("gamma", received[0].key);
+        assertEq(400, received[1].value);
+    }
+
     testDoExchangeRequest() {
         ArrowFlightDataProvider provider({"url": url});
         list<hash<auto>> input_rows = (
@@ -395,6 +464,31 @@ public class ArrowFlightDataProviderTest inherits QUnit::Test {
         assertEq(10, result[0].output);
         assertEq(20, result[1].output);
         assertEq(30, result[2].output);
+    }
+
+    testDoExchangeColumnarRequest() {
+        if (!ArrowRecordBatch::supportsColumnarResult()) {
+            testSkip("ColumnarResult v2 is not available in this qore build");
+        }
+
+        ArrowFlightDataProvider provider({"url": url});
+        list<hash<auto>> input_rows = (
+            {"input": 11},
+            {"input": 12},
+        );
+        auto input_columns = (new ArrowRecordBatch(new ArrowSchema((
+            {"name": "input", "type": "int64"},
+        )), input_rows)).toColumnarResult();
+
+        auto result = provider.getChildProvider("transform")
+            .getChildProvider("exchange")
+            .doRequest({"rows": input_columns, "output_shape": "columnar"});
+
+        assertEq(1, result.size(), "one exchange response batch");
+        assertEq("ColumnarResult", result[0].className(), "exchange response is ColumnarResult");
+        list<hash<auto>> rows = result[0].toRows();
+        assertEq(22, rows[0].output);
+        assertEq(24, rows[1].output);
     }
 
     testTypeIntrospectionGet() {

@@ -162,6 +162,20 @@ ArrowRecordBatch::constructor(auto columnar_result) {
 #endif
 }
 
+//! Returns True when this module was built with ColumnarResult v2 bridge support
+/** @return True if \c ArrowRecordBatch(ColumnarResult) and
+    \c ArrowRecordBatch::toColumnarResult() are available in this build
+
+    @since %grpc 1.0
+*/
+static bool ArrowRecordBatch::supportsColumnarResult() {
+#ifdef QORE_GRPC_HAVE_COLUMNAR_RESULT_V2
+    return true;
+#else
+    return false;
+#endif
+}
+
 //! Creates an ArrowRecordBatch from columnar data (hash of lists)
 /** @param schema the Arrow schema defining the columns
     @param columns a hash where each key is a column name and the value is a list of column values;
