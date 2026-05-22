@@ -79,6 +79,23 @@ public class ArrowFlightHelper {
         return ArrowIpc::readRecordBatch(schema, flight_data.data_header, data_body);
     }
 
+    #! Convert a FlightData message to a ColumnarResult
+    /** Deserializes a record batch and converts it to a \c ColumnarResult.
+
+        @param schema the Arrow schema for the record batch
+        @param flight_data the FlightData message hash with \c data_header and
+        \c data_body fields
+
+        @return a \c Qore::SQL::ColumnarResult object
+
+        @throw ARROW-COLUMNAR-ERROR if the grpc module was built without qore
+        \c ColumnarResult v2 support
+        @throw ARROW-FLIGHT-ERROR if the FlightData message is invalid
+    */
+    static auto flightDataToColumnarResult(ArrowSchema schema, hash<auto> flight_data) {
+        return ArrowFlightHelper::flightDataToBatch(schema, flight_data).toColumnarResult();
+    }
+
     #! Convert an ArrowSchema to a FlightData message
     /** Serializes an ArrowSchema as a FlightData message suitable for sending
         as the first message in a DoGet, DoPut, or DoExchange stream.
@@ -99,16 +116,72 @@ public class ArrowFlightHelper {
         return flight_data;
     }
 
-    #! Convert an ArrowRecordBatch to a FlightData message
-    /** Serializes an ArrowRecordBatch as a FlightData message for streaming.
+    #! Converts supported columnar data to an ArrowRecordBatch
+    /** Accepts an existing \c ArrowRecordBatch, a \c ColumnarResult, a DataFrame-like
+        object exposing \c toColumnarResult(), a hash of columns, or a list of row
+        hashes. Hash and list inputs require \a schema.
 
-        @param batch the record batch to serialize
+        @param data the input data
+        @param schema optional Arrow schema used for hash/list inputs
+
+        @return an ArrowRecordBatch
+
+        @throw ARROW-FLIGHT-ERROR if the value cannot be converted
+    */
+    static ArrowRecordBatch toRecordBatch(auto data, *ArrowSchema schema) {
+        if (data.typeCode() == NT_OBJECT) {
+            string cls = data.className();
+            if (cls == "ArrowRecordBatch") {
+                return data;
+            }
+            if (cls == "ColumnarResult") {
+                return new ArrowRecordBatch(data);
+            }
+
+            try {
+                return new ArrowRecordBatch(data.toColumnarResult());
+            } catch (hash<ExceptionInfo> ex) {
+                if (ex.err != "INVALID-METHOD" && ex.err != "METHOD-DOES-NOT-EXIST"
+                        && ex.err != "NO-METHOD") {
+                    rethrow;
+                }
+            }
+        }
+
+        if (data.typeCode() == NT_HASH) {
+            if (!schema) {
+                throw "ARROW-FLIGHT-ERROR",
+                    "hash column input requires an ArrowSchema";
+            }
+            hash<auto> columns = data;
+            return new ArrowRecordBatch(schema, columns);
+        }
+
+        if (data.typeCode() == NT_LIST) {
+            if (!schema) {
+                throw "ARROW-FLIGHT-ERROR",
+                    "row-list input requires an ArrowSchema";
+            }
+            list<hash<auto>> rows = data;
+            return new ArrowRecordBatch(schema, rows);
+        }
+
+        throw "ARROW-FLIGHT-ERROR", sprintf(
+            "cannot convert value of type '%s' to ArrowRecordBatch", data.fullType());
+    }
+
+    #! Convert columnar data to a FlightData message
+    /** Serializes an ArrowRecordBatch-compatible value as a FlightData message for streaming.
+
+        @param batch the record batch, ColumnarResult, DataFrame, hash-of-lists, or row-list to serialize
         @param app_metadata optional application-specific metadata
+        @param schema optional schema for hash/list input
 
         @return a FlightData message hash
     */
-    static hash<auto> batchToFlightData(ArrowRecordBatch batch, *binary app_metadata) {
-        hash<auto> ipc = ArrowIpc::writeRecordBatch(batch);
+    static hash<auto> batchToFlightData(auto batch, *binary app_metadata, *ArrowSchema schema) {
+        ArrowRecordBatch record_batch = ArrowFlightHelper::toRecordBatch(batch, schema);
+        hash<auto> ipc = ArrowIpc::writeRecordBatch(record_batch);
         hash<auto> flight_data({
             "data_header": ipc.data_header,
             "data_body": ipc.data_body,

@@ -53,6 +53,9 @@ public class ArrowFlightExchangeStream {
         #! The read schema (auto-detected from first incoming FlightData)
         *ArrowSchema m_read_schema;
 
+        #! The write schema for outgoing hash/list data
+        *ArrowSchema m_write_schema;
+
         #! Whether the read schema has been detected
         bool m_read_schema_detected = False;
 
@@ -72,6 +75,7 @@ public class ArrowFlightExchangeStream {
     constructor(GrpcClientStream stream, *ArrowSchema write_schema,
             *hash<auto> descriptor) {
         m_stream = stream;
+        m_write_schema = write_schema;
 
         # Send initial FlightData with schema if provided
         if (write_schema) {
@@ -146,6 +150,19 @@ public class ArrowFlightExchangeStream {
         }
     }
 
+    #! Read the next record batch as a ColumnarResult
+    /** @param timeout optional read timeout
+
+        @return the next \c ColumnarResult, or \c NOTHING when the stream has ended
+
+        @throw ARROW-COLUMNAR-ERROR if the grpc module was built without qore
+        \c ColumnarResult v2 support
+    */
+    auto readColumnarResult(*timeout timeout) {
+        *ArrowRecordBatch batch = read(timeout);
+        return batch ? batch.toColumnarResult() : NOTHING;
+    }
+
     #! Returns True if the read side of the stream has ended
     /** @return True if no more record batches will arrive
     */
@@ -153,12 +170,13 @@ public class ArrowFlightExchangeStream {
         return m_done || m_stream.readsDone();
     }
 
-    #! Write an ArrowRecordBatch to the stream
-    /** @param batch the record batch to write
+    #! Write columnar data to the stream
+    /** @param batch an ArrowRecordBatch, ColumnarResult, DataFrame, hash-of-lists, or row-list to write
         @param app_metadata optional application-specific metadata
     */
-    write(ArrowRecordBatch batch, *binary app_metadata) {
-        hash<auto> flight_data = ArrowFlightHelper::batchToFlightData(batch, app_metadata);
+    write(auto batch, *binary app_metadata) {
+        hash<auto> flight_data = ArrowFlightHelper::batchToFlightData(batch, app_metadata,
+            m_write_schema);
         m_stream.write(flight_data);
     }
 

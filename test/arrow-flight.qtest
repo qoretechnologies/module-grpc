@@ -269,6 +269,7 @@ public class ArrowFlightTest inherits QUnit::Test {
         addTestCase("GetFlightInfo", \testGetFlightInfo());
         addTestCase("GetSchema", \testGetSchema());
         addTestCase("DoGet", \testDoGet());
+        addTestCase("DoGet ColumnarResult", \testDoGetColumnarResult());
         addTestCase("DoPut", \testDoPut());
         addTestCase("DoExchange", \testDoExchange());
         addTestCase("DoAction", \testDoAction());
@@ -463,6 +464,33 @@ public class ArrowFlightTest inherits QUnit::Test {
         reader.finish();
     }
 
+    testDoGetColumnarResult() {
+        ArrowFlightClient flight(channel);
+        hash<auto> ticket = {"ticket": binary("sales")};
+        ArrowFlightStreamReader reader = flight.doGet(ticket);
+
+        reader.schema();
+        try {
+            auto columns = reader.readColumnarResult(10s);
+            assertTrue(exists columns, "columnar result received");
+            assertEq((1, 2, 3), columns.getColumn("id").toList(), "id column");
+            assertEq(("Widget", "Gadget", "Gizmo"), columns.getColumn("product"),
+                "product column");
+            assertEq((9.99, 24.99, 14.50), columns.getColumn("amount").toList(),
+                "amount column");
+        } catch (hash<ExceptionInfo> ex) {
+            if (ex.err == "ARROW-COLUMNAR-ERROR"
+                    && ex.desc =~ /requires qore with ColumnarResult v2 support/) {
+                testSkip("ColumnarResult v2 is not available in this qore build");
+                return;
+            }
+            rethrow;
+        }
+
+        assertNothing(reader.readColumnarResult(10s), "no more columnar batches");
+        reader.finish();
+    }
+
     testDoPut() {
         ArrowFlightClient flight(channel);
         ArrowSchema schema = new ArrowSchema((
@@ -482,7 +510,7 @@ public class ArrowFlightTest inherits QUnit::Test {
         ArrowRecordBatch batch2(schema, (
             {"key": "c", "value": 3},
         ));
-        writer.write(batch2);
+        writer.write(batch2.toRows());
 
         hash<GrpcCallResult> result = writer.finish();
         assertEq(GRPC_STATUS_OK, result.status_code, "put succeeded");
@@ -513,7 +541,7 @@ public class ArrowFlightTest inherits QUnit::Test {
             {"input": 10},
             {"input": 15},
         ));
-        exchange.write(input_batch);
+        exchange.write(input_batch.toRows());
         exchange.writesDone();
 
         # Read output schema
