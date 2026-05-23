@@ -87,6 +87,39 @@ if(QORE_GRPC_HAVE_EXTERNAL_BUFFER_STORAGE)
 endif()
 message(STATUS "Qore external buffer storage API support: ${QORE_GRPC_HAVE_EXTERNAL_BUFFER_STORAGE}")
 
+if(DEFINED QORE_HAVE_ARROW_C_DATA_INTEROP)
+    set(QORE_GRPC_HAVE_ARROW_C_DATA_INTEROP ${QORE_HAVE_ARROW_C_DATA_INTEROP})
+elseif(QORE_GRPC_HAVE_COLUMNAR_RESULT_V2)
+    set(_save_CMAKE_REQUIRED_INCLUDES "${CMAKE_REQUIRED_INCLUDES}")
+    set(_save_CMAKE_REQUIRED_LIBRARIES "${CMAKE_REQUIRED_LIBRARIES}")
+    set(CMAKE_REQUIRED_INCLUDES ${QORE_INCLUDE_DIRS})
+    set(CMAKE_REQUIRED_LIBRARIES ${QORE_LIBRARY})
+    check_cxx_source_compiles("
+#include <qore/Qore.h>
+
+#ifndef QORE_HAVE_ARROW_C_DATA_INTEROP
+#error missing QORE_HAVE_ARROW_C_DATA_INTEROP
+#endif
+
+#include <qore/QoreColumnarResult.h>
+
+int main() {
+    (void)&qore_columnar_result_export_arrow_c_data;
+    (void)&qore_columnar_result_import_arrow_c_data;
+    (void)&qore_arrow_schema_release;
+    (void)&qore_arrow_array_release;
+    return 0;
+}
+" QORE_GRPC_HAVE_ARROW_C_DATA_INTEROP)
+    set(CMAKE_REQUIRED_INCLUDES "${_save_CMAKE_REQUIRED_INCLUDES}")
+    set(CMAKE_REQUIRED_LIBRARIES "${_save_CMAKE_REQUIRED_LIBRARIES}")
+endif()
+
+if(QORE_GRPC_HAVE_ARROW_C_DATA_INTEROP)
+    add_definitions(-DQORE_GRPC_HAVE_ARROW_C_DATA_INTEROP=1)
+endif()
+message(STATUS "Qore Arrow C Data interop API support: ${QORE_GRPC_HAVE_ARROW_C_DATA_INTEROP}")
+
 # Check for C++17
 include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-std=c++17" COMPILER_SUPPORTS_CXX17)

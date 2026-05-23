@@ -112,9 +112,11 @@ ArrowRecordBatch::constructor(ArrowSchema[QoreArrowSchemaHolder] schema, binary 
 
 //! Creates an ArrowRecordBatch from a Qore SQL ColumnarResult
 /** Primitive \c buffer<T> columns are exported to Arrow without copying when
-    their physical storage is contiguous and byte-aligned.  Other columns are
-    converted through Arrow builders while preserving \c ColumnarResult::schemaV2()
-    metadata where possible.
+    their physical storage is contiguous and byte-aligned.  When the module is
+    built against a qore runtime with Arrow C Data interop, supported primitive,
+    string, decimal128, list, and struct columns use libqore's Arrow C Data
+    bridge.  Other columns are converted through Arrow builders while preserving
+    \c ColumnarResult::schemaV2() metadata where possible.
 
     @param columnar_result a \c Qore::SQL::ColumnarResult object
 
@@ -507,11 +509,12 @@ list<auto> ArrowRecordBatch::column(int index) {
 //! Converts the RecordBatch to a Qore SQL ColumnarResult
 /** @return a \c Qore::SQL::ColumnarResult object
 
-    Fixed-width Arrow columns such as \c int64, \c float64, and \c bool become
-    dense \c buffer<T> columns without copying when the qore runtime supports
-    external buffer storage.  Nested, string, binary, decimal, date, and timestamp
-    columns are returned as lists while their Arrow logical type metadata is
-    preserved in \c schemaV2().
+    Fixed-width Arrow columns such as \c int64, \c float64, \c decimal128, and
+    \c bool become dense \c buffer<T> columns without copying when the qore
+    runtime supports external buffer storage.  When qore Arrow C Data interop is
+    available, supported string, list, and struct columns use libqore's Arrow C
+    Data bridge; unsupported Arrow types still use the compatibility conversion
+    and preserve logical type metadata in \c schemaV2().
 
     @throw ARROW-COLUMNAR-ERROR if conversion fails
 

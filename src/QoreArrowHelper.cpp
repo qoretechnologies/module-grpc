@@ -30,6 +30,9 @@
 #include <arrow/builder.h>
 #include <arrow/type.h>
 #include <arrow/io/memory.h>
+#ifdef QORE_GRPC_HAVE_ARROW_C_DATA_INTEROP
+#include <arrow/c/bridge.h>
+#endif
 #include <arrow/ipc/dictionary.h>
 #include <arrow/ipc/reader.h>
 #include <arrow/ipc/writer.h>
@@ -72,6 +75,136 @@ static arrow::TimeUnit::type arrowTimeUnitFromName(const std::string& unit) {
 }
 
 #ifdef QORE_GRPC_HAVE_COLUMNAR_RESULT_V2
+#ifdef QORE_GRPC_HAVE_ARROW_C_DATA_INTEROP
+static bool arrowTypeSupportsQoreCDataImport(const std::shared_ptr<arrow::DataType>& type, ExceptionSink* xsink) {
+    switch (type->id()) {
+        case arrow::Type::BOOL:
+        case arrow::Type::INT8:
+        case arrow::Type::INT16:
+        case arrow::Type::INT32:
+        case arrow::Type::INT64:
+        case arrow::Type::FLOAT:
+        case arrow::Type::DOUBLE:
+        case arrow::Type::STRING:
+        case arrow::Type::LARGE_STRING:
+        case arrow::Type::DECIMAL128:
+            return true;
+
+        case arrow::Type::LIST:
+            return arrowTypeSupportsQoreCDataImport(
+                std::static_pointer_cast<arrow::ListType>(type)->value_type(), xsink);
+
+        case arrow::Type::LARGE_LIST:
+            return arrowTypeSupportsQoreCDataImport(
+                std::static_pointer_cast<arrow::LargeListType>(type)->value_type(), xsink);
+
+        case arrow::Type::STRUCT: {
+            auto struct_type = std::static_pointer_cast<arrow::StructType>(type);
+            for (int i = 0; i < struct_type->num_fields(); ++i) {
+                if (i && !(i % 100) && qore_check_cancel(xsink, "checking Arrow C Data import support")) {
+                    return false;
+                }
+                if (!arrowTypeSupportsQoreCDataImport(struct_type->field(i)->type(), xsink)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        default:
+            return false;
+    }
+}
+
+static bool recordBatchSupportsQoreCDataImport(const std::shared_ptr<arrow::RecordBatch>& batch,
+        ExceptionSink* xsink) {
+    for (int i = 0; i < batch->num_columns(); ++i) {
+        if (i && !(i % 100) && qore_check_cancel(xsink, "checking Arrow C Data RecordBatch support")) {
+            return false;
+        }
+        if (!arrowTypeSupportsQoreCDataImport(batch->schema()->field(i)->type(), xsink)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool bufferTypeSupportsQoreCDataExport(QoreBufferElementType type) {
+    switch (type) {
+        case QoreBufferElementType::Int8:
+        case QoreBufferElementType::Int16:
+        case QoreBufferElementType::Int32:
+        case QoreBufferElementType::Int64:
+        case QoreBufferElementType::Float32:
+        case QoreBufferElementType::Float64:
+        case QoreBufferElementType::Bool:
+        case QoreBufferElementType::String:
+        case QoreBufferElementType::Decimal128:
+            return true;
+        default:
+            return false;
+    }
+}
+
+static bool columnarDescriptorSupportsQoreCDataExport(const QoreColumnarTypeDescriptor& desc,
+        ExceptionSink* xsink, QoreBufferElementType data_buffer_type = QoreBufferElementType::Invalid) {
+    QoreBufferElementType buffer_type = desc.buffer_type != QoreBufferElementType::Invalid
+        ? desc.buffer_type
+        : data_buffer_type;
+    if (buffer_type != QoreBufferElementType::Invalid) {
+        return bufferTypeSupportsQoreCDataExport(buffer_type);
+    }
+
+    switch (desc.kind) {
+        case QoreColumnarTypeKind::Bool:
+        case QoreColumnarTypeKind::Int:
+        case QoreColumnarTypeKind::Float:
+        case QoreColumnarTypeKind::String:
+        case QoreColumnarTypeKind::Decimal128:
+            return true;
+
+        case QoreColumnarTypeKind::Auto:
+            return false;
+
+        case QoreColumnarTypeKind::List:
+        case QoreColumnarTypeKind::LargeList:
+            return desc.children.size() == 1 && columnarDescriptorSupportsQoreCDataExport(desc.children[0], xsink);
+
+        case QoreColumnarTypeKind::Struct:
+            for (size_t i = 0; i < desc.children.size(); ++i) {
+                if (i && !(i % 100) && qore_check_cancel(xsink, "checking Arrow C Data ColumnarResult support")) {
+                    return false;
+                }
+                if (!columnarDescriptorSupportsQoreCDataExport(desc.children[i], xsink)) {
+                    return false;
+                }
+            }
+            return true;
+
+        default:
+            return false;
+    }
+}
+
+static bool columnarResultSupportsQoreCDataExport(const QoreColumnarResult* result, ExceptionSink* xsink) {
+    for (size_t i = 0; i < result->numColumns(); ++i) {
+        if (i && !(i % 100) && qore_check_cancel(xsink, "checking Arrow C Data ColumnarResult support")) {
+            return false;
+        }
+        const QoreColumnarResult::Column* column = result->getColumn(i);
+        assert(column);
+        QoreBufferElementType buffer_type = QoreBufferElementType::Invalid;
+        if (column->data.getType() == NT_BUFFER) {
+            buffer_type = column->data.get<const QoreBufferNode>()->getElementType();
+        }
+        if (!columnarDescriptorSupportsQoreCDataExport(column->schema, xsink, buffer_type)) {
+            return false;
+        }
+    }
+    return true;
+}
+#endif
+
 static QoreBufferElementType arrowTypeToBufferElementType(const std::shared_ptr<arrow::DataType>& type) {
     switch (type->id()) {
         case arrow::Type::INT8:
@@ -1418,6 +1551,33 @@ std::shared_ptr<arrow::RecordBatch> QoreArrowHelper::columnarResultToRecordBatch
         return nullptr;
     }
 
+#ifdef QORE_GRPC_HAVE_ARROW_C_DATA_INTEROP
+    bool cdata_supported = columnarResultSupportsQoreCDataExport(result, xsink);
+    if (*xsink) {
+        return nullptr;
+    }
+    if (cdata_supported) {
+        ArrowSchema schema = {};
+        ArrowArray array = {};
+        if (qore_columnar_result_export_arrow_c_data(result, &schema, &array, xsink)) {
+            qore_arrow_schema_release(&schema);
+            qore_arrow_array_release(&array);
+            return nullptr;
+        }
+
+        auto imported = arrow::ImportRecordBatch(&array, &schema);
+        if (!imported.ok()) {
+            qore_arrow_schema_release(&schema);
+            qore_arrow_array_release(&array);
+            xsink->raiseException("ARROW-COLUMNAR-ERROR",
+                "failed to import ColumnarResult Arrow C Data into an Arrow RecordBatch: %s",
+                imported.status().ToString().c_str());
+            return nullptr;
+        }
+        return std::move(imported).ValueUnsafe();
+    }
+#endif
+
     arrow::FieldVector fields;
     std::vector<std::shared_ptr<arrow::Array>> arrays;
     fields.reserve(result->numColumns());
@@ -1492,6 +1652,34 @@ QoreColumnarResult* QoreArrowHelper::recordBatchToColumnarResult(
         xsink->raiseException("ARROW-COLUMNAR-ERROR", "missing Arrow RecordBatch value");
         return nullptr;
     }
+
+#ifdef QORE_GRPC_HAVE_ARROW_C_DATA_INTEROP
+    bool cdata_supported = recordBatchSupportsQoreCDataImport(batch, xsink);
+    if (*xsink) {
+        return nullptr;
+    }
+    if (cdata_supported) {
+        ArrowSchema schema = {};
+        ArrowArray array = {};
+        arrow::Status status = arrow::ExportRecordBatch(*batch, &array, &schema);
+        if (!status.ok()) {
+            qore_arrow_schema_release(&schema);
+            qore_arrow_array_release(&array);
+            xsink->raiseException("ARROW-COLUMNAR-ERROR",
+                "failed to export Arrow RecordBatch through the Arrow C Data Interface: %s",
+                status.ToString().c_str());
+            return nullptr;
+        }
+
+        QoreColumnarResult* result = qore_columnar_result_import_arrow_c_data(&schema, &array, xsink);
+        if (*xsink) {
+            qore_arrow_schema_release(&schema);
+            qore_arrow_array_release(&array);
+            return nullptr;
+        }
+        return result;
+    }
+#endif
 
     ReferenceHolder<QoreColumnarResult> result(new QoreColumnarResult, xsink);
     for (int i = 0; i < batch->num_columns(); ++i) {

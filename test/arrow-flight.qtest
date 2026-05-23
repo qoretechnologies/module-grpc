@@ -474,7 +474,9 @@ public class ArrowFlightTest inherits QUnit::Test {
             auto columns = reader.readColumnarResult(10s);
             assertTrue(exists columns, "columnar result received");
             assertEq((1, 2, 3), columns.getColumn("id").toList(), "id column");
-            assertEq(("Widget", "Gadget", "Gizmo"), columns.getColumn("product"),
+            assertEq("buffer<*string>", columns.getColumn("product").fullType(),
+                "product column uses dense string storage");
+            assertEq(("Widget", "Gadget", "Gizmo"), columns.getColumn("product").toList(),
                 "product column");
             assertEq((9.99, 24.99, 14.50), columns.getColumn("amount").toList(),
                 "amount column");
