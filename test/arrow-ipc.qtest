@@ -297,7 +297,7 @@ public class ArrowIpcTest inherits QUnit::Test {
                         "cols": batch.numColumns(),
                         "id": restored.getColumn("id").toList(),
                         "score": restored.getColumn("score").toList(),
-                        "customer": restored.getColumn("customer"),
+                        "customer": restored.getColumn("customer").toList(),
                         "total0": restored.getColumn("total")[0],
                         "id_type": restored.getColumn("id").fullType(),
                         "score_type": restored.getColumn("score").fullType(),
