@@ -330,4 +330,6 @@ printf("Fields: %y\n", keys msg_schema.fields);
         user-implemented Flight datasets
       - @ref Grpc::ArrowFlightHelper "ArrowFlightHelper": FlightData to/from Arrow object
         conversion
+      - incoming Flight IPC \c data_header and \c data_body buffers are wrapped without copying
+        when decoding record batches
 */

@@ -872,6 +872,8 @@ events.observersReady();
       - @ref Grpc::ArrowFlightDatasetHandler "ArrowFlightDatasetHandler" abstract base for
         user-implemented Flight datasets
       - @ref Grpc::ArrowFlightHelper "ArrowFlightHelper" for FlightData ↔ Arrow object conversion
+      - incoming Flight IPC \c data_header and \c data_body buffers are wrapped without copying
+        when decoding record batches
       - @ref Grpc::FlightProto "FlightProto" embedded Flight protocol schema
     - <b>ArrowFlightDataProvider module</b> (optional, requires Apache Arrow):
       - @ref ArrowFlightDataProvider::ArrowFlightDataProvider "ArrowFlightDataProvider" root

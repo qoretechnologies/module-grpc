@@ -41,11 +41,33 @@
 
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
 
 namespace {
+
+static std::shared_ptr<arrow::Buffer> wrapBinaryAsArrowBuffer(const BinaryNode* data,
+        const char* label, ExceptionSink* xsink) {
+    assert(data);
+    if (data->size() > static_cast<size_t>(std::numeric_limits<int64_t>::max())) {
+        xsink->raiseException("ARROW-IPC-ERROR",
+            "%s is too large: " QLLD " bytes exceeds the maximum supported size",
+            label, static_cast<int64>(data->size()));
+        return nullptr;
+    }
+
+    data->ref();
+    std::shared_ptr<const BinaryNode> owner(data,
+        [](const BinaryNode* owner) { const_cast<BinaryNode*>(owner)->deref(nullptr); });
+    return std::shared_ptr<arrow::Buffer>(
+        new arrow::Buffer(static_cast<const uint8_t*>(data->getPtr()), static_cast<int64_t>(data->size())),
+        [owner = std::move(owner)](arrow::Buffer* buffer) {
+            (void)owner;
+            delete buffer;
+        });
+}
 
 static std::string arrowTimeUnitName(arrow::TimeUnit::type unit) {
     switch (unit) {
@@ -2423,29 +2445,17 @@ std::shared_ptr<arrow::RecordBatch> QoreArrowHelper::ipcToRecordBatch(
         return nullptr;
     }
 
-    // Copy data_header into an Arrow-owned mutable buffer (BinaryNode may be freed
-    // after the constructor returns, but the RecordBatch retains references)
-    auto header_alloc = arrow::AllocateResizableBuffer(data_header->size());
-    if (!header_alloc.ok()) {
-        xsink->raiseException("ARROW-IPC-ERROR",
-            "failed to allocate header buffer: %s", header_alloc.status().ToString().c_str());
+    std::shared_ptr<arrow::Buffer> header_buf = wrapBinaryAsArrowBuffer(data_header, "data_header", xsink);
+    if (*xsink) {
         return nullptr;
     }
-    std::shared_ptr<arrow::ResizableBuffer> header_buf = std::move(header_alloc).ValueUnsafe();
-    memcpy(header_buf->mutable_data(), data_header->getPtr(), data_header->size());
 
-    // Copy data_body into an Arrow-owned mutable buffer
     std::shared_ptr<arrow::Buffer> body_buf;
     if (data_body && data_body->size() > 0) {
-        auto body_alloc = arrow::AllocateResizableBuffer(data_body->size());
-        if (!body_alloc.ok()) {
-            xsink->raiseException("ARROW-IPC-ERROR",
-                "failed to allocate body buffer: %s", body_alloc.status().ToString().c_str());
+        body_buf = wrapBinaryAsArrowBuffer(data_body, "data_body", xsink);
+        if (*xsink) {
             return nullptr;
         }
-        std::shared_ptr<arrow::ResizableBuffer> body_owned = std::move(body_alloc).ValueUnsafe();
-        memcpy(body_owned->mutable_data(), data_body->getPtr(), data_body->size());
-        body_buf = body_owned;
     } else {
         body_buf = std::make_shared<arrow::Buffer>(nullptr, 0);
     }
