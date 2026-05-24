@@ -101,7 +101,8 @@ list<hash<auto>> rows = batch.toRows();
 
     @since %grpc 1.0
 */
-ArrowRecordBatch::constructor(ArrowSchema[QoreArrowSchemaHolder] schema, binary data_header, binary data_body) {
+ArrowRecordBatch::constructor(ArrowSchema[QoreArrowSchemaHolder] schema, binary data_header, binary data_body)
+        [flags=NAMED_ARGS] {
     auto batch = QoreArrowHelper::ipcToRecordBatch(
         schema->schema, data_header, data_body, xsink);
     if (!batch) {
@@ -133,7 +134,7 @@ hash<ArrowIpcData> ipc = batch.toIpc();
 
     @since %grpc 1.0
 */
-ArrowRecordBatch::constructor(auto columnar_result) {
+ArrowRecordBatch::constructor(auto columnar_result) [flags=NAMED_ARGS] {
 #ifdef QORE_GRPC_HAVE_COLUMNAR_RESULT_V2
     if (columnar_result.getType() != NT_OBJECT) {
         xsink->raiseException("ARROW-COLUMNAR-ERROR",
@@ -215,7 +216,7 @@ ArrowRecordBatch batch(schema, {
 
     @since %grpc 1.0
 */
-ArrowRecordBatch::constructor(ArrowSchema[QoreArrowSchemaHolder] schema, hash<auto> columns) {
+ArrowRecordBatch::constructor(ArrowSchema[QoreArrowSchemaHolder] schema, hash<auto> columns) [flags=NAMED_ARGS] {
     auto arrow_schema = schema->schema;
 
     // Build arrays from columns
@@ -277,7 +278,7 @@ ArrowRecordBatch batch(schema, (
 
     @since %grpc 1.0
 */
-ArrowRecordBatch::constructor(ArrowSchema[QoreArrowSchemaHolder] schema, list<hash<auto>> rows) {
+ArrowRecordBatch::constructor(ArrowSchema[QoreArrowSchemaHolder] schema, list<hash<auto>> rows) [flags=NAMED_ARGS] {
     auto arrow_schema = schema->schema;
     int64_t num_rows = rows->size();
 
@@ -488,7 +489,7 @@ avg_price /= prices.size();
 
     @since %grpc 1.0
 */
-list<auto> ArrowRecordBatch::column(string name) {
+list<auto> ArrowRecordBatch::column(string name) [flags=NAMED_ARGS] {
     auto array = holder->batch->GetColumnByName(std::string(name->c_str()));
     if (!array) {
         xsink->raiseException("ARROW-COLUMN-ERROR",
@@ -512,7 +513,7 @@ list<auto> first_col = batch.column(0);
 
     @since %grpc 1.0
 */
-list<auto> ArrowRecordBatch::column(int index) {
+list<auto> ArrowRecordBatch::column(int index) [flags=NAMED_ARGS] {
     if (index < 0 || index >= holder->batch->num_columns()) {
         xsink->raiseException("ARROW-COLUMN-ERROR",
             "column index %d out of range (0..%d)", (int)index,

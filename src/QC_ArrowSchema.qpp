@@ -151,7 +151,7 @@ ArrowSchema schema(ipc_bytes);
 
     @since %grpc 1.0
 */
-ArrowSchema::constructor(binary ipc_schema) {
+ArrowSchema::constructor(binary ipc_schema) [flags=NAMED_ARGS] {
     auto schema = QoreArrowHelper::deserializeSchema(ipc_schema, xsink);
     if (!schema) {
         return;
@@ -177,7 +177,7 @@ ArrowSchema schema((
 
     @since %grpc 1.0
 */
-ArrowSchema::constructor(list<auto> fields, *hash<auto> metadata) {
+ArrowSchema::constructor(list<auto> fields, *hash<auto> metadata) [flags=NAMED_ARGS] {
     auto schema = QoreArrowHelper::hashToSchema(fields, metadata, xsink);
     if (!schema) {
         return;
