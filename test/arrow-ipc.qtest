@@ -52,6 +52,8 @@ public class ArrowIpcTest inherits QUnit::Test {
         addTestCase("batch column by index", \testBatchColumnByIndex());
         addTestCase("batch schema access", \testBatchSchemaAccess());
         addTestCase("batch ColumnarResult round-trip", \testBatchColumnarResultRoundTrip());
+        addTestCase("batch ColumnarResult temporal buffer round-trip",
+            \testBatchColumnarResultTemporalBufferRoundTrip());
 
         # Type conversion tests
         addTestCase("int types", \testIntTypes());
@@ -346,6 +348,80 @@ public class ArrowIpcTest inherits QUnit::Test {
         assertEq(2, result.schema_scale3);
         assertEq((1001, 1002, 1003), result.ipc_id);
         assertEq((95.5, NOTHING, 88.25), result.ipc_score);
+    }
+
+    testBatchColumnarResultTemporalBufferRoundTrip() {
+        if (!ArrowRecordBatch::supportsColumnarTemporalBuffers()) {
+            testSkip("ColumnarResult temporal buffers are not available in this qore build");
+            return;
+        }
+
+        Program p = new Program(PO_NEW_STYLE);
+        p.loadModule("grpc");
+        try {
+            p.parse('
+                hash<auto> sub run() {
+                    date ts0 = 2025-01-21T13:04:27.123456Z;
+                    date ts2 = 2025-01-21T13:04:28.123456Z;
+                    date dur0 = PT1M30S;
+                    date dur2 = PT2H;
+                    ColumnarResult columns = ColumnarResult::fromColumnHash({
+                        "ts": (ts0, NOTHING, ts2),
+                        "dur": (dur0, NOTHING, dur2),
+                    }, {
+                        "ts": {"native_type": "timestamp with time zone", "nullable": True},
+                        "dur": {"native_type": "interval", "nullable": True},
+                    });
+
+                    ArrowRecordBatch batch(columns);
+                    hash<auto> batch_schema = batch.schema().info();
+                    ColumnarResult restored = batch.toColumnarResult();
+                    list<hash<auto>> restored_schema = restored.schemaV2();
+                    hash<auto> ipc = batch.toIpc();
+                    ColumnarResult from_ipc = (new ArrowRecordBatch(batch.schema(),
+                        ipc.data_header, ipc.data_body)).toColumnarResult();
+
+                    return {
+                        "ts_arrow_type": batch_schema.fields[0].type,
+                        "dur_arrow_type": batch_schema.fields[1].type,
+                        "ts_type": restored.getColumn("ts").fullType(),
+                        "dur_type": restored.getColumn("dur").fullType(),
+                        "ts": restored.getColumn("ts").toList(),
+                        "dur": restored.getColumn("dur").toList(),
+                        "expected_ts": (get_epoch_microseconds(ts0), NOTHING,
+                            get_epoch_microseconds(ts2)),
+                        "expected_dur": (get_duration_microseconds(dur0), NOTHING,
+                            get_duration_microseconds(dur2)),
+                        "ts_kind": restored_schema[0].kind,
+                        "ts_buffer": restored_schema[0].buffer_type,
+                        "dur_kind": restored_schema[1].kind,
+                        "dur_buffer": restored_schema[1].buffer_type,
+                        "ipc_ts": from_ipc.getColumn("ts").toList(),
+                        "ipc_dur": from_ipc.getColumn("dur").toList(),
+                    };
+                }
+            ', "arrow-columnar-result-temporal");
+        } catch (hash<ExceptionInfo> ex) {
+            if (ex.err == "UNKNOWN-CLASS" || ex.err == "PARSE-EXCEPTION") {
+                testSkip("ColumnarResult is not available in this qore build");
+                return;
+            }
+            rethrow;
+        }
+
+        hash<auto> result = p.callFunction("run");
+        assertEq("timestamp[us, tz=UTC]", result.ts_arrow_type);
+        assertEq("duration[us]", result.dur_arrow_type);
+        assertEq("buffer<*int64>", result.ts_type);
+        assertEq("buffer<*int64>", result.dur_type);
+        assertEq(result.expected_ts, result.ts);
+        assertEq(result.expected_dur, result.dur);
+        assertEq("timestamp", result.ts_kind);
+        assertEq("int64", result.ts_buffer);
+        assertEq("duration", result.dur_kind);
+        assertEq("int64", result.dur_buffer);
+        assertEq(result.expected_ts, result.ipc_ts);
+        assertEq(result.expected_dur, result.ipc_dur);
     }
 
     # --- Type conversion tests ---

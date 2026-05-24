@@ -96,6 +96,16 @@ static arrow::TimeUnit::type arrowTimeUnitFromName(const std::string& unit) {
     return arrow::TimeUnit::MICRO;
 }
 
+static bool arrowTypeIsMicrosecondTemporal(const std::shared_ptr<arrow::DataType>& type) {
+    if (type->id() == arrow::Type::TIMESTAMP) {
+        return std::static_pointer_cast<arrow::TimestampType>(type)->unit() == arrow::TimeUnit::MICRO;
+    }
+    if (type->id() == arrow::Type::DURATION) {
+        return std::static_pointer_cast<arrow::DurationType>(type)->unit() == arrow::TimeUnit::MICRO;
+    }
+    return false;
+}
+
 #ifdef QORE_GRPC_HAVE_COLUMNAR_RESULT_V2
 #ifdef QORE_GRPC_HAVE_ARROW_C_DATA_INTEROP
 static bool arrowTypeSupportsQoreCDataImport(const std::shared_ptr<arrow::DataType>& type, ExceptionSink* xsink) {
@@ -111,6 +121,14 @@ static bool arrowTypeSupportsQoreCDataImport(const std::shared_ptr<arrow::DataTy
         case arrow::Type::LARGE_STRING:
         case arrow::Type::DECIMAL128:
             return true;
+
+        case arrow::Type::TIMESTAMP:
+        case arrow::Type::DURATION:
+#ifdef QORE_GRPC_HAVE_ARROW_C_DATA_TEMPORAL_BUFFERS
+            return arrowTypeIsMicrosecondTemporal(type);
+#else
+            return false;
+#endif
 
         case arrow::Type::LIST:
             return arrowTypeSupportsQoreCDataImport(
@@ -173,6 +191,16 @@ static bool columnarDescriptorSupportsQoreCDataExport(const QoreColumnarTypeDesc
     QoreBufferElementType buffer_type = desc.buffer_type != QoreBufferElementType::Invalid
         ? desc.buffer_type
         : data_buffer_type;
+
+    if (desc.kind == QoreColumnarTypeKind::Date || desc.kind == QoreColumnarTypeKind::Timestamp
+            || desc.kind == QoreColumnarTypeKind::Duration) {
+#ifdef QORE_GRPC_HAVE_ARROW_C_DATA_TEMPORAL_BUFFERS
+        return buffer_type == QoreBufferElementType::Invalid || buffer_type == QoreBufferElementType::Int64;
+#else
+        return false;
+#endif
+    }
+
     if (buffer_type != QoreBufferElementType::Invalid) {
         return bufferTypeSupportsQoreCDataExport(buffer_type);
     }
@@ -243,6 +271,14 @@ static QoreBufferElementType arrowTypeToBufferElementType(const std::shared_ptr<
             return QoreBufferElementType::Float64;
         case arrow::Type::BOOL:
             return QoreBufferElementType::Bool;
+        case arrow::Type::TIMESTAMP:
+        case arrow::Type::DURATION:
+#ifdef QORE_GRPC_HAVE_ARROW_C_DATA_TEMPORAL_BUFFERS
+            return arrowTypeIsMicrosecondTemporal(type) ? QoreBufferElementType::Int64
+                : QoreBufferElementType::Invalid;
+#else
+            return QoreBufferElementType::Invalid;
+#endif
         default:
             return QoreBufferElementType::Invalid;
     }
@@ -451,6 +487,16 @@ static arrow::FieldVector columnarChildrenToArrowFields(const QoreColumnarTypeDe
 
 static std::shared_ptr<arrow::DataType> columnarDescriptorToArrowType(
         const QoreColumnarTypeDescriptor& desc, ExceptionSink* xsink) {
+    switch (desc.kind) {
+        case QoreColumnarTypeKind::Date:
+        case QoreColumnarTypeKind::Timestamp:
+            return arrow::timestamp(arrowTimeUnitFromName(desc.time_unit), desc.timezone);
+        case QoreColumnarTypeKind::Duration:
+            return arrow::duration(arrowTimeUnitFromName(desc.time_unit));
+        default:
+            break;
+    }
+
     if (desc.buffer_type != QoreBufferElementType::Invalid) {
         auto type = bufferElementTypeToArrowType(desc.buffer_type);
         if (type) {
@@ -469,11 +515,6 @@ static std::shared_ptr<arrow::DataType> columnarDescriptorToArrowType(
             return arrow::decimal128(desc.precision > 0 ? desc.precision : 38, desc.precision > 0 ? desc.scale : 10);
         case QoreColumnarTypeKind::String:
             return arrow::utf8();
-        case QoreColumnarTypeKind::Date:
-        case QoreColumnarTypeKind::Timestamp:
-            return arrow::timestamp(arrowTimeUnitFromName(desc.time_unit), desc.timezone);
-        case QoreColumnarTypeKind::Duration:
-            return arrow::duration(arrowTimeUnitFromName(desc.time_unit));
         case QoreColumnarTypeKind::Decimal128:
             return arrow::decimal128(desc.precision > 0 ? desc.precision : 38, desc.scale);
         case QoreColumnarTypeKind::Binary:

@@ -860,7 +860,10 @@ events.observersReady();
         decimal128/256, timestamps with timezones, durations, half-float, and field/schema metadata
       - when built with qore Arrow C Data interop, supported \c ColumnarResult
         conversions use libqore's zero-copy Arrow C Data bridge before falling
-        back to Arrow builders for types not yet covered by the bridge
+        back to Arrow builders for types not yet covered by the bridge; builds
+        with qore temporal-buffer support keep microsecond timestamp and
+        duration columns as dense \c buffer<int64> data while preserving Arrow
+        temporal schema
       - IPC data_header + data_body split compatible with Arrow Flight wire format
     - <b>Arrow Flight protocol</b> (optional, requires Apache Arrow):
       - @ref Grpc::ArrowFlightClient "ArrowFlightClient" for Flight RPCs (ListFlights,

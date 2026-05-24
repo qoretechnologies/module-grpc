@@ -114,9 +114,10 @@ ArrowRecordBatch::constructor(ArrowSchema[QoreArrowSchemaHolder] schema, binary 
 /** Primitive \c buffer<T> columns are exported to Arrow without copying when
     their physical storage is contiguous and byte-aligned.  When the module is
     built against a qore runtime with Arrow C Data interop, supported primitive,
-    string, decimal128, list, and struct columns use libqore's Arrow C Data
-    bridge.  Other columns are converted through Arrow builders while preserving
-    \c ColumnarResult::schemaV2() metadata where possible.
+    string, decimal128, list, struct, and microsecond timestamp/duration columns
+    use libqore's Arrow C Data bridge.  Other columns are converted through
+    Arrow builders while preserving \c ColumnarResult::schemaV2() metadata
+    where possible.
 
     @param columnar_result a \c Qore::SQL::ColumnarResult object
 
@@ -172,6 +173,22 @@ ArrowRecordBatch::constructor(auto columnar_result) {
 */
 static bool ArrowRecordBatch::supportsColumnarResult() {
 #ifdef QORE_GRPC_HAVE_COLUMNAR_RESULT_V2
+    return true;
+#else
+    return false;
+#endif
+}
+
+//! Returns True when ColumnarResult temporal columns use the Arrow C Data fast path
+/** @return True if this module was built against a qore runtime where
+    microsecond timestamp and duration arrays can be exchanged with
+    \c ColumnarResult as dense \c buffer<int64> values through the Arrow C Data
+    bridge
+
+    @since %grpc 1.0
+*/
+static bool ArrowRecordBatch::supportsColumnarTemporalBuffers() {
+#ifdef QORE_GRPC_HAVE_ARROW_C_DATA_TEMPORAL_BUFFERS
     return true;
 #else
     return false;
@@ -512,9 +529,10 @@ list<auto> ArrowRecordBatch::column(int index) {
     Fixed-width Arrow columns such as \c int64, \c float64, \c decimal128, and
     \c bool become dense \c buffer<T> columns without copying when the qore
     runtime supports external buffer storage.  When qore Arrow C Data interop is
-    available, supported string, list, and struct columns use libqore's Arrow C
-    Data bridge; unsupported Arrow types still use the compatibility conversion
-    and preserve logical type metadata in \c schemaV2().
+    available, supported string, list, struct, and microsecond temporal columns
+    use libqore's Arrow C Data bridge; unsupported Arrow types still use the
+    compatibility conversion and preserve logical type metadata in
+    \c schemaV2().
 
     @throw ARROW-COLUMNAR-ERROR if conversion fails
 
