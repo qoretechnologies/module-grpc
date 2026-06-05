@@ -87,7 +87,8 @@ module ArrowFlightDataProvider {
             "display_name": "Get Flight Data",
             "short_desc": "Retrieve data from an Arrow Flight dataset",
             "desc": "Retrieves columnar data from an Arrow Flight service via the DoGet "
-                "streaming RPC; returns all record batches as a list of row hashes",
+                "streaming RPC; returns all record batches as row hashes by default, or "
+                "ColumnarResult batches when `output_shape` is `columnar`",
             "action_code": DPAT_API,
             "options": DataProviderActionCatalog::getActionOptionFromFields(
                 DoGetRequestFields),
@@ -104,7 +105,9 @@ module ArrowFlightDataProvider {
             "display_name": "Put Flight Data",
             "short_desc": "Send data to an Arrow Flight dataset",
             "desc": "Sends columnar data to an Arrow Flight service via the DoPut streaming "
-                "RPC; the data is sent as one or more Arrow record batches",
+                "RPC; the data is sent as one or more Arrow record batches from row "
+                "lists, hash-of-lists blocks, ColumnarResult objects, DataFrames, or "
+                "ArrowRecordBatch objects",
             "action_code": DPAT_API,
             "options": DataProviderActionCatalog::getActionOptionFromFields(
                 DoPutRequestFields),
@@ -121,7 +124,8 @@ module ArrowFlightDataProvider {
             "display_name": "Exchange Flight Data",
             "short_desc": "Bidirectional data exchange on an Arrow Flight dataset",
             "desc": "Performs a bidirectional data exchange via the DoExchange streaming RPC; "
-                "sends input rows and receives transformed output rows",
+                "sends input rows or columnar batches and receives transformed output rows "
+                "by default, or ColumnarResult batches when `output_shape` is `columnar`",
             "action_code": DPAT_API,
             "options": DataProviderActionCatalog::getActionOptionFromFields(
                 DoExchangeRequestFields),
@@ -223,6 +227,13 @@ module ArrowFlightDataProvider {
       Flight \c ListFlights RPC
     - <b>Three data patterns</b>: DoGet (read), DoPut (write), and DoExchange
       (bidirectional transformation)
+    - <b>DataProvider columnar pipelines</b>: DoGet supports native bulk reads that
+      preserve \c BufferColumns; when the grpc module is built with Qore
+      \c ColumnarResult v2 support, Flight record batches are passed through as
+      \c ColumnarResult objects instead of row materialization
+    - <b>Flexible batch writes</b>: DoPut, DoExchange, and exchange stream messages
+      accept row lists, hash-of-lists blocks, \c ColumnarResult objects,
+      DataFrames, and \c ArrowRecordBatch objects
     - <b>Observable streams</b>: DoGet and DoExchange methods expose an \c events child
       provider for event-driven batch consumption via the DataProvider observer pattern
     - <b>Connection management</b>: \c flight:// and \c flights:// URL schemes integrate
@@ -309,6 +320,28 @@ auto rows = provider.getChildProvider("sales")
     .getChildProvider("get")
     .doRequest(NOTHING);
 printf("Got %d rows\n", rows.size());
+
+# Read the same dataset as ColumnarResult batches
+auto batches = provider.getChildProvider("sales")
+    .getChildProvider("get")
+    .doRequest({"output_shape": "columnar"});
+map printf("Batch rows: %d\n", $1.numRows()), batches;
+
+# Use native bulk reads in DataProvider pipelines without materializing rows
+AbstractDataProviderBulkRecordInterface bulk = provider.getChildProvider("sales")
+    .getChildProvider("get")
+    .searchRecordsBulk(10000);
+while (*auto block = bulk.getShapedValue()) {
+    printf("Shape: %s, rows: %d\n",
+        AbstractDataProcessor::shapeName(AbstractDataProcessor::detectShape(block)),
+        AbstractDataProcessor::shapeRecordCount(block));
+}
+
+# Send a ColumnarResult, DataFrame, ArrowRecordBatch, hash-of-lists, or row list
+# through DoPut
+provider.getChildProvider("sales")
+    .getChildProvider("put")
+    .doRequest({"rows": batches[0]});
     @endcode
 
     @section arrowflightdataprovider_connections Connection Schemes
@@ -329,6 +362,11 @@ printf("Got %d rows\n", rows.size());
       method-level provider supporting DoGet, DoPut, and DoExchange
     - @ref ArrowFlightDataProvider::ArrowFlightStreamEventDataProvider "ArrowFlightStreamEventDataProvider":
       observable event provider for streaming methods
+    - DoGet providers support native bulk reads and preserve
+      @ref DataProvider::DataProviderShape::BufferColumns "BufferColumns" blocks with
+      \c ColumnarResult when the runtime supports it
+    - DoPut, DoExchange, and exchange stream messages accept row lists, hash-of-lists
+      blocks, \c ColumnarResult, DataFrame, and \c ArrowRecordBatch values
     - @ref ArrowFlightDataProvider::ArrowFlightConnection "ArrowFlightConnection": connection
       provider with \c flight:// and \c flights:// URL schemes
 */
@@ -346,15 +384,27 @@ public namespace ArrowFlightDataProvider {
             "type": AbstractDataProviderType::get(SoftBinaryOrNothingType),
             "desc": "Optional flight ticket; defaults to the dataset path if not provided",
         },
+        "output_shape": {
+            "display_name": "Output Shape",
+            "short_desc": "rows or columnar",
+            "type": AbstractDataProviderType::get(SoftStringOrNothingType),
+            "desc": "Optional output shape: `rows` returns a list of row hashes; `columnar` "
+                "returns a list of ColumnarResult record batches",
+            "allowed_values": (
+                <AllowedValueInfo>{"value": "rows", "display_name": "Rows"},
+                <AllowedValueInfo>{"value": "columnar", "display_name": "Columnar"},
+            ),
+        },
     };
 
     #! Static request fields for DoPut action registration
     public const DoPutRequestFields = {
         "rows": {
             "display_name": "Rows",
-            "short_desc": "Row data to send",
-            "type": AbstractDataProviderType::get(SoftListType),
-            "desc": "List of row hashes to send as Arrow record batches",
+            "short_desc": "Rows or columnar data to send",
+            "type": AbstractDataProviderType::get(AutoType),
+            "desc": "A row list, hash-of-lists block, ColumnarResult, DataFrame, or "
+                "ArrowRecordBatch to send as Arrow record batches",
             "required": True,
         },
     };
@@ -363,10 +413,22 @@ public namespace ArrowFlightDataProvider {
     public const DoExchangeRequestFields = {
         "rows": {
             "display_name": "Rows",
-            "short_desc": "Input row data to send",
-            "type": AbstractDataProviderType::get(SoftListType),
-            "desc": "List of input row hashes to send for bidirectional exchange",
+            "short_desc": "Rows or columnar input data to send",
+            "type": AbstractDataProviderType::get(AutoType),
+            "desc": "A row list, hash-of-lists block, ColumnarResult, DataFrame, or "
+                "ArrowRecordBatch to send for bidirectional exchange",
             "required": True,
+        },
+        "output_shape": {
+            "display_name": "Output Shape",
+            "short_desc": "rows or columnar",
+            "type": AbstractDataProviderType::get(SoftStringOrNothingType),
+            "desc": "Optional response shape: `rows` returns a list of row hashes; "
+                "`columnar` returns a list of ColumnarResult record batches",
+            "allowed_values": (
+                <AllowedValueInfo>{"value": "rows", "display_name": "Rows"},
+                <AllowedValueInfo>{"value": "columnar", "display_name": "Columnar"},
+            ),
         },
     };
 

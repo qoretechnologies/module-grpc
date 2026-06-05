@@ -128,6 +128,19 @@ public class ArrowFlightStreamReader {
         }
     }
 
+    #! Read the next record batch as a ColumnarResult
+    /** @param timeout optional read timeout
+
+        @return the next \c ColumnarResult, or \c NOTHING when the stream has ended
+
+        @throw ARROW-COLUMNAR-ERROR if the grpc module was built without qore
+        \c ColumnarResult v2 support
+    */
+    auto readColumnarResult(*timeout timeout) {
+        *ArrowRecordBatch batch = read(timeout);
+        return batch ? batch.toColumnarResult() : NOTHING;
+    }
+
     #! Returns True if the stream has been fully consumed
     /** @return True if no more record batches will arrive
     */

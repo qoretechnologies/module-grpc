@@ -25,6 +25,101 @@
 #! Contains all public definitions in the ArrowFlightDataProvider module
 public namespace ArrowFlightDataProvider {
 
+#! Bulk reader that preserves Arrow Flight record batches as columnar pipeline blocks
+public class ArrowFlightColumnarBulkRecordInterface inherits AbstractDataProviderBulkRecordInterface {
+    private {
+        #! Dataset name, used in diagnostics
+        string dataset_name;
+
+        #! Active Flight stream reader
+        ArrowFlightStreamReader reader;
+
+        #! True after the Flight stream has been finished or cancelled
+        bool finished = False;
+
+        #! True when ColumnarResult bridge support is available in this grpc build
+        bool columnar_supported;
+
+        #! Record type metadata
+        *hash<string, AbstractDataField> record_type;
+    }
+
+    #! Creates the bulk reader
+    constructor(int block_size, ArrowFlightClient flight_client, string dataset_name,
+            *binary ticket, *hash<auto> search_options, *hash<string, AbstractDataField> record_type)
+            : AbstractDataProviderBulkRecordInterface(block_size, search_options.requires_result,
+                search_options.max_records, search_options.limit) {
+        self.dataset_name = dataset_name;
+        self.record_type = record_type;
+        columnar_supported = ArrowRecordBatch::supportsColumnarResult();
+        reader = flight_client.doGet({"ticket": ticket ?? binary(dataset_name)});
+    }
+
+    destructor() {
+        if (!finished) {
+            reader.cancel();
+        }
+    }
+
+    #! Returns the record description, if available
+    *hash<string, AbstractDataField> getRecordType() {
+        return record_type;
+    }
+
+    #! Returns the native bulk shape
+    private DataProviderShape getValueShapeImpl() {
+        return columnar_supported
+            ? DataProviderShape::BufferColumns
+            : DataProviderShape::HashOfLists;
+    }
+
+    #! Returns the next Flight batch in the most efficient supported shape
+    private *auto getShapedValueImpl() {
+        if (columnar_supported) {
+            auto columns = reader.readColumnarResult();
+            if (exists columns) {
+                return columns;
+            }
+        } else {
+            *ArrowRecordBatch batch = reader.read();
+            if (batch) {
+                return AbstractDataProcessor::recordsToHashList(batch.toRows());
+            }
+        }
+
+        finishReader();
+    }
+
+    #! Compatibility implementation for consumers that call getValue()
+    private *hash<auto> getValueImpl() {
+        *auto value = getShapedValueImpl();
+        if (!exists value) {
+            return;
+        }
+        if (AbstractDataProcessor::isColumnarResult(value)) {
+            return AbstractDataProcessor::bufferColumnsToHashList(value.toColumnHash());
+        }
+        if (AbstractDataProcessor::isHashOfBuffers(value)) {
+            return AbstractDataProcessor::bufferColumnsToHashList(value);
+        }
+        return value;
+    }
+
+    #! Finishes the Flight stream and raises an informative error on failure
+    private finishReader() {
+        if (finished) {
+            return;
+        }
+        finished = True;
+        hash<GrpcCallResult> result = reader.finish();
+        if (result.status_code != GRPC_STATUS_OK) {
+            throw "ARROW-FLIGHT-ERROR",
+                sprintf("DoGet failed for dataset '%s' with gRPC status %d: %s",
+                    dataset_name, result.status_code, result.status_message);
+        }
+    }
+}
+
 #! Method-level data provider for Arrow Flight operations
 /** Represents a single operation on an Arrow Flight dataset. Supports three operations:
     - @b get (DoGet): retrieve data as a list of row hashes
@@ -110,24 +205,26 @@ public class ArrowFlightMethodDataProvider inherits AbstractDataProvider {
                         "Flight ticket as binary data; defaults to dataset path if not "
                             "provided",
                         AbstractDataProviderType::get(SoftBinaryOrNothingType)));
+                    req.addField(new QoreDataField("output_shape",
+                        "Optional output shape: 'rows' returns one list of row hashes; "
+                            "'columnar' returns a list of ColumnarResult record batches",
+                        AbstractDataProviderType::get(SoftStringOrNothingType)));
                     request_type = req;
                     break;
                 }
                 case "put":
                 case "exchange": {
-                    *AbstractDataProviderType row_type = getRowType();
                     string type_name = sprintf("ArrowFlight%sRequest",
                         method_type == "put" ? "Put" : "Exchange");
                     HashDataType req(type_name);
-                    if (row_type) {
-                        req.addField(new QoreDataField("rows",
-                            "List of row hashes to send",
-                            new SoftListDataType("rows", row_type)));
-                    } else {
-                        req.addField(new QoreDataField("rows",
-                            "List of row hashes to send",
-                            AbstractDataProviderType::get(SoftListType)));
-                    }
+                    req.addField(new QoreDataField("rows",
+                        "Rows or a columnar batch to send; accepts a row list, hash-of-lists, "
+                            "ColumnarResult, DataFrame, or ArrowRecordBatch",
+                        AbstractDataProviderType::get(AutoType)));
+                    req.addField(new QoreDataField("output_shape",
+                        "Optional output shape for exchange responses: 'rows' returns row hashes; "
+                            "'columnar' returns ColumnarResult record batches",
+                        AbstractDataProviderType::get(SoftStringOrNothingType)));
                     request_type = req;
                     break;
                 }
@@ -180,6 +277,11 @@ public class ArrowFlightMethodDataProvider inherits AbstractDataProvider {
     #! Returns static provider info
     private hash<DataProviderInfo> getStaticInfoImpl() {
         hash<DataProviderInfo> info = ProviderInfo;
+        if (method_type == "get") {
+            info.supports_read = True;
+            info.supports_bulk_read = True;
+            info.has_record = True;
+        }
         if (method_type == "get" || method_type == "exchange") {
             info.supports_children = True;
             info.children_can_support_observers = True;
@@ -209,20 +311,25 @@ public class ArrowFlightMethodDataProvider inherits AbstractDataProvider {
     }
 
     #! Performs a DoGet call and returns all rows
-    private list<hash<auto>> doGetRequest(auto req) {
+    private auto doGetRequest(auto req) {
         hash<auto> ticket = {"ticket": req.ticket ?? binary(dataset_name)};
         ArrowFlightStreamReader reader = flight_client.doGet(ticket);
         on_error reader.cancel();
+
+        if (wantsColumnarOutput(req)) {
+            list<auto> all_batches = ();
+            while (*auto columns = reader.readColumnarResult()) {
+                push all_batches, columns;
+            }
+            checkReaderResult(reader);
+            return all_batches;
+        }
+
         list<hash<auto>> all_rows = ();
         while (*ArrowRecordBatch batch = reader.read()) {
             all_rows += batch.toRows();
         }
-        hash<GrpcCallResult> result = reader.finish();
-        if (result.status_code != GRPC_STATUS_OK) {
-            throw "ARROW-FLIGHT-ERROR",
-                sprintf("DoGet failed for dataset '%s' with gRPC status %d: %s",
-                    dataset_name, result.status_code, result.status_message);
-        }
+        checkReaderResult(reader);
         return all_rows;
     }
 
@@ -233,8 +340,7 @@ public class ArrowFlightMethodDataProvider inherits AbstractDataProvider {
         ArrowFlightStreamWriter writer = flight_client.doPut(descriptor, sch);
         on_error writer.cancel();
         if (req.rows) {
-            ArrowRecordBatch batch(sch, req.rows);
-            writer.write(batch);
+            writer.write(req.rows);
         }
         writer.writesDone();
         hash<GrpcCallResult> result = writer.finish();
@@ -247,29 +353,91 @@ public class ArrowFlightMethodDataProvider inherits AbstractDataProvider {
     }
 
     #! Performs a DoExchange call
-    private list<hash<auto>> doExchangeRequest(auto req) {
+    private auto doExchangeRequest(auto req) {
         hash<auto> descriptor = ArrowFlightHelper::pathDescriptor(dataset_name);
         ArrowSchema sch = getArrowSchema();
         ArrowFlightExchangeStream exchange = flight_client.doExchange(descriptor, sch);
         on_error exchange.cancel();
         # Write data if provided
         if (req.rows) {
-            ArrowRecordBatch batch(sch, req.rows);
-            exchange.write(batch);
+            exchange.write(req.rows);
         }
         exchange.writesDone();
+
+        if (wantsColumnarOutput(req)) {
+            list<auto> all_batches = ();
+            while (*auto columns = exchange.readColumnarResult()) {
+                push all_batches, columns;
+            }
+            checkExchangeResult(exchange);
+            return all_batches;
+        }
+
         # Read all responses
         list<hash<auto>> all_rows = ();
         while (*ArrowRecordBatch batch = exchange.read()) {
             all_rows += batch.toRows();
         }
+        checkExchangeResult(exchange);
+        return all_rows;
+    }
+
+    #! Returns an iterator over Flight rows
+    private AbstractDataProviderRecordIterator searchRecordsImpl(
+            *hash<auto> where_cond, *hash<auto> search_options) {
+        return searchRecordsBulkImpl(1000, where_cond, search_options).getRecordIterator();
+    }
+
+    #! Returns a bulk interface over Flight record batches
+    private AbstractDataProviderBulkRecordInterface searchRecordsBulkImpl(int block_size = 1000,
+            *hash<auto> where_cond, *hash<auto> search_options) {
+        if (where_cond) {
+            throw "UNSUPPORTED-SEARCH-ERROR",
+                "Arrow Flight DoGet bulk reads do not support client-side where_cond filtering yet";
+        }
+        return new ArrowFlightColumnarBulkRecordInterface(block_size, flight_client, dataset_name,
+            search_options.ticket, search_options, getRecordTypeImpl(search_options));
+    }
+
+    #! Returns the record type based on the Arrow schema
+    private *hash<string, AbstractDataField> getRecordTypeImpl(*hash<auto> search_options) {
+        if (!flight_info.schema) {
+            return;
+        }
+        hash<string, AbstractDataField> fields;
+        hash<auto> info = getArrowSchema().info();
+        for (int i = 0; i < info.fields.size(); ++i) {
+            hash<auto> field = info.fields[i];
+            fields{field.name} = new QoreDataField(field.name,
+                sprintf("Arrow field: %s", field.type),
+                ArrowFlightTypeHelper::arrowTypeToDataType(field.type));
+        }
+        return fields;
+    }
+
+    #! Returns True if the request asks for ColumnarResult batches
+    private bool wantsColumnarOutput(auto req) {
+        return (req.output_shape ?? "rows") == "columnar";
+    }
+
+    #! Checks a DoGet result
+    private checkReaderResult(ArrowFlightStreamReader reader) {
+        hash<GrpcCallResult> result = reader.finish();
+        if (result.status_code != GRPC_STATUS_OK) {
+            throw "ARROW-FLIGHT-ERROR",
+                sprintf("DoGet failed for dataset '%s' with gRPC status %d: %s",
+                    dataset_name, result.status_code, result.status_message);
+        }
+    }
+
+    #! Checks a DoExchange result
+    private checkExchangeResult(ArrowFlightExchangeStream exchange) {
         hash<GrpcCallResult> result = exchange.finish();
         if (result.status_code != GRPC_STATUS_OK) {
             throw "ARROW-FLIGHT-ERROR",
                 sprintf("DoExchange failed for dataset '%s' with gRPC status %d: %s",
                     dataset_name, result.status_code, result.status_message);
         }
-        return all_rows;
     }
 
     #! Returns the deserialized ArrowSchema from flight_info

@@ -30,15 +30,684 @@
 #include <arrow/builder.h>
 #include <arrow/type.h>
 #include <arrow/io/memory.h>
+#ifdef QORE_GRPC_HAVE_ARROW_C_DATA_INTEROP
+#include <arrow/c/bridge.h>
+#endif
 #include <arrow/ipc/dictionary.h>
 #include <arrow/ipc/reader.h>
 #include <arrow/ipc/writer.h>
 #include <arrow/util/decimal.h>
 #include <arrow/util/float16.h>
 
+#include <cstring>
 #include <limits>
+#include <memory>
 #include <sstream>
 #include <stdexcept>
+#include <vector>
+
+namespace {
+
+static std::shared_ptr<arrow::Buffer> wrapBinaryAsArrowBuffer(const BinaryNode* data,
+        const char* label, ExceptionSink* xsink) {
+    assert(data);
+    if (data->size() > static_cast<size_t>(std::numeric_limits<int64_t>::max())) {
+        xsink->raiseException("ARROW-IPC-ERROR",
+            "%s is too large: " QLLD " bytes exceeds the maximum supported size",
+            label, static_cast<int64>(data->size()));
+        return nullptr;
+    }
+
+    data->ref();
+    std::shared_ptr<const BinaryNode> owner(data,
+        [](const BinaryNode* owner) { const_cast<BinaryNode*>(owner)->deref(nullptr); });
+    return std::shared_ptr<arrow::Buffer>(
+        new arrow::Buffer(static_cast<const uint8_t*>(data->getPtr()), static_cast<int64_t>(data->size())),
+        [owner = std::move(owner)](arrow::Buffer* buffer) {
+            (void)owner;
+            delete buffer;
+        });
+}
+
+static std::string arrowTimeUnitName(arrow::TimeUnit::type unit) {
+    switch (unit) {
+        case arrow::TimeUnit::SECOND:
+            return "s";
+        case arrow::TimeUnit::MILLI:
+            return "ms";
+        case arrow::TimeUnit::MICRO:
+            return "us";
+        case arrow::TimeUnit::NANO:
+            return "ns";
+    }
+    return "us";
+}
+
+static arrow::TimeUnit::type arrowTimeUnitFromName(const std::string& unit) {
+    if (unit == "s" || unit == "second") {
+        return arrow::TimeUnit::SECOND;
+    }
+    if (unit == "ms" || unit == "milli") {
+        return arrow::TimeUnit::MILLI;
+    }
+    if (unit == "ns" || unit == "nano") {
+        return arrow::TimeUnit::NANO;
+    }
+    return arrow::TimeUnit::MICRO;
+}
+
+static bool arrowTypeIsMicrosecondTemporal(const std::shared_ptr<arrow::DataType>& type) {
+    if (type->id() == arrow::Type::TIMESTAMP) {
+        return std::static_pointer_cast<arrow::TimestampType>(type)->unit() == arrow::TimeUnit::MICRO;
+    }
+    if (type->id() == arrow::Type::DURATION) {
+        return std::static_pointer_cast<arrow::DurationType>(type)->unit() == arrow::TimeUnit::MICRO;
+    }
+    return false;
+}
+
+#ifdef QORE_GRPC_HAVE_COLUMNAR_RESULT_V2
+#ifdef QORE_GRPC_HAVE_ARROW_C_DATA_INTEROP
+static bool arrowTypeSupportsQoreCDataImport(const std::shared_ptr<arrow::DataType>& type, ExceptionSink* xsink) {
+    switch (type->id()) {
+        case arrow::Type::BOOL:
+        case arrow::Type::INT8:
+        case arrow::Type::INT16:
+        case arrow::Type::INT32:
+        case arrow::Type::INT64:
+        case arrow::Type::FLOAT:
+        case arrow::Type::DOUBLE:
+        case arrow::Type::STRING:
+        case arrow::Type::LARGE_STRING:
+        case arrow::Type::DECIMAL128:
+            return true;
+
+        case arrow::Type::TIMESTAMP:
+        case arrow::Type::DURATION:
+#ifdef QORE_GRPC_HAVE_ARROW_C_DATA_TEMPORAL_BUFFERS
+            return arrowTypeIsMicrosecondTemporal(type);
+#else
+            return false;
+#endif
+
+        case arrow::Type::LIST:
+            return arrowTypeSupportsQoreCDataImport(
+                std::static_pointer_cast<arrow::ListType>(type)->value_type(), xsink);
+
+        case arrow::Type::LARGE_LIST:
+            return arrowTypeSupportsQoreCDataImport(
+                std::static_pointer_cast<arrow::LargeListType>(type)->value_type(), xsink);
+
+        case arrow::Type::STRUCT: {
+            auto struct_type = std::static_pointer_cast<arrow::StructType>(type);
+            for (int i = 0; i < struct_type->num_fields(); ++i) {
+                if (i && !(i % 100) && qore_check_cancel(xsink, "checking Arrow C Data import support")) {
+                    return false;
+                }
+                if (!arrowTypeSupportsQoreCDataImport(struct_type->field(i)->type(), xsink)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        default:
+            return false;
+    }
+}
+
+static bool recordBatchSupportsQoreCDataImport(const std::shared_ptr<arrow::RecordBatch>& batch,
+        ExceptionSink* xsink) {
+    for (int i = 0; i < batch->num_columns(); ++i) {
+        if (i && !(i % 100) && qore_check_cancel(xsink, "checking Arrow C Data RecordBatch support")) {
+            return false;
+        }
+        if (!arrowTypeSupportsQoreCDataImport(batch->schema()->field(i)->type(), xsink)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool bufferTypeSupportsQoreCDataExport(QoreBufferElementType type) {
+    switch (type) {
+        case QoreBufferElementType::Int8:
+        case QoreBufferElementType::Int16:
+        case QoreBufferElementType::Int32:
+        case QoreBufferElementType::Int64:
+        case QoreBufferElementType::Float32:
+        case QoreBufferElementType::Float64:
+        case QoreBufferElementType::Bool:
+        case QoreBufferElementType::String:
+        case QoreBufferElementType::Decimal128:
+            return true;
+        default:
+            return false;
+    }
+}
+
+static bool columnarDescriptorSupportsQoreCDataExport(const QoreColumnarTypeDescriptor& desc,
+        ExceptionSink* xsink, QoreBufferElementType data_buffer_type = QoreBufferElementType::Invalid) {
+    QoreBufferElementType buffer_type = desc.buffer_type != QoreBufferElementType::Invalid
+        ? desc.buffer_type
+        : data_buffer_type;
+
+    if (desc.kind == QoreColumnarTypeKind::Date || desc.kind == QoreColumnarTypeKind::Timestamp
+            || desc.kind == QoreColumnarTypeKind::Duration) {
+#ifdef QORE_GRPC_HAVE_ARROW_C_DATA_TEMPORAL_BUFFERS
+        return buffer_type == QoreBufferElementType::Invalid || buffer_type == QoreBufferElementType::Int64;
+#else
+        return false;
+#endif
+    }
+
+    if (buffer_type != QoreBufferElementType::Invalid) {
+        return bufferTypeSupportsQoreCDataExport(buffer_type);
+    }
+
+    switch (desc.kind) {
+        case QoreColumnarTypeKind::Bool:
+        case QoreColumnarTypeKind::Int:
+        case QoreColumnarTypeKind::Float:
+        case QoreColumnarTypeKind::String:
+        case QoreColumnarTypeKind::Decimal128:
+            return true;
+
+        case QoreColumnarTypeKind::Auto:
+            return false;
+
+        case QoreColumnarTypeKind::List:
+        case QoreColumnarTypeKind::LargeList:
+            return desc.children.size() == 1 && columnarDescriptorSupportsQoreCDataExport(desc.children[0], xsink);
+
+        case QoreColumnarTypeKind::Struct:
+            for (size_t i = 0; i < desc.children.size(); ++i) {
+                if (i && !(i % 100) && qore_check_cancel(xsink, "checking Arrow C Data ColumnarResult support")) {
+                    return false;
+                }
+                if (!columnarDescriptorSupportsQoreCDataExport(desc.children[i], xsink)) {
+                    return false;
+                }
+            }
+            return true;
+
+        default:
+            return false;
+    }
+}
+
+static bool columnarResultSupportsQoreCDataExport(const QoreColumnarResult* result, ExceptionSink* xsink) {
+    for (size_t i = 0; i < result->numColumns(); ++i) {
+        if (i && !(i % 100) && qore_check_cancel(xsink, "checking Arrow C Data ColumnarResult support")) {
+            return false;
+        }
+        const QoreColumnarResult::Column* column = result->getColumn(i);
+        assert(column);
+        QoreBufferElementType buffer_type = QoreBufferElementType::Invalid;
+        if (column->data.getType() == NT_BUFFER) {
+            buffer_type = column->data.get<const QoreBufferNode>()->getElementType();
+        }
+        if (!columnarDescriptorSupportsQoreCDataExport(column->schema, xsink, buffer_type)) {
+            return false;
+        }
+    }
+    return true;
+}
+#endif
+
+static QoreBufferElementType arrowTypeToBufferElementType(const std::shared_ptr<arrow::DataType>& type) {
+    switch (type->id()) {
+        case arrow::Type::INT8:
+            return QoreBufferElementType::Int8;
+        case arrow::Type::INT16:
+            return QoreBufferElementType::Int16;
+        case arrow::Type::INT32:
+            return QoreBufferElementType::Int32;
+        case arrow::Type::INT64:
+            return QoreBufferElementType::Int64;
+        case arrow::Type::FLOAT:
+            return QoreBufferElementType::Float32;
+        case arrow::Type::DOUBLE:
+            return QoreBufferElementType::Float64;
+        case arrow::Type::BOOL:
+            return QoreBufferElementType::Bool;
+        case arrow::Type::TIMESTAMP:
+        case arrow::Type::DURATION:
+#ifdef QORE_GRPC_HAVE_ARROW_C_DATA_TEMPORAL_BUFFERS
+            return arrowTypeIsMicrosecondTemporal(type) ? QoreBufferElementType::Int64
+                : QoreBufferElementType::Invalid;
+#else
+            return QoreBufferElementType::Invalid;
+#endif
+        default:
+            return QoreBufferElementType::Invalid;
+    }
+}
+
+static std::shared_ptr<arrow::DataType> bufferElementTypeToArrowType(QoreBufferElementType type) {
+    switch (type) {
+        case QoreBufferElementType::Int8:
+            return arrow::int8();
+        case QoreBufferElementType::Int16:
+            return arrow::int16();
+        case QoreBufferElementType::Int32:
+            return arrow::int32();
+        case QoreBufferElementType::Int64:
+            return arrow::int64();
+        case QoreBufferElementType::Float32:
+            return arrow::float32();
+        case QoreBufferElementType::Float64:
+            return arrow::float64();
+        case QoreBufferElementType::Bool:
+            return arrow::boolean();
+        case QoreBufferElementType::String:
+            return arrow::utf8();
+        case QoreBufferElementType::Invalid:
+        default:
+            return nullptr;
+    }
+}
+
+static QoreColumnarTypeDescriptor arrowTypeToColumnarDescriptor(const std::string& name,
+        const std::shared_ptr<arrow::DataType>& type, bool nullable, ExceptionSink* xsink) {
+    QoreColumnarTypeDescriptor desc;
+    desc.name = name;
+    desc.nullable = nullable;
+    desc.native_type = QoreArrowHelper::typeName(type);
+    desc.buffer_type = arrowTypeToBufferElementType(type);
+
+    switch (type->id()) {
+        case arrow::Type::BOOL:
+            desc.kind = QoreColumnarTypeKind::Bool;
+            desc.column_type = QoreColumnarColumnType::Bool;
+            break;
+        case arrow::Type::INT8:
+        case arrow::Type::INT16:
+        case arrow::Type::INT32:
+        case arrow::Type::INT64:
+        case arrow::Type::UINT8:
+        case arrow::Type::UINT16:
+        case arrow::Type::UINT32:
+        case arrow::Type::UINT64:
+            desc.kind = QoreColumnarTypeKind::Int;
+            desc.column_type = QoreColumnarColumnType::Int;
+            break;
+        case arrow::Type::HALF_FLOAT:
+        case arrow::Type::FLOAT:
+        case arrow::Type::DOUBLE:
+            desc.kind = QoreColumnarTypeKind::Float;
+            desc.column_type = QoreColumnarColumnType::Float;
+            break;
+        case arrow::Type::STRING:
+        case arrow::Type::LARGE_STRING:
+            desc.kind = QoreColumnarTypeKind::String;
+            desc.column_type = QoreColumnarColumnType::String;
+            break;
+        case arrow::Type::BINARY:
+        case arrow::Type::LARGE_BINARY:
+        case arrow::Type::FIXED_SIZE_BINARY:
+            desc.kind = QoreColumnarTypeKind::Binary;
+            desc.column_type = QoreColumnarColumnType::Binary;
+            if (type->id() == arrow::Type::FIXED_SIZE_BINARY) {
+                desc.fixed_size = std::static_pointer_cast<arrow::FixedSizeBinaryType>(type)->byte_width();
+            }
+            break;
+        case arrow::Type::DATE32:
+        case arrow::Type::DATE64:
+            desc.kind = QoreColumnarTypeKind::Date;
+            desc.column_type = QoreColumnarColumnType::Date;
+            break;
+        case arrow::Type::TIMESTAMP: {
+            auto ts_type = std::static_pointer_cast<arrow::TimestampType>(type);
+            desc.kind = QoreColumnarTypeKind::Timestamp;
+            desc.column_type = QoreColumnarColumnType::Date;
+            desc.time_unit = arrowTimeUnitName(ts_type->unit());
+            desc.timezone = ts_type->timezone();
+            break;
+        }
+        case arrow::Type::TIME32:
+            desc.kind = QoreColumnarTypeKind::Date;
+            desc.column_type = QoreColumnarColumnType::Date;
+            desc.time_unit = arrowTimeUnitName(std::static_pointer_cast<arrow::Time32Type>(type)->unit());
+            break;
+        case arrow::Type::TIME64:
+            desc.kind = QoreColumnarTypeKind::Date;
+            desc.column_type = QoreColumnarColumnType::Date;
+            desc.time_unit = arrowTimeUnitName(std::static_pointer_cast<arrow::Time64Type>(type)->unit());
+            break;
+        case arrow::Type::DURATION: {
+            auto dur_type = std::static_pointer_cast<arrow::DurationType>(type);
+            desc.kind = QoreColumnarTypeKind::Duration;
+            desc.column_type = QoreColumnarColumnType::Date;
+            desc.time_unit = arrowTimeUnitName(dur_type->unit());
+            break;
+        }
+        case arrow::Type::DECIMAL128: {
+            auto dec_type = std::static_pointer_cast<arrow::Decimal128Type>(type);
+            desc.kind = QoreColumnarTypeKind::Decimal128;
+            desc.column_type = QoreColumnarColumnType::Number;
+            desc.precision = dec_type->precision();
+            desc.scale = dec_type->scale();
+            break;
+        }
+        case arrow::Type::DECIMAL256: {
+            auto dec_type = std::static_pointer_cast<arrow::Decimal256Type>(type);
+            desc.kind = QoreColumnarTypeKind::Number;
+            desc.column_type = QoreColumnarColumnType::Number;
+            desc.precision = dec_type->precision();
+            desc.scale = dec_type->scale();
+            break;
+        }
+        case arrow::Type::LIST:
+            desc.kind = QoreColumnarTypeKind::List;
+            desc.column_type = QoreColumnarColumnType::Auto;
+            break;
+        case arrow::Type::LARGE_LIST:
+            desc.kind = QoreColumnarTypeKind::LargeList;
+            desc.column_type = QoreColumnarColumnType::Auto;
+            break;
+        case arrow::Type::FIXED_SIZE_LIST:
+            desc.kind = QoreColumnarTypeKind::FixedSizeList;
+            desc.column_type = QoreColumnarColumnType::Auto;
+            desc.fixed_size = std::static_pointer_cast<arrow::FixedSizeListType>(type)->list_size();
+            break;
+        case arrow::Type::STRUCT:
+            desc.kind = QoreColumnarTypeKind::Struct;
+            desc.column_type = QoreColumnarColumnType::Auto;
+            break;
+        case arrow::Type::MAP: {
+            auto map_type = std::static_pointer_cast<arrow::MapType>(type);
+            desc.kind = QoreColumnarTypeKind::Map;
+            desc.column_type = QoreColumnarColumnType::Auto;
+            desc.children.push_back(arrowTypeToColumnarDescriptor("key", map_type->key_type(), false, xsink));
+            desc.children.push_back(arrowTypeToColumnarDescriptor("item", map_type->item_type(), true, xsink));
+            return desc;
+        }
+        case arrow::Type::DICTIONARY: {
+            auto dict_type = std::static_pointer_cast<arrow::DictionaryType>(type);
+            desc.kind = QoreColumnarTypeKind::Dictionary;
+            desc.column_type = QoreColumnarColumnType::Auto;
+            desc.dictionary_index_type = QoreArrowHelper::typeName(dict_type->index_type());
+            desc.children.push_back(arrowTypeToColumnarDescriptor("dictionary", dict_type->value_type(), true, xsink));
+            return desc;
+        }
+        case arrow::Type::NA:
+        default:
+            desc.kind = QoreColumnarTypeKind::Auto;
+            desc.column_type = QoreColumnarColumnType::Auto;
+            break;
+    }
+
+    for (int i = 0; i < type->num_fields(); ++i) {
+        if (i && !(i % 100) && xsink && qore_check_cancel(xsink, "building ColumnarResult schema from Arrow")) {
+            return desc;
+        }
+        auto child = type->field(i);
+        desc.children.push_back(arrowTypeToColumnarDescriptor(child->name(), child->type(), child->nullable(),
+            xsink));
+    }
+    return desc;
+}
+
+static QoreColumnarTypeDescriptor arrowFieldToColumnarDescriptor(const std::shared_ptr<arrow::Field>& field,
+        ExceptionSink* xsink) {
+    return arrowTypeToColumnarDescriptor(field->name(), field->type(), field->nullable(), xsink);
+}
+
+static std::shared_ptr<arrow::DataType> columnarDescriptorToArrowType(
+        const QoreColumnarTypeDescriptor& desc, ExceptionSink* xsink);
+
+static std::shared_ptr<arrow::Field> columnarDescriptorToArrowField(
+        const QoreColumnarTypeDescriptor& desc, const std::string& fallback_name, ExceptionSink* xsink) {
+    std::string name = desc.name.empty() ? fallback_name : desc.name;
+    auto type = columnarDescriptorToArrowType(desc, xsink);
+    if (!type) {
+        return nullptr;
+    }
+    return arrow::field(name, type, desc.nullable);
+}
+
+static arrow::FieldVector columnarChildrenToArrowFields(const QoreColumnarTypeDescriptor& desc,
+        ExceptionSink* xsink) {
+    arrow::FieldVector fields;
+    fields.reserve(desc.children.size());
+    for (size_t i = 0; i < desc.children.size(); ++i) {
+        if (i && !(i % 100) && qore_check_cancel(xsink, "building Arrow schema children")) {
+            return {};
+        }
+        auto child = columnarDescriptorToArrowField(desc.children[i],
+            desc.children[i].name.empty() ? "item" : desc.children[i].name, xsink);
+        if (!child) {
+            return {};
+        }
+        fields.push_back(child);
+    }
+    return fields;
+}
+
+static std::shared_ptr<arrow::DataType> columnarDescriptorToArrowType(
+        const QoreColumnarTypeDescriptor& desc, ExceptionSink* xsink) {
+    switch (desc.kind) {
+        case QoreColumnarTypeKind::Date:
+        case QoreColumnarTypeKind::Timestamp:
+            return arrow::timestamp(arrowTimeUnitFromName(desc.time_unit), desc.timezone);
+        case QoreColumnarTypeKind::Duration:
+            return arrow::duration(arrowTimeUnitFromName(desc.time_unit));
+        default:
+            break;
+    }
+
+    if (desc.buffer_type != QoreBufferElementType::Invalid) {
+        auto type = bufferElementTypeToArrowType(desc.buffer_type);
+        if (type) {
+            return type;
+        }
+    }
+
+    switch (desc.kind) {
+        case QoreColumnarTypeKind::Bool:
+            return arrow::boolean();
+        case QoreColumnarTypeKind::Int:
+            return arrow::int64();
+        case QoreColumnarTypeKind::Float:
+            return arrow::float64();
+        case QoreColumnarTypeKind::Number:
+            return arrow::decimal128(desc.precision > 0 ? desc.precision : 38, desc.precision > 0 ? desc.scale : 10);
+        case QoreColumnarTypeKind::String:
+            return arrow::utf8();
+        case QoreColumnarTypeKind::Decimal128:
+            return arrow::decimal128(desc.precision > 0 ? desc.precision : 38, desc.scale);
+        case QoreColumnarTypeKind::Binary:
+            return desc.fixed_size > 0 ? arrow::fixed_size_binary(desc.fixed_size) : arrow::binary();
+        case QoreColumnarTypeKind::List: {
+            auto child = desc.children.empty()
+                ? arrow::field("item", arrow::utf8(), true)
+                : columnarDescriptorToArrowField(desc.children[0], "item", xsink);
+            return child ? arrow::list(child) : nullptr;
+        }
+        case QoreColumnarTypeKind::LargeList: {
+            auto child = desc.children.empty()
+                ? arrow::field("item", arrow::utf8(), true)
+                : columnarDescriptorToArrowField(desc.children[0], "item", xsink);
+            return child ? arrow::large_list(child) : nullptr;
+        }
+        case QoreColumnarTypeKind::FixedSizeList: {
+            if (desc.fixed_size <= 0) {
+                xsink->raiseException("ARROW-SCHEMA-ERROR",
+                    "fixed_size_list column '%s' requires a positive fixed_size", desc.name.c_str());
+                return nullptr;
+            }
+            auto child = desc.children.empty()
+                ? arrow::field("item", arrow::utf8(), true)
+                : columnarDescriptorToArrowField(desc.children[0], "item", xsink);
+            return child ? arrow::fixed_size_list(child, desc.fixed_size) : nullptr;
+        }
+        case QoreColumnarTypeKind::Struct:
+        {
+            auto fields = columnarChildrenToArrowFields(desc, xsink);
+            if (*xsink) {
+                return nullptr;
+            }
+            return arrow::struct_(fields);
+        }
+        case QoreColumnarTypeKind::Map: {
+            auto key_type = arrow::utf8();
+            auto item_type = arrow::utf8();
+            if (desc.children.size() >= 1) {
+                key_type = columnarDescriptorToArrowType(desc.children[0], xsink);
+                if (!key_type) {
+                    return nullptr;
+                }
+            }
+            if (desc.children.size() >= 2) {
+                item_type = columnarDescriptorToArrowType(desc.children[1], xsink);
+                if (!item_type) {
+                    return nullptr;
+                }
+            }
+            return arrow::map(key_type, item_type);
+        }
+        case QoreColumnarTypeKind::Dictionary:
+            if (!desc.children.empty()) {
+                return columnarDescriptorToArrowType(desc.children[0], xsink);
+            }
+            return arrow::utf8();
+        case QoreColumnarTypeKind::Auto:
+        default:
+            break;
+    }
+
+    switch (desc.column_type) {
+        case QoreColumnarColumnType::Bool:
+            return arrow::boolean();
+        case QoreColumnarColumnType::Int:
+            return arrow::int64();
+        case QoreColumnarColumnType::Float:
+            return arrow::float64();
+        case QoreColumnarColumnType::Number:
+            return arrow::decimal128(desc.precision > 0 ? desc.precision : 38, desc.precision > 0 ? desc.scale : 10);
+        case QoreColumnarColumnType::String:
+            return arrow::utf8();
+        case QoreColumnarColumnType::Date:
+            return arrow::timestamp(arrow::TimeUnit::MICRO);
+        case QoreColumnarColumnType::Binary:
+            return arrow::binary();
+        case QoreColumnarColumnType::Auto:
+        default:
+            return arrow::utf8();
+    }
+}
+
+#ifdef QORE_GRPC_HAVE_EXTERNAL_BUFFER_STORAGE
+static QoreBufferNode* arrowArrayToDenseBuffer(const std::shared_ptr<arrow::Array>& array,
+        const std::shared_ptr<arrow::Field>& field, ExceptionSink* xsink) {
+    QoreBufferElementType element_type = arrowTypeToBufferElementType(array->type());
+    if (element_type == QoreBufferElementType::Invalid) {
+        return nullptr;
+    }
+
+    if (!array->length()) {
+        return new QoreBufferNode(element_type, field->nullable(), 0);
+    }
+
+    std::shared_ptr<arrow::ArrayData> data = array->data();
+    if (!data || data->buffers.size() < 2 || !data->buffers[1]) {
+        xsink->raiseException("ARROW-TYPE-ERROR",
+            "Arrow column '%s' has no fixed-width data buffer", field->name().c_str());
+        return nullptr;
+    }
+
+    const uint8_t* validity = data->buffers[0] ? data->buffers[0]->data() : nullptr;
+    const uint8_t* values = data->buffers[1]->data();
+    bool nullable = field->nullable() || array->null_count() > 0 || validity;
+    std::shared_ptr<const void> owner(array, static_cast<const void*>(array.get()));
+    return QoreBufferNode::wrapExternalStorage(element_type, nullable, static_cast<size_t>(array->offset()),
+        static_cast<size_t>(array->length()), values, validity, std::move(owner), array->null_count(), xsink);
+}
+
+class QoreBufferArrowOwner {
+public:
+    DLLLOCAL QoreBufferArrowOwner(const QoreBufferNode* b) : buffer(const_cast<QoreBufferNode*>(b)) {
+        buffer->ref();
+    }
+
+    DLLLOCAL ~QoreBufferArrowOwner() {
+        ExceptionSink xsink;
+        buffer->deref(&xsink);
+    }
+
+private:
+    QoreBufferNode* buffer;
+};
+
+static std::shared_ptr<arrow::Buffer> makeQoreOwnedArrowBuffer(const QoreBufferNode* buffer,
+        const uint8_t* data, int64_t size) {
+    auto owner = std::make_shared<QoreBufferArrowOwner>(buffer);
+    return std::shared_ptr<arrow::Buffer>(
+        new arrow::Buffer(data, size),
+        [owner](arrow::Buffer* p) {
+            delete p;
+        });
+}
+
+static int64_t bufferStorageByteSize(const QoreBufferNode* buffer) {
+    if (buffer->getElementType() == QoreBufferElementType::Bool) {
+        return static_cast<int64_t>((buffer->size() + 7) / 8);
+    }
+    return static_cast<int64_t>(qore_buffer_element_storage_size(buffer->getElementType()) * buffer->size());
+}
+
+static std::shared_ptr<arrow::Array> qoreBufferToArrowArray(const QoreBufferNode* buffer,
+        const std::shared_ptr<arrow::DataType>& type, ExceptionSink* xsink) {
+    if (arrowTypeToBufferElementType(type) != buffer->getElementType()) {
+        return nullptr;
+    }
+    if (buffer->getRawDataBitOffset() || buffer->getRawValidityBitOffset()) {
+        return nullptr;
+    }
+
+    std::vector<std::shared_ptr<arrow::Buffer>> buffers;
+    int64_t null_count = 0;
+    if (buffer->hasNullableElements()) {
+        const uint8_t* validity = buffer->getRawValidityData();
+        if (validity) {
+            null_count = static_cast<int64_t>(buffer->size() - buffer->countValid(xsink));
+            if (*xsink) {
+                return nullptr;
+            }
+            buffers.push_back(makeQoreOwnedArrowBuffer(buffer, validity, static_cast<int64_t>((buffer->size() + 7) / 8)));
+        } else {
+            buffers.push_back(nullptr);
+        }
+    } else {
+        buffers.push_back(nullptr);
+    }
+
+    const uint8_t* data = static_cast<const uint8_t*>(buffer->getRawData());
+    if (buffer->size() && !data) {
+        return nullptr;
+    }
+    buffers.push_back(makeQoreOwnedArrowBuffer(buffer, data, bufferStorageByteSize(buffer)));
+
+    auto array_data = arrow::ArrayData::Make(type, static_cast<int64_t>(buffer->size()), std::move(buffers),
+        null_count, 0);
+    return arrow::MakeArray(array_data);
+}
+#else
+static QoreBufferNode* arrowArrayToDenseBuffer(const std::shared_ptr<arrow::Array>&,
+        const std::shared_ptr<arrow::Field>&, ExceptionSink*) {
+    return nullptr;
+}
+
+static std::shared_ptr<arrow::Array> qoreBufferToArrowArray(const QoreBufferNode*,
+        const std::shared_ptr<arrow::DataType>&, ExceptionSink*) {
+    return nullptr;
+}
+#endif
+
+#endif
+
+} // namespace
 
 QoreValue QoreArrowHelper::scalarToQore(const std::shared_ptr<arrow::Array>& array,
         int64_t index, ExceptionSink* xsink) {
@@ -254,6 +923,9 @@ QoreValue QoreArrowHelper::scalarToQore(const std::shared_ptr<arrow::Array>& arr
             ReferenceHolder<QoreHashNode> hash(new QoreHashNode(autoTypeInfo), xsink);
 
             for (int i = 0; i < struct_type->num_fields(); ++i) {
+                if (i && !(i % 100) && qore_check_cancel(xsink, "converting Arrow struct value")) {
+                    return QoreValue();
+                }
                 auto child = struct_array->field(i);
                 QoreValue child_val = scalarToQore(child, index, xsink);
                 if (*xsink) {
@@ -272,6 +944,9 @@ QoreValue QoreArrowHelper::scalarToQore(const std::shared_ptr<arrow::Array>& arr
 
             ReferenceHolder<QoreListNode> list(new QoreListNode(autoTypeInfo), xsink);
             for (int64_t i = 0; i < length; ++i) {
+                if (i && !(i % 100) && qore_check_cancel(xsink, "converting Arrow list value")) {
+                    return QoreValue();
+                }
                 QoreValue elem = scalarToQore(values, start + i, xsink);
                 if (*xsink) {
                     return QoreValue();
@@ -288,6 +963,9 @@ QoreValue QoreArrowHelper::scalarToQore(const std::shared_ptr<arrow::Array>& arr
 
             ReferenceHolder<QoreListNode> list(new QoreListNode(autoTypeInfo), xsink);
             for (int64_t i = 0; i < length; ++i) {
+                if (i && !(i % 100) && qore_check_cancel(xsink, "converting Arrow large_list value")) {
+                    return QoreValue();
+                }
                 QoreValue elem = scalarToQore(values, start + i, xsink);
                 if (*xsink) {
                     return QoreValue();
@@ -304,6 +982,9 @@ QoreValue QoreArrowHelper::scalarToQore(const std::shared_ptr<arrow::Array>& arr
 
             ReferenceHolder<QoreListNode> list(new QoreListNode(autoTypeInfo), xsink);
             for (int64_t i = 0; i < length; ++i) {
+                if (i && !(i % 100) && qore_check_cancel(xsink, "converting Arrow fixed_size_list value")) {
+                    return QoreValue();
+                }
                 QoreValue elem = scalarToQore(values, start + i, xsink);
                 if (*xsink) {
                     return QoreValue();
@@ -322,6 +1003,9 @@ QoreValue QoreArrowHelper::scalarToQore(const std::shared_ptr<arrow::Array>& arr
 
             ReferenceHolder<QoreHashNode> hash(new QoreHashNode(autoTypeInfo), xsink);
             for (int64_t i = 0; i < length; ++i) {
+                if (i && !(i % 100) && qore_check_cancel(xsink, "converting Arrow map value")) {
+                    return QoreValue();
+                }
                 // keys must be strings for Qore hash conversion
                 ValueHolder key_val(scalarToQore(keys, start + i, xsink), xsink);
                 if (*xsink) {
@@ -729,6 +1413,9 @@ bool QoreArrowHelper::appendToBuilder(arrow::ArrayBuilder* builder,
                 return false;
             }
             for (int i = 0; i < struct_type->num_fields(); ++i) {
+                if (i && !(i % 100) && qore_check_cancel(xsink, "building Arrow struct value")) {
+                    return false;
+                }
                 auto child_field = struct_type->field(i);
                 QoreValue child_val = hash->getKeyValue(child_field->name().c_str());
                 if (!appendToBuilder(struct_builder->child_builder(i).get(),
@@ -756,6 +1443,9 @@ bool QoreArrowHelper::appendToBuilder(arrow::ArrayBuilder* builder,
             }
             auto value_builder = list_builder->value_builder();
             for (size_t i = 0; i < qlist->size(); ++i) {
+                if (i && !(i % 100) && qore_check_cancel(xsink, "building Arrow list value")) {
+                    return false;
+                }
                 if (!appendToBuilder(value_builder, list_type->value_type(),
                         qlist->retrieveEntry(i), xsink)) {
                     return false;
@@ -781,6 +1471,43 @@ bool QoreArrowHelper::appendToBuilder(arrow::ArrayBuilder* builder,
             }
             auto value_builder = list_builder->value_builder();
             for (size_t i = 0; i < qlist->size(); ++i) {
+                if (i && !(i % 100) && qore_check_cancel(xsink, "building Arrow large_list value")) {
+                    return false;
+                }
+                if (!appendToBuilder(value_builder, list_type->value_type(),
+                        qlist->retrieveEntry(i), xsink)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        case arrow::Type::FIXED_SIZE_LIST: {
+            auto list_builder = static_cast<arrow::FixedSizeListBuilder*>(builder);
+            auto list_type = std::static_pointer_cast<arrow::FixedSizeListType>(type);
+            const QoreListNode* qlist = val.get<QoreListNode>();
+            if (!qlist) {
+                xsink->raiseException("ARROW-TYPE-ERROR",
+                    "expected list for fixed_size_list field, got %s", val.getFullTypeName());
+                return false;
+            }
+            if (static_cast<int32_t>(qlist->size()) != list_type->list_size()) {
+                xsink->raiseException("ARROW-TYPE-ERROR",
+                    "fixed_size_list expects %d elements, got %d",
+                    list_type->list_size(), static_cast<int>(qlist->size()));
+                return false;
+            }
+            status = list_builder->Append();
+            if (!status.ok()) {
+                xsink->raiseException("ARROW-BUILD-ERROR",
+                    "failed to append fixed_size_list: %s", status.ToString().c_str());
+                return false;
+            }
+            auto value_builder = list_builder->value_builder();
+            for (size_t i = 0; i < qlist->size(); ++i) {
+                if (i && !(i % 100) && qore_check_cancel(xsink, "building Arrow fixed_size_list value")) {
+                    return false;
+                }
                 if (!appendToBuilder(value_builder, list_type->value_type(),
                         qlist->retrieveEntry(i), xsink)) {
                     return false;
@@ -807,7 +1534,11 @@ bool QoreArrowHelper::appendToBuilder(arrow::ArrayBuilder* builder,
             auto key_builder = map_builder->key_builder();
             auto item_builder = map_builder->item_builder();
             ConstHashIterator hi(hash);
+            size_t map_index = 0;
             while (hi.next()) {
+                if (map_index && !(map_index % 100) && qore_check_cancel(xsink, "building Arrow map value")) {
+                    return false;
+                }
                 // Map keys are always strings from Qore hash keys
                 SimpleRefHolder<QoreStringNode> key_str(new QoreStringNode(hi.getKey()));
                 QoreValue key_qv(*key_str);
@@ -817,6 +1548,7 @@ bool QoreArrowHelper::appendToBuilder(arrow::ArrayBuilder* builder,
                 if (!appendToBuilder(item_builder, map_type->item_type(), hi.get(), xsink)) {
                     return false;
                 }
+                ++map_index;
             }
             return true;
         }
@@ -874,17 +1606,204 @@ std::shared_ptr<arrow::Array> QoreArrowHelper::listToArray(
     return std::move(finish_result).ValueUnsafe();
 }
 
+#ifdef QORE_GRPC_HAVE_COLUMNAR_RESULT_V2
+std::shared_ptr<arrow::RecordBatch> QoreArrowHelper::columnarResultToRecordBatch(
+        const QoreColumnarResult* result, ExceptionSink* xsink) {
+    if (!result) {
+        xsink->raiseException("ARROW-COLUMNAR-ERROR", "missing ColumnarResult value");
+        return nullptr;
+    }
+
+#ifdef QORE_GRPC_HAVE_ARROW_C_DATA_INTEROP
+    bool cdata_supported = columnarResultSupportsQoreCDataExport(result, xsink);
+    if (*xsink) {
+        return nullptr;
+    }
+    if (cdata_supported) {
+        ArrowSchema schema = {};
+        ArrowArray array = {};
+        if (qore_columnar_result_export_arrow_c_data(result, &schema, &array, xsink)) {
+            qore_arrow_schema_release(&schema);
+            qore_arrow_array_release(&array);
+            return nullptr;
+        }
+
+        auto imported = arrow::ImportRecordBatch(&array, &schema);
+        if (!imported.ok()) {
+            qore_arrow_schema_release(&schema);
+            qore_arrow_array_release(&array);
+            xsink->raiseException("ARROW-COLUMNAR-ERROR",
+                "failed to import ColumnarResult Arrow C Data into an Arrow RecordBatch: %s",
+                imported.status().ToString().c_str());
+            return nullptr;
+        }
+        return std::move(imported).ValueUnsafe();
+    }
+#endif
+
+    arrow::FieldVector fields;
+    std::vector<std::shared_ptr<arrow::Array>> arrays;
+    fields.reserve(result->numColumns());
+    arrays.reserve(result->numColumns());
+
+    for (size_t i = 0; i < result->numColumns(); ++i) {
+        if (i && !(i % 100) && qore_check_cancel(xsink, "converting ColumnarResult to Arrow RecordBatch")) {
+            return nullptr;
+        }
+
+        const QoreColumnarResult::Column* column = result->getColumn(i);
+        assert(column);
+
+        QoreColumnarTypeDescriptor schema = column->schema;
+        if (schema.name.empty()) {
+            schema.name = column->name;
+        }
+        if (schema.buffer_type == QoreBufferElementType::Invalid && column->data.getType() == NT_BUFFER) {
+            const QoreBufferNode* buffer = column->data.get<const QoreBufferNode>();
+            schema.buffer_type = buffer->getElementType();
+            schema.nullable = buffer->hasNullableElements();
+        }
+
+        auto field = columnarDescriptorToArrowField(schema, column->name, xsink);
+        if (!field) {
+            return nullptr;
+        }
+
+        std::shared_ptr<arrow::Array> array;
+        if (column->data.getType() == NT_BUFFER) {
+            const QoreBufferNode* buffer = column->data.get<const QoreBufferNode>();
+            array = qoreBufferToArrowArray(buffer, field->type(), xsink);
+            if (*xsink) {
+                return nullptr;
+            }
+            if (!array) {
+                ReferenceHolder<QoreListNode> list(buffer->toList(xsink), xsink);
+                if (*xsink) {
+                    return nullptr;
+                }
+                array = listToArray(field->type(), *list, xsink);
+            }
+        } else if (column->data.getType() == NT_LIST) {
+            array = listToArray(field->type(), column->data.get<const QoreListNode>(), xsink);
+        } else {
+            xsink->raiseException("ARROW-COLUMNAR-ERROR",
+                "column '%s' has type '%s'; expected list or buffer",
+                column->name.c_str(), column->data.getTypeName());
+            return nullptr;
+        }
+
+        if (!array) {
+            return nullptr;
+        }
+        if (array->length() != static_cast<int64_t>(result->numRows())) {
+            xsink->raiseException("ARROW-COLUMNAR-ERROR",
+                "column '%s' has %lld rows, expected %lld",
+                column->name.c_str(), (long long)array->length(), (long long)result->numRows());
+            return nullptr;
+        }
+
+        fields.push_back(field);
+        arrays.push_back(array);
+    }
+
+    return arrow::RecordBatch::Make(arrow::schema(fields), static_cast<int64_t>(result->numRows()), arrays);
+}
+
+QoreColumnarResult* QoreArrowHelper::recordBatchToColumnarResult(
+        const std::shared_ptr<arrow::RecordBatch>& batch, ExceptionSink* xsink) {
+    if (!batch) {
+        xsink->raiseException("ARROW-COLUMNAR-ERROR", "missing Arrow RecordBatch value");
+        return nullptr;
+    }
+
+#ifdef QORE_GRPC_HAVE_ARROW_C_DATA_INTEROP
+    bool cdata_supported = recordBatchSupportsQoreCDataImport(batch, xsink);
+    if (*xsink) {
+        return nullptr;
+    }
+    if (cdata_supported) {
+        ArrowSchema schema = {};
+        ArrowArray array = {};
+        arrow::Status status = arrow::ExportRecordBatch(*batch, &array, &schema);
+        if (!status.ok()) {
+            qore_arrow_schema_release(&schema);
+            qore_arrow_array_release(&array);
+            xsink->raiseException("ARROW-COLUMNAR-ERROR",
+                "failed to export Arrow RecordBatch through the Arrow C Data Interface: %s",
+                status.ToString().c_str());
+            return nullptr;
+        }
+
+        QoreColumnarResult* result = qore_columnar_result_import_arrow_c_data(&schema, &array, xsink);
+        if (*xsink) {
+            qore_arrow_schema_release(&schema);
+            qore_arrow_array_release(&array);
+            return nullptr;
+        }
+        return result;
+    }
+#endif
+
+    ReferenceHolder<QoreColumnarResult> result(new QoreColumnarResult, xsink);
+    for (int i = 0; i < batch->num_columns(); ++i) {
+        if (i && !(i % 100) && qore_check_cancel(xsink, "converting Arrow RecordBatch to ColumnarResult")) {
+            return nullptr;
+        }
+
+        auto field = batch->schema()->field(i);
+        auto array = batch->column(i);
+        QoreColumnarTypeDescriptor schema = arrowFieldToColumnarDescriptor(field, xsink);
+        if (*xsink) {
+            return nullptr;
+        }
+        ReferenceHolder<QoreBufferNode> buffer(arrowArrayToDenseBuffer(array, field, xsink), xsink);
+        if (*xsink) {
+            return nullptr;
+        }
+
+        if (buffer) {
+            if (result->addColumn(field->name().c_str(), QoreValue(buffer.release()), schema, xsink)) {
+                return nullptr;
+            }
+            continue;
+        }
+
+        ReferenceHolder<QoreListNode> list(arrayToList(array, xsink), xsink);
+        if (*xsink) {
+            return nullptr;
+        }
+        if (result->addColumn(field->name().c_str(), QoreValue(list.release()), schema, xsink)) {
+            return nullptr;
+        }
+    }
+
+    return result.release();
+}
+#endif
+
 QoreHashNode* QoreArrowHelper::fieldToHash(const std::shared_ptr<arrow::Field>& field,
         ExceptionSink* xsink) {
     ReferenceHolder<QoreHashNode> hash(new QoreHashNode(autoTypeInfo), xsink);
 
     hash->setKeyValue("name", new QoreStringNode(field->name()), xsink);
+    if (*xsink) {
+        return nullptr;
+    }
     hash->setKeyValue("type", new QoreStringNode(typeName(field->type())), xsink);
+    if (*xsink) {
+        return nullptr;
+    }
     hash->setKeyValue("nullable", field->nullable(), xsink);
+    if (*xsink) {
+        return nullptr;
+    }
 
     // metadata
     if (field->metadata()) {
         hash->setKeyValue("metadata", metadataToHash(field->metadata(), xsink), xsink);
+        if (*xsink) {
+            return nullptr;
+        }
     }
 
     // children (for nested types)
@@ -892,13 +1811,22 @@ QoreHashNode* QoreArrowHelper::fieldToHash(const std::shared_ptr<arrow::Field>& 
     if (type->num_fields() > 0) {
         ReferenceHolder<QoreListNode> children(new QoreListNode(autoTypeInfo), xsink);
         for (int i = 0; i < type->num_fields(); ++i) {
+            if (i && !(i % 100) && qore_check_cancel(xsink, "building Arrow field children")) {
+                return nullptr;
+            }
             QoreHashNode* child_hash = fieldToHash(type->field(i), xsink);
             if (*xsink) {
                 return nullptr;
             }
             children->push(child_hash, xsink);
+            if (*xsink) {
+                return nullptr;
+            }
         }
         hash->setKeyValue("children", children.release(), xsink);
+        if (*xsink) {
+            return nullptr;
+        }
     }
 
     return hash.release();
@@ -913,22 +1841,33 @@ QoreHashNode* QoreArrowHelper::metadataToHash(
 
     ReferenceHolder<QoreHashNode> hash(new QoreHashNode(autoTypeInfo), xsink);
     for (int64_t i = 0; i < metadata->size(); ++i) {
+        if (i && !(i % 100) && qore_check_cancel(xsink, "converting Arrow metadata to Qore")) {
+            return nullptr;
+        }
         hash->setKeyValue(metadata->key(i), new QoreStringNode(metadata->value(i)), xsink);
+        if (*xsink) {
+            return nullptr;
+        }
     }
     return hash.release();
 }
 
 std::shared_ptr<arrow::KeyValueMetadata> QoreArrowHelper::hashToMetadata(
-        const QoreHashNode* hash) {
+        const QoreHashNode* hash, ExceptionSink* xsink) {
     if (!hash) {
         return nullptr;
     }
 
     auto metadata = std::make_shared<arrow::KeyValueMetadata>();
     ConstHashIterator hi(hash);
+    size_t i = 0;
     while (hi.next()) {
+        if (i && !(i % 100) && xsink && qore_check_cancel(xsink, "building Arrow metadata")) {
+            return nullptr;
+        }
         QoreStringValueHelper str(hi.get());
         metadata->Append(hi.getKey(), std::string(str->c_str()));
+        ++i;
     }
     return metadata;
 }
@@ -940,17 +1879,29 @@ QoreHashNode* QoreArrowHelper::schemaToHash(const std::shared_ptr<arrow::Schema>
     // fields
     ReferenceHolder<QoreListNode> fields(new QoreListNode(autoTypeInfo), xsink);
     for (int i = 0; i < schema->num_fields(); ++i) {
+        if (i && !(i % 100) && qore_check_cancel(xsink, "converting Arrow schema to hash")) {
+            return nullptr;
+        }
         QoreHashNode* field_hash = fieldToHash(schema->field(i), xsink);
         if (*xsink) {
             return nullptr;
         }
         fields->push(field_hash, xsink);
+        if (*xsink) {
+            return nullptr;
+        }
     }
     hash->setKeyValue("fields", fields.release(), xsink);
+    if (*xsink) {
+        return nullptr;
+    }
 
     // metadata
     if (schema->metadata()) {
         hash->setKeyValue("metadata", metadataToHash(schema->metadata(), xsink), xsink);
+        if (*xsink) {
+            return nullptr;
+        }
     }
 
     return hash.release();
@@ -994,7 +1945,10 @@ std::shared_ptr<arrow::Field> QoreArrowHelper::hashToField(
     std::shared_ptr<arrow::KeyValueMetadata> metadata;
     const QoreHashNode* meta_hash = field_hash->getKeyValue("metadata").get<QoreHashNode>();
     if (meta_hash) {
-        metadata = hashToMetadata(meta_hash);
+        metadata = hashToMetadata(meta_hash, xsink);
+        if (*xsink) {
+            return nullptr;
+        }
     }
 
     // children (for nested types that need them at construction time)
@@ -1005,6 +1959,9 @@ std::shared_ptr<arrow::Field> QoreArrowHelper::hashToField(
         if (data_type->id() == arrow::Type::STRUCT) {
             arrow::FieldVector child_fields;
             for (size_t i = 0; i < children->size(); ++i) {
+                if (i && !(i % 100) && qore_check_cancel(xsink, "building Arrow struct fields")) {
+                    return nullptr;
+                }
                 const QoreHashNode* child_hash = children->retrieveEntry(i).get<QoreHashNode>();
                 auto child_field = hashToField(child_hash, xsink);
                 if (!child_field) {
@@ -1027,6 +1984,14 @@ std::shared_ptr<arrow::Field> QoreArrowHelper::hashToField(
                 return nullptr;
             }
             data_type = arrow::large_list(child_field);
+        } else if (data_type->id() == arrow::Type::FIXED_SIZE_LIST && children->size() >= 1) {
+            const QoreHashNode* child_hash = children->retrieveEntry(0).get<QoreHashNode>();
+            auto child_field = hashToField(child_hash, xsink);
+            if (!child_field) {
+                return nullptr;
+            }
+            auto list_type = std::static_pointer_cast<arrow::FixedSizeListType>(data_type);
+            data_type = arrow::fixed_size_list(child_field, list_type->list_size());
         } else if (data_type->id() == arrow::Type::MAP && children->size() >= 2) {
             const QoreHashNode* key_hash = children->retrieveEntry(0).get<QoreHashNode>();
             auto key_field = hashToField(key_hash, xsink);
@@ -1051,6 +2016,9 @@ std::shared_ptr<arrow::Schema> QoreArrowHelper::hashToSchema(
     arrow::FieldVector field_vec;
 
     for (size_t i = 0; i < fields->size(); ++i) {
+        if (i && !(i % 100) && qore_check_cancel(xsink, "building Arrow schema from hash")) {
+            return nullptr;
+        }
         const QoreHashNode* field_hash = fields->retrieveEntry(i).get<QoreHashNode>();
         auto field = hashToField(field_hash, xsink);
         if (!field) {
@@ -1059,7 +2027,10 @@ std::shared_ptr<arrow::Schema> QoreArrowHelper::hashToSchema(
         field_vec.push_back(field);
     }
 
-    auto arrow_metadata = hashToMetadata(metadata);
+    auto arrow_metadata = hashToMetadata(metadata, xsink);
+    if (*xsink) {
+        return nullptr;
+    }
     return arrow::schema(field_vec, arrow_metadata);
 }
 
@@ -1291,6 +2262,23 @@ std::shared_ptr<arrow::DataType> QoreArrowHelper::parseTypeName(const std::strin
     if (type_name == "large_list") {
         return arrow::large_list(arrow::utf8());
     }
+    if (type_name.substr(0, 15) == "fixed_size_list") {
+        auto bracket = type_name.find('[');
+        if (bracket != std::string::npos) {
+            try {
+                auto end = type_name.find(']');
+                int size = std::stoi(type_name.substr(bracket + 1, end - bracket - 1));
+                return arrow::fixed_size_list(arrow::field("item", arrow::utf8(), true), size);
+            } catch (const std::exception& e) {
+                xsink->raiseException("ARROW-TYPE-ERROR",
+                    "invalid fixed_size_list type format '%s': %s", type_name.c_str(), e.what());
+                return nullptr;
+            }
+        }
+        xsink->raiseException("ARROW-TYPE-ERROR",
+            "fixed_size_list requires a size: fixed_size_list[N]");
+        return nullptr;
+    }
 
     // Map type
     if (type_name == "map") {
@@ -1405,8 +2393,17 @@ std::string QoreArrowHelper::typeName(const std::shared_ptr<arrow::DataType>& ty
             return "list";
         case arrow::Type::LARGE_LIST:
             return "large_list";
+        case arrow::Type::FIXED_SIZE_LIST: {
+            auto list_type = std::static_pointer_cast<arrow::FixedSizeListType>(type);
+            return "fixed_size_list[" + std::to_string(list_type->list_size()) + "]";
+        }
         case arrow::Type::MAP:
             return "map";
+        case arrow::Type::DICTIONARY: {
+            auto dict_type = std::static_pointer_cast<arrow::DictionaryType>(type);
+            return "dictionary[" + typeName(dict_type->index_type()) + ", "
+                + typeName(dict_type->value_type()) + "]";
+        }
         default:
             return type->ToString();
     }
@@ -1431,7 +2428,11 @@ QoreHashNode* QoreArrowHelper::recordBatchToIpc(
     // data_body = concatenated body buffers
     // Calculate total body size
     int64_t body_size = 0;
-    for (const auto& buf : payload.body_buffers) {
+    for (size_t i = 0; i < payload.body_buffers.size(); ++i) {
+        if (i && !(i % 100) && qore_check_cancel(xsink, "calculating Arrow IPC body size")) {
+            return nullptr;
+        }
+        const auto& buf = payload.body_buffers[i];
         if (buf) {
             // Pad each buffer to 8-byte alignment
             int64_t padded = (buf->size() + 7) & ~7;
@@ -1446,7 +2447,11 @@ QoreHashNode* QoreArrowHelper::recordBatchToIpc(
         // Allocate capacity but reset logical size to 0 so append() works correctly
         body_bin->preallocate(body_size);
         body_bin->setSize(0);
-        for (const auto& buf : payload.body_buffers) {
+        for (size_t i = 0; i < payload.body_buffers.size(); ++i) {
+            if (i && !(i % 100) && qore_check_cancel(xsink, "building Arrow IPC body")) {
+                return nullptr;
+            }
+            const auto& buf = payload.body_buffers[i];
             if (buf && buf->size() > 0) {
                 body_bin->append(buf->data(), buf->size());
                 // Pad to 8-byte alignment
@@ -1461,7 +2466,13 @@ QoreHashNode* QoreArrowHelper::recordBatchToIpc(
 
     ReferenceHolder<QoreHashNode> result(new QoreHashNode(autoTypeInfo), xsink);
     result->setKeyValue("data_header", header_bin.release(), xsink);
+    if (*xsink) {
+        return nullptr;
+    }
     result->setKeyValue("data_body", body_bin.release(), xsink);
+    if (*xsink) {
+        return nullptr;
+    }
 
     return result.release();
 }
@@ -1475,29 +2486,17 @@ std::shared_ptr<arrow::RecordBatch> QoreArrowHelper::ipcToRecordBatch(
         return nullptr;
     }
 
-    // Copy data_header into an Arrow-owned mutable buffer (BinaryNode may be freed
-    // after the constructor returns, but the RecordBatch retains references)
-    auto header_alloc = arrow::AllocateResizableBuffer(data_header->size());
-    if (!header_alloc.ok()) {
-        xsink->raiseException("ARROW-IPC-ERROR",
-            "failed to allocate header buffer: %s", header_alloc.status().ToString().c_str());
+    std::shared_ptr<arrow::Buffer> header_buf = wrapBinaryAsArrowBuffer(data_header, "data_header", xsink);
+    if (*xsink) {
         return nullptr;
     }
-    std::shared_ptr<arrow::ResizableBuffer> header_buf = std::move(header_alloc).ValueUnsafe();
-    memcpy(header_buf->mutable_data(), data_header->getPtr(), data_header->size());
 
-    // Copy data_body into an Arrow-owned mutable buffer
     std::shared_ptr<arrow::Buffer> body_buf;
     if (data_body && data_body->size() > 0) {
-        auto body_alloc = arrow::AllocateResizableBuffer(data_body->size());
-        if (!body_alloc.ok()) {
-            xsink->raiseException("ARROW-IPC-ERROR",
-                "failed to allocate body buffer: %s", body_alloc.status().ToString().c_str());
+        body_buf = wrapBinaryAsArrowBuffer(data_body, "data_body", xsink);
+        if (*xsink) {
             return nullptr;
         }
-        std::shared_ptr<arrow::ResizableBuffer> body_owned = std::move(body_alloc).ValueUnsafe();
-        memcpy(body_owned->mutable_data(), data_body->getPtr(), data_body->size());
-        body_buf = body_owned;
     } else {
         body_buf = std::make_shared<arrow::Buffer>(nullptr, 0);
     }

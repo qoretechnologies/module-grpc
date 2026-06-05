@@ -64,14 +64,14 @@ public class ArrowFlightStreamWriter {
         m_stream.write(initial);
     }
 
-    #! Write an ArrowRecordBatch to the stream
+    #! Write columnar data to the stream
     /** Serializes the batch as a FlightData message and sends it.
 
-        @param batch the record batch to write
+        @param batch an ArrowRecordBatch, ColumnarResult, DataFrame, hash-of-lists, or row-list to write
         @param app_metadata optional application-specific metadata
     */
-    write(ArrowRecordBatch batch, *binary app_metadata) {
-        hash<auto> flight_data = ArrowFlightHelper::batchToFlightData(batch, app_metadata);
+    write(auto batch, *binary app_metadata) {
+        hash<auto> flight_data = ArrowFlightHelper::batchToFlightData(batch, app_metadata, m_schema);
         m_stream.write(flight_data);
     }
 

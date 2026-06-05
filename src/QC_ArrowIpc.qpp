@@ -88,7 +88,7 @@ hash<ArrowSchemaInfo> info = schema.info();
 
     @since %grpc 1.0
 */
-static ArrowSchema ArrowIpc::readSchema(binary ipc_data) {
+static ArrowSchema ArrowIpc::readSchema(binary ipc_data) [flags=NAMED_ARGS] {
     auto schema = QoreArrowHelper::deserializeSchema(ipc_data, xsink);
     if (!schema) {
         return QoreValue();
@@ -116,7 +116,8 @@ hash<auto> cols = batch.toColumns();
 
     @since %grpc 1.0
 */
-static ArrowRecordBatch ArrowIpc::readRecordBatch(ArrowSchema[QoreArrowSchemaHolder] schema, binary data_header, binary data_body) {
+static ArrowRecordBatch ArrowIpc::readRecordBatch(ArrowSchema[QoreArrowSchemaHolder] schema, binary data_header,
+        binary data_body) [flags=NAMED_ARGS] {
     auto batch = QoreArrowHelper::ipcToRecordBatch(
         schema->schema, data_header, data_body, xsink);
     if (!batch) {
@@ -143,7 +144,7 @@ binary ipc_bytes = ArrowIpc::writeSchema(schema);
 
     @since %grpc 1.0
 */
-static binary ArrowIpc::writeSchema(ArrowSchema[QoreArrowSchemaHolder] schema) {
+static binary ArrowIpc::writeSchema(ArrowSchema[QoreArrowSchemaHolder] schema) [flags=NAMED_ARGS] {
     return QoreArrowHelper::serializeSchema(schema->schema, xsink);
 }
 
@@ -163,7 +164,8 @@ hash<ArrowIpcData> ipc = ArrowIpc::writeRecordBatch(batch);
 
     @since %grpc 1.0
 */
-static hash<ArrowIpcData> ArrowIpc::writeRecordBatch(ArrowRecordBatch[QoreArrowRecordBatchHolder] batch) {
+static hash<ArrowIpcData> ArrowIpc::writeRecordBatch(ArrowRecordBatch[QoreArrowRecordBatchHolder] batch)
+        [flags=NAMED_ARGS] {
     return QoreArrowHelper::recordBatchToIpc(batch->batch, xsink);
 }
 
@@ -186,7 +188,7 @@ hash<auto> flight_data = {"data_header": data_header, "data_body": binary()};
 
     @since %grpc 1.0
 */
-static binary ArrowIpc::writeSchemaPayload(ArrowSchema[QoreArrowSchemaHolder] schema) {
+static binary ArrowIpc::writeSchemaPayload(ArrowSchema[QoreArrowSchemaHolder] schema) [flags=NAMED_ARGS] {
     return QoreArrowHelper::serializeSchemaPayload(schema->schema, xsink);
 }
 
@@ -206,7 +208,7 @@ ArrowSchema schema = ArrowIpc::readSchemaPayload(flight_data.data_header);
 
     @since %grpc 1.0
 */
-static ArrowSchema ArrowIpc::readSchemaPayload(binary ipc_data) {
+static ArrowSchema ArrowIpc::readSchemaPayload(binary ipc_data) [flags=NAMED_ARGS] {
     auto schema = QoreArrowHelper::deserializeSchemaPayload(ipc_data, xsink);
     if (!schema) {
         return QoreValue();

@@ -858,6 +858,12 @@ events.observersReady();
       - @ref Qore::Grpc::ArrowIpc static utility class for IPC serialization / deserialization
       - support for all Arrow primitive types, nested types (struct, list, large_list, map),
         decimal128/256, timestamps with timezones, durations, half-float, and field/schema metadata
+      - when built with qore Arrow C Data interop, supported \c ColumnarResult
+        conversions use libqore's zero-copy Arrow C Data bridge before falling
+        back to Arrow builders for types not yet covered by the bridge; builds
+        with qore temporal-buffer support keep microsecond timestamp and
+        duration columns as dense \c buffer<int64> data while preserving Arrow
+        temporal schema
       - IPC data_header + data_body split compatible with Arrow Flight wire format
     - <b>Arrow Flight protocol</b> (optional, requires Apache Arrow):
       - @ref Grpc::ArrowFlightClient "ArrowFlightClient" for Flight RPCs (ListFlights,
@@ -869,6 +875,8 @@ events.observersReady();
       - @ref Grpc::ArrowFlightDatasetHandler "ArrowFlightDatasetHandler" abstract base for
         user-implemented Flight datasets
       - @ref Grpc::ArrowFlightHelper "ArrowFlightHelper" for FlightData ↔ Arrow object conversion
+      - incoming Flight IPC \c data_header and \c data_body buffers are wrapped without copying
+        when decoding record batches
       - @ref Grpc::FlightProto "FlightProto" embedded Flight protocol schema
     - <b>ArrowFlightDataProvider module</b> (optional, requires Apache Arrow):
       - @ref ArrowFlightDataProvider::ArrowFlightDataProvider "ArrowFlightDataProvider" root
