@@ -1,0 +1,945 @@
+#!/usr/bin/env qore
+# -*- mode: qore; indent-tabs-mode: nil -*-
+
+/*
+    Copyright (C) 2026 Qore Technologies, s.r.o., all rights reserved
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+
+    Event-driven gRPC client streaming test suite
+
+    Covers Grpc::GrpcAsyncClientStream: message and lifecycle delivery driven by
+    the async socket I/O controller, controller-armed deadlines, application
+    timers, cancellation, error delivery, and the absence of a per-stream thread.
+*/
+
+%modern
+
+%requires QUnit
+%requires protobuf
+%requires grpc
+%requires GrpcUtil
+
+%exec-class GrpcAsyncStreamTest
+
+#! Collects everything an async stream delivers
+class StreamSink {
+    public {
+        *hash<string, string> initial_metadata;
+        *hash<GrpcCallResult> result;
+        *hash<auto> error;
+    }
+
+    private {
+        list<hash<auto>> messages = ();
+        bool terminal = False;
+        Mutex m();
+        Condition cond();
+    }
+
+    onMessage(hash<auto> msg) {
+        AutoLock al(m);
+        messages += msg;
+        cond.broadcast();
+    }
+
+    onHeaders(hash<string, string> md) {
+        AutoLock al(m);
+        initial_metadata = md;
+        cond.broadcast();
+    }
+
+    onComplete(hash<GrpcCallResult> res) {
+        AutoLock al(m);
+        result = res;
+        terminal = True;
+        cond.broadcast();
+    }
+
+    onFailure(hash<auto> err) {
+        AutoLock al(m);
+        error = err;
+        terminal = True;
+        cond.broadcast();
+    }
+
+    hash<GrpcAsyncStreamOptions> getOptions() {
+        return <GrpcAsyncStreamOptions>{
+            "on_message": \onMessage(),
+            "on_headers": \onHeaders(),
+            "on_complete": \onComplete(),
+            "on_failure": \onFailure(),
+        };
+    }
+
+    #! Blocks until the terminal event has been delivered
+    /** @return True if the stream finished, False on timeout
+    */
+    bool waitForTerminal(timeout to = 30s) {
+        AutoLock al(m);
+        date deadline = now_us() + milliseconds(to);
+        while (!terminal) {
+            int remaining_ms = (deadline - now_us()).durationMilliseconds();
+            if (remaining_ms <= 0) {
+                return False;
+            }
+            cond.wait(m, remaining_ms);
+        }
+        return True;
+    }
+
+    #! Blocks until at least \a count messages have been delivered
+    /** @return True if enough messages arrived, False on timeout
+    */
+    bool waitForMessages(int count, timeout to = 30s) {
+        AutoLock al(m);
+        date deadline = now_us() + milliseconds(to);
+        while (messages.size() < count) {
+            int remaining_ms = (deadline - now_us()).durationMilliseconds();
+            if (remaining_ms <= 0) {
+                return False;
+            }
+            cond.wait(m, remaining_ms);
+        }
+        return True;
+    }
+
+    list<hash<auto>> getMessages() {
+        AutoLock al(m);
+        return messages;
+    }
+
+    int messageCount() {
+        AutoLock al(m);
+        return messages.size();
+    }
+}
+
+#! A gRPC server with the handlers used by these tests, plus a bound client
+class TestEnv {
+    public {
+        GrpcServer server;
+        GrpcChannel channel;
+        GrpcClient client;
+        int port;
+    }
+
+    private {
+        #! Released on stop() so handlers that never answer can exit promptly
+        Counter release(1);
+
+        bool stopped = False;
+        Mutex m();
+
+        #! Counts the messages the SlowStream handler managed to write
+        Sequence server_writes();
+    }
+
+    constructor(ProtobufSchema schema) {
+        server = new GrpcServer(schema);
+        # bind the shared state the handlers need directly, so the handler
+        # closures do not capture this object and create a reference cycle
+        Counter rel = release;
+        Sequence writes = server_writes;
+
+        server.registerHandler("AsyncTestService", "ServerStream",
+            sub (hash<auto> request, GrpcServerStream stream,
+                    hash<string, string> metadata) {
+                for (int i = 0; i < 3; ++i) {
+                    stream.write({
+                        "message": sprintf("msg %d for %s", i, request.name),
+                        "status": i,
+                    });
+                }
+            });
+
+        server.registerHandler("AsyncTestService", "SlowStream",
+            sub (hash<auto> request, GrpcServerStream stream,
+                    hash<string, string> metadata) {
+                for (int i = 0; i < 20; ++i) {
+                    stream.write({"message": sprintf("slow %d", i), "status": i});
+                    writes.next();
+                    usleep(100ms);
+                }
+            });
+
+        server.registerHandler("AsyncTestService", "FailingStream",
+            sub (hash<auto> request, GrpcServerStream stream,
+                    hash<string, string> metadata) {
+                throw "GRPC-NOT-FOUND", "no such thing";
+            });
+
+        server.registerHandler("AsyncTestService", "BidiStream",
+            sub (GrpcServerStream stream, hash<string, string> metadata) {
+                while (*hash<auto> msg = stream.read(60s)) {
+                    stream.write({"message": "echo: " + msg.name, "status": msg.id});
+                }
+            });
+
+        # never writes and never closes its side: such a stream can only be
+        # ended by a client-side deadline or a cancel
+        server.registerHandler("AsyncTestService", "SilentBidi",
+            sub (GrpcServerStream stream, hash<string, string> metadata) {
+                rel.waitForZero(120s);
+            });
+
+        server.registerHandler("AsyncTestService", "ClientStream",
+            hash<auto> sub (GrpcServerStream stream, hash<string, string> metadata) {
+                int count = 0;
+                while (*hash<auto> msg = stream.read(60s)) {
+                    ++count;
+                }
+                return {"message": "received", "status": count};
+            });
+
+        port = server.addInsecurePort("localhost:0");
+        server.start();
+
+        channel = new GrpcChannel("http://localhost:" + string(port));
+        client = new GrpcClient(channel, schema, "AsyncTestService");
+    }
+
+    destructor() {
+        stop();
+    }
+
+    #! Returns how many messages the SlowStream handler managed to write
+    int getServerWriteCount() {
+        return server_writes.getCurrent();
+    }
+
+    #! Shuts the server and channel down; safe to call more than once
+    stop() {
+        {
+            AutoLock al(m);
+            if (stopped) {
+                return;
+            }
+            stopped = True;
+        }
+        # let any parked handler return before the server is torn down
+        release.dec();
+        server.shutdown();
+        channel.shutdown();
+    }
+}
+
+public class GrpcAsyncStreamTest inherits QUnit::Test {
+    public {
+        #! The old blocking implementation woke every 5 seconds; an idle stream
+        #! must now survive well past that without any per-stream thread
+        const OldPollInterval = 5s;
+
+        #! Number of concurrently idle streams used by the no-thread test
+        const IdleStreamCount = 8;
+    }
+
+    private {
+        string test_dir;
+        ProtobufSchema schema;
+    }
+
+    constructor() : Test("GrpcAsyncStreamTest", "1.0") {
+        test_dir = get_script_dir();
+        schema = new ProtobufSchema(test_dir, "async-stream.proto");
+
+        # deframer unit tests
+        addTestCase("frame buffer: single frame", \testFrameBufferSingle());
+        addTestCase("frame buffer: split delivery", \testFrameBufferSplit());
+        addTestCase("frame buffer: coalesced frames", \testFrameBufferCoalesced());
+        addTestCase("frame buffer: empty payload", \testFrameBufferEmptyPayload());
+
+        # delivery
+        addTestCase("async: server stream callbacks", \testServerStreamCallbacks());
+        addTestCase("async: queue delivery", \testQueueDelivery());
+        addTestCase("async: bidi write and read", \testBidiStream());
+        addTestCase("async: client stream", \testClientStream());
+        addTestCase("async: large messages spanning frames", \testLargeMessages());
+
+        # controller-driven deadlines
+        addTestCase("async: idle streams need no threads", \testIdleStreamNoThread());
+        addTestCase("async: call deadline fires", \testCallDeadline());
+        addTestCase("async: idle timeout fires", \testIdleTimeout());
+        addTestCase("async: idle timeout is reset by traffic", \testIdleTimeoutReset());
+        addTestCase("async: application timer fires", \testApplicationTimer());
+        addTestCase("async: application timer replaced and cancelled", \testTimerCancel());
+        addTestCase("async: drain deadline after finishWrites", \testDrainDeadline());
+
+        # delivery-driven writes
+        addTestCase("async: write from a timer callback", \testWriteFromTimerCallback());
+        addTestCase("async: write from a message callback", \testWriteFromMessageCallback());
+        addTestCase("async: cancel from a callback reaches the server",
+            \testCancelFromCallbackReachesServer());
+
+        # cancellation and errors
+        addTestCase("async: cancel delivers CANCELLED", \testCancel());
+        addTestCase("async: cancel from a callback", \testCancelFromCallback());
+        addTestCase("async: server error status", \testServerErrorStatus());
+        addTestCase("async: transport error delivery", \testTransportError());
+        addTestCase("async: connect failure", \testConnectFailure());
+
+        # negative tests
+        addTestCase("async: write after writes done", \testWriteAfterWritesDone());
+        addTestCase("async: write after terminal", \testWriteAfterTerminal());
+        addTestCase("async: double start", \testDoubleStart());
+        addTestCase("async: timer after terminal", \testTimerAfterTerminal());
+        addTestCase("async: unknown method", \testUnknownMethod());
+
+        set_return_value(main());
+    }
+
+    # ---------- deframer unit tests ----------
+
+    testFrameBufferSingle() {
+        GrpcFrameBuffer fb();
+        assertTrue(fb.empty());
+        assertFalse(fb.hasFrame());
+        assertNothing(fb.takeFrame());
+
+        binary payload = <deadbeef>;
+        fb.add(GrpcHelper::frameMessage(payload));
+        assertTrue(fb.hasFrame());
+        assertEq(payload, fb.takeFrame());
+        assertTrue(fb.empty());
+        assertNothing(fb.takeFrame());
+    }
+
+    testFrameBufferSplit() {
+        GrpcFrameBuffer fb();
+        binary payload = binary("0123456789");
+        binary framed = GrpcHelper::frameMessage(payload);
+
+        # split inside the 5-byte header
+        fb.add(framed.substr(0, 3));
+        assertFalse(fb.hasFrame());
+        assertNothing(fb.takeFrame());
+        assertEq(3, fb.size());
+
+        # split inside the payload
+        fb.add(framed.substr(3, 6));
+        assertFalse(fb.hasFrame());
+        assertNothing(fb.takeFrame());
+
+        fb.add(framed.substr(9));
+        assertTrue(fb.hasFrame());
+        assertEq(payload, fb.takeFrame());
+        assertTrue(fb.empty());
+    }
+
+    testFrameBufferCoalesced() {
+        GrpcFrameBuffer fb();
+        binary p1 = binary("one");
+        binary p2 = binary("two-longer");
+        binary p3 = binary("three");
+        fb.add(GrpcHelper::frameMessage(p1) + GrpcHelper::frameMessage(p2)
+            + GrpcHelper::frameMessage(p3).substr(0, 2));
+
+        assertEq(p1, fb.takeFrame());
+        assertEq(p2, fb.takeFrame());
+        # the third frame is truncated
+        assertNothing(fb.takeFrame());
+        assertEq(2, fb.size());
+
+        fb.clear();
+        assertTrue(fb.empty());
+        assertEq(0, fb.size());
+    }
+
+    testFrameBufferEmptyPayload() {
+        GrpcFrameBuffer fb();
+        fb.add(GrpcHelper::frameMessage(binary()));
+        assertTrue(fb.hasFrame());
+        assertEq(binary(), fb.takeFrame());
+        assertTrue(fb.empty());
+    }
+
+    # ---------- delivery ----------
+
+    testServerStreamCallbacks() {
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        StreamSink sink();
+        GrpcAsyncClientStream stream = env.client.serverStreamAsync("ServerStream",
+            {"name": "World", "id": 1}, NOTHING, sink.getOptions());
+
+        assertTrue(sink.waitForTerminal(30s), "the stream must reach a terminal state");
+        assertTrue(stream.waitForDone(10s));
+        assertFalse(stream.isActive());
+        assertNothing(sink.error);
+
+        list<hash<auto>> msgs = sink.getMessages();
+        assertEq(3, msgs.size());
+        assertEq("msg 0 for World", msgs[0].message);
+        assertEq("msg 1 for World", msgs[1].message);
+        assertEq("msg 2 for World", msgs[2].message);
+        assertEq(2, msgs[2].status);
+
+        assertEq(GRPC_STATUS_OK, sink.result.status_code);
+        assertEq("OK", sink.result.status_message);
+        assertEq(GRPC_STATUS_OK, stream.getResult().status_code);
+        assertNothing(stream.getError());
+        assertTrue(stream.readsDone());
+
+        # the response headers are delivered as initial metadata
+        assertEq("application/grpc+proto", sink.initial_metadata."content-type");
+    }
+
+    testQueueDelivery() {
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        Queue q();
+        GrpcAsyncClientStream stream = env.client.serverStreamAsync("ServerStream",
+            {"name": "Q", "id": 7}, NOTHING, <GrpcAsyncStreamOptions>{"queue": q});
+
+        list<auto> events = ();
+        while (True) {
+            auto e = q.get(30s);
+            if (!exists e) {
+                # the NOTHING sentinel follows the terminal event
+                break;
+            }
+            events += e;
+        }
+        assertTrue(stream.waitForDone(10s));
+
+        # headers, 3 messages, complete
+        assertEq(5, events.size());
+        assertEq(GRPC_ASYNC_EVENT_HEADERS, events[0].event);
+        assertEq("application/grpc+proto", events[0].data."content-type");
+        assertEq(GRPC_ASYNC_EVENT_MESSAGE, events[1].event);
+        assertEq("msg 0 for Q", events[1].data.message);
+        assertEq(GRPC_ASYNC_EVENT_MESSAGE, events[2].event);
+        assertEq("msg 1 for Q", events[2].data.message);
+        assertEq(GRPC_ASYNC_EVENT_MESSAGE, events[3].event);
+        assertEq("msg 2 for Q", events[3].data.message);
+        assertEq(GRPC_ASYNC_EVENT_COMPLETE, events[4].event);
+        assertEq(GRPC_STATUS_OK, events[4].data.status_code);
+    }
+
+    testBidiStream() {
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        StreamSink sink();
+        GrpcAsyncClientStream stream = env.client.bidiStreamAsync("BidiStream", NOTHING,
+            sink.getOptions());
+
+        stream.write({"name": "one", "id": 1});
+        stream.write({"name": "two", "id": 2});
+        stream.finishWrites(20s);
+
+        assertTrue(sink.waitForTerminal(30s));
+        assertNothing(sink.error);
+        list<hash<auto>> msgs = sink.getMessages();
+        assertEq(2, msgs.size());
+        assertEq("echo: one", msgs[0].message);
+        assertEq(1, msgs[0].status);
+        assertEq("echo: two", msgs[1].message);
+        assertEq(2, msgs[1].status);
+        assertEq(GRPC_STATUS_OK, sink.result.status_code);
+    }
+
+    testClientStream() {
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        StreamSink sink();
+        GrpcAsyncClientStream stream = env.client.clientStreamAsync("ClientStream",
+            NOTHING, sink.getOptions());
+
+        for (int i = 0; i < 5; ++i) {
+            stream.write({"name": sprintf("chunk-%d", i), "id": i});
+        }
+        stream.finishWrites(20s);
+
+        assertTrue(sink.waitForTerminal(30s));
+        assertNothing(sink.error);
+        # a client-streaming method answers with exactly one message
+        list<hash<auto>> msgs = sink.getMessages();
+        assertEq(1, msgs.size());
+        assertEq(5, msgs[0].status);
+        assertEq(GRPC_STATUS_OK, sink.result.status_code);
+    }
+
+    testLargeMessages() {
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        StreamSink sink();
+        # 64 KiB of payload per message forces the transport to split single
+        # gRPC frames across several HTTP/2 DATA frames
+        string big = strmul("x", 65536);
+        GrpcAsyncClientStream stream = env.client.serverStreamAsync("ServerStream",
+            {"name": big, "id": 1}, NOTHING, sink.getOptions());
+
+        assertTrue(sink.waitForTerminal(30s));
+        assertNothing(sink.error);
+        list<hash<auto>> msgs = sink.getMessages();
+        assertEq(3, msgs.size());
+        assertEq(sprintf("msg 0 for %s", big), msgs[0].message);
+        assertEq(sprintf("msg 2 for %s", big), msgs[2].message);
+        assertEq(GRPC_STATUS_OK, sink.result.status_code);
+    }
+
+    # ---------- controller-driven deadlines ----------
+
+    testIdleStreamNoThread() {
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        # exercise one stream first so the controller's callback workers are
+        # already running when the baseline is taken
+        StreamSink warm();
+        GrpcAsyncClientStream warm_stream = env.client.bidiStreamAsync("BidiStream",
+            NOTHING, warm.getOptions());
+        warm_stream.write({"name": "warmup", "id": 0});
+        assertTrue(warm.waitForMessages(1, 20s));
+
+        int baseline = num_threads();
+
+        list<StreamSink> sinks = ();
+        list<GrpcAsyncClientStream> streams = ();
+        for (int i = 0; i < IdleStreamCount; ++i) {
+            StreamSink sink();
+            sinks += sink;
+            streams += env.client.bidiStreamAsync("BidiStream", NOTHING,
+                sink.getOptions());
+        }
+        on_exit {
+            map $1.cancel(), streams;
+            warm_stream.cancel();
+        }
+
+        # the old implementation used one background thread per stream
+        int added = num_threads() - baseline;
+        assertTrue(added < IdleStreamCount,
+            sprintf("%d idle streams must not cost a thread each (%d threads added)",
+                IdleStreamCount, added));
+
+        # the streams must survive well past the old 5s poll interval with
+        # nothing read or written on them
+        date start = now_us();
+        assertFalse(streams[0].waitForDone(OldPollInterval + 2s),
+            "an idle stream must not terminate on its own");
+        assertTrue(now_us() - start >= OldPollInterval,
+            "the idle wait must have covered the old poll interval");
+        map assertTrue($1.isActive(), "an idle stream must still be active"), streams;
+
+        # ...and a message sent after the idle period is still delivered
+        streams[0].write({"name": "late", "id": 42});
+        assertTrue(sinks[0].waitForMessages(1, 20s));
+        assertEq("echo: late", sinks[0].getMessages()[0].message);
+    }
+
+    testCallDeadline() {
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        StreamSink sink();
+        hash<GrpcAsyncStreamOptions> opts = sink.getOptions();
+        opts.deadline_ms = 1000;
+
+        date start = now_us();
+        # SilentBidi never answers, so only the local deadline can end the stream
+        GrpcAsyncClientStream stream = env.client.bidiStreamAsync("SilentBidi",
+            NOTHING, opts);
+        assertTrue(sink.waitForTerminal(30s));
+        date elapsed = now_us() - start;
+
+        assertNothing(sink.error);
+        assertEq(GRPC_STATUS_DEADLINE_EXCEEDED, sink.result.status_code);
+        assertTrue(elapsed >= 900ms, sprintf("the deadline fired too early: %y", elapsed));
+        assertTrue(elapsed < 15s, sprintf("the deadline fired too late: %y", elapsed));
+        assertFalse(stream.isActive());
+        assertEq(0, sink.messageCount());
+    }
+
+    testIdleTimeout() {
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        StreamSink sink();
+        hash<GrpcAsyncStreamOptions> opts = sink.getOptions();
+        opts.idle_timeout_ms = 1000;
+
+        date start = now_us();
+        GrpcAsyncClientStream stream = env.client.bidiStreamAsync("SilentBidi",
+            NOTHING, opts);
+        assertTrue(sink.waitForTerminal(30s));
+        date elapsed = now_us() - start;
+
+        assertNothing(sink.error);
+        assertEq(GRPC_STATUS_UNAVAILABLE, sink.result.status_code);
+        assertTrue(elapsed >= 900ms, sprintf("the idle bound fired too early: %y", elapsed));
+        assertTrue(elapsed < 15s, sprintf("the idle bound fired too late: %y", elapsed));
+        assertFalse(stream.isActive());
+    }
+
+    testIdleTimeoutReset() {
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        StreamSink sink();
+        hash<GrpcAsyncStreamOptions> opts = sink.getOptions();
+        opts.idle_timeout_ms = 2000;
+        GrpcAsyncClientStream stream = env.client.bidiStreamAsync("BidiStream",
+            NOTHING, opts);
+        on_exit stream.cancel();
+
+        # each echo resets the inactivity deadline, so the stream survives a
+        # total elapsed time well beyond the bound; the sleeps are the point of
+        # the test, not a wait for an event
+        date start = now_us();
+        for (int i = 0; i < 4; ++i) {
+            stream.write({"name": sprintf("keepalive-%d", i), "id": i});
+            assertTrue(sink.waitForMessages(i + 1, 20s));
+            usleep(700ms);
+        }
+        assertTrue(now_us() - start > 2s, "the test must run longer than the idle bound");
+        assertTrue(stream.isActive(), "traffic must keep resetting the idle deadline");
+        assertEq(4, sink.messageCount());
+    }
+
+    testApplicationTimer() {
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        StreamSink sink();
+        GrpcAsyncClientStream stream = env.client.bidiStreamAsync("BidiStream",
+            NOTHING, sink.getOptions());
+        on_exit stream.cancel();
+
+        # the timer is armed on the controller's timeout heap and fires on the
+        # delivery worker; the queue is the deterministic signal
+        Queue fired();
+        date start = now_us();
+        stream.armTimer("probe", 500ms, sub (GrpcAsyncClientStream s) {
+            fired.push({"active": s.isActive(), "when": now_us()});
+        });
+        hash<auto> info = fired.get(20s);
+        date elapsed = info.when - start;
+
+        assertTrue(info.active, "the stream must still be active when the timer fires");
+        assertTrue(elapsed >= 450ms, sprintf("the timer fired too early: %y", elapsed));
+        assertTrue(elapsed < 15s, sprintf("the timer fired too late: %y", elapsed));
+        assertTrue(stream.isActive(), "a timer must not end the stream");
+        assertEq(0, sink.messageCount());
+    }
+
+    testTimerCancel() {
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        StreamSink sink();
+        GrpcAsyncClientStream stream = env.client.bidiStreamAsync("BidiStream",
+            NOTHING, sink.getOptions());
+        on_exit stream.cancel();
+
+        Queue fired();
+
+        # arming the same name again replaces the first timer
+        stream.armTimer("t", 300ms, sub (GrpcAsyncClientStream s) { fired.push("first"); });
+        stream.armTimer("t", 300ms, sub (GrpcAsyncClientStream s) { fired.push("second"); });
+        assertEq("second", fired.get(20s));
+
+        # a cancelled timer never fires
+        stream.armTimer("t", 300ms, sub (GrpcAsyncClientStream s) { fired.push("cancelled"); });
+        assertTrue(stream.cancelTimer("t"));
+        assertFalse(stream.cancelTimer("t"), "cancelling twice must report no timer");
+        assertFalse(stream.cancelTimer("never-armed"));
+
+        # a later live timer is the deterministic signal that the cancelled
+        # timer's deadline has passed without it firing
+        stream.armTimer("probe", 800ms, sub (GrpcAsyncClientStream s) { fired.push("probe"); });
+        assertEq("probe", fired.get(20s));
+        assertEq(0, fired.size(), "the cancelled timer must not have fired");
+    }
+
+    testWriteFromTimerCallback() {
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        StreamSink sink();
+        GrpcAsyncClientStream stream = env.client.bidiStreamAsync("BidiStream",
+            NOTHING, sink.getOptions());
+        on_exit stream.cancel();
+
+        # a timer armed on the controller writes to the stream when it fires;
+        # the echo proves the write went out from the delivery worker
+        stream.armTimer("write", 500ms, sub (GrpcAsyncClientStream s) {
+            s.write({"name": "from-timer", "id": 99});
+        });
+        assertTrue(sink.waitForMessages(1, 20s));
+        assertEq("echo: from-timer", sink.getMessages()[0].message);
+        assertEq(99, sink.getMessages()[0].status);
+        assertTrue(stream.isActive());
+    }
+
+    testWriteFromMessageCallback() {
+        # this is the shape the Salesforce Pub/Sub event source needs:
+        # replenishment driven by delivery rather than by a poll tick
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        StreamSink sink();
+        GrpcAsyncClientStream stream;
+        hash<GrpcAsyncStreamOptions> opts = sink.getOptions();
+        opts.on_message = sub (hash<auto> msg) {
+            sink.onMessage(msg);
+            # answer the first echo with one more message, then stop
+            if (sink.messageCount() == 1) {
+                stream.write({"name": "reply", "id": 2});
+            }
+        };
+        stream = env.client.bidiStreamAsync("BidiStream", NOTHING, opts);
+        on_exit stream.cancel();
+
+        stream.write({"name": "first", "id": 1});
+        assertTrue(sink.waitForMessages(2, 20s));
+        assertEq("echo: first", sink.getMessages()[0].message);
+        assertEq("echo: reply", sink.getMessages()[1].message);
+    }
+
+    testCancelFromCallbackReachesServer() {
+        # a cancel from a delivery callback must send RST_STREAM, not just
+        # update local state: otherwise the server keeps streaming into a
+        # cancelled stream (qore issue 5369)
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        StreamSink sink();
+        GrpcAsyncClientStream stream;
+        hash<GrpcAsyncStreamOptions> opts = sink.getOptions();
+        opts.on_message = sub (hash<auto> msg) {
+            sink.onMessage(msg);
+            stream.cancel();
+        };
+        stream = env.client.serverStreamAsync("SlowStream", {"name": "x", "id": 0},
+            NOTHING, opts);
+
+        assertTrue(sink.waitForTerminal(30s));
+        assertEq(GRPC_STATUS_CANCELLED, sink.result.status_code);
+        # SlowStream writes 20 messages 100ms apart; if the RST_STREAM reached
+        # the server it stopped writing almost immediately
+        assertTrue(env.getServerWriteCount() < 10,
+            sprintf("the server must stop writing after the cancel (wrote %d of 20)",
+                env.getServerWriteCount()));
+    }
+
+    testDrainDeadline() {
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        StreamSink sink();
+        # SilentBidi never closes its side, so only the drain deadline can end
+        # the stream after the client is done writing
+        GrpcAsyncClientStream stream = env.client.bidiStreamAsync("SilentBidi",
+            NOTHING, sink.getOptions());
+        date start = now_us();
+        stream.finishWrites(1s);
+
+        assertTrue(sink.waitForTerminal(30s));
+        date elapsed = now_us() - start;
+        assertNothing(sink.error);
+        assertEq(GRPC_STATUS_DEADLINE_EXCEEDED, sink.result.status_code);
+        assertTrue(elapsed >= 900ms,
+            sprintf("the drain deadline fired too early: %y", elapsed));
+        assertFalse(stream.isActive());
+    }
+
+    # ---------- cancellation and errors ----------
+
+    testCancel() {
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        StreamSink sink();
+        GrpcAsyncClientStream stream = env.client.bidiStreamAsync("SilentBidi",
+            NOTHING, sink.getOptions());
+        assertTrue(stream.isActive());
+
+        stream.cancel();
+        assertTrue(sink.waitForTerminal(30s));
+        assertTrue(stream.waitForDone(10s));
+
+        assertNothing(sink.error);
+        assertEq(GRPC_STATUS_CANCELLED, sink.result.status_code);
+        assertFalse(stream.isActive());
+
+        # cancelling again is a no-op and must not change the result
+        stream.cancel();
+        assertEq(GRPC_STATUS_CANCELLED, stream.getResult().status_code);
+    }
+
+    testCancelFromCallback() {
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        StreamSink sink();
+        GrpcAsyncClientStream stream;
+
+        # cancelling from a delivery callback must not deadlock: the callback
+        # runs on the same worker that delivers the terminal event
+        hash<GrpcAsyncStreamOptions> opts = sink.getOptions();
+        opts.on_message = sub (hash<auto> msg) {
+            sink.onMessage(msg);
+            stream.cancel();
+        };
+        stream = env.client.serverStreamAsync("SlowStream", {"name": "x", "id": 0},
+            NOTHING, opts);
+
+        assertTrue(sink.waitForTerminal(30s),
+            "a cancel from a callback must complete the stream");
+        assertEq(GRPC_STATUS_CANCELLED, sink.result.status_code);
+        assertTrue(sink.messageCount() >= 1);
+        assertTrue(sink.messageCount() < 20,
+            "the cancel must stop delivery before the server finishes");
+        assertTrue(stream.waitForDone(10s));
+    }
+
+    testServerErrorStatus() {
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        StreamSink sink();
+        GrpcAsyncClientStream stream = env.client.serverStreamAsync("FailingStream",
+            {"name": "x", "id": 0}, NOTHING, sink.getOptions());
+
+        assertTrue(sink.waitForTerminal(30s));
+        assertNothing(sink.error);
+        assertEq(GRPC_STATUS_NOT_FOUND, sink.result.status_code);
+        assertTrue(sink.result.status_message.val(),
+            "a failed call must carry a status message");
+        assertFalse(stream.isActive());
+    }
+
+    testTransportError() {
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        StreamSink sink();
+        GrpcAsyncClientStream stream = env.client.bidiStreamAsync("SilentBidi",
+            NOTHING, sink.getOptions());
+        assertTrue(stream.isActive());
+
+        # tearing the server down under an open stream must surface a terminal
+        # event rather than leaving the stream hanging
+        env.stop();
+
+        assertTrue(sink.waitForTerminal(30s), "a dead peer must end the stream");
+        assertFalse(stream.isActive());
+        if (sink.error) {
+            assertTrue(sink.error.err.val(), "a transport error must carry an error code");
+            assertEq(sink.error, stream.getError());
+        } else {
+            assertNeq(GRPC_STATUS_OK, sink.result.status_code,
+                "a dead peer must not report success");
+        }
+    }
+
+    testConnectFailure() {
+        # nothing is listening on this port
+        GrpcChannel channel("http://localhost:1");
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "AsyncTestService");
+
+        StreamSink sink();
+        bool threw = False;
+        try {
+            client.serverStreamAsync("ServerStream", {"name": "x", "id": 0}, NOTHING,
+                sink.getOptions());
+        } catch (hash<ExceptionInfo> ex) {
+            threw = True;
+            assertTrue(ex.err.val(), "the failure must carry an error code");
+        }
+        assertTrue(threw, "opening a stream to a dead port must fail");
+        assertNothing(sink.result, "no result may be delivered for a stream that never opened");
+    }
+
+    # ---------- negative tests ----------
+
+    testWriteAfterWritesDone() {
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        StreamSink sink();
+        GrpcAsyncClientStream stream = env.client.bidiStreamAsync("BidiStream",
+            NOTHING, sink.getOptions());
+        stream.write({"name": "one", "id": 1});
+        stream.writesDone();
+        assertThrows("GRPC-STREAM-ERROR", "write side",
+            sub () { stream.write({"name": "two", "id": 2}); });
+        stream.cancel();
+    }
+
+    testWriteAfterTerminal() {
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        StreamSink sink();
+        GrpcAsyncClientStream stream = env.client.bidiStreamAsync("SilentBidi",
+            NOTHING, sink.getOptions());
+        stream.cancel();
+        assertTrue(sink.waitForTerminal(30s));
+        assertThrows("GRPC-STREAM-ERROR", "no longer active",
+            sub () { stream.write({"name": "late", "id": 1}); });
+    }
+
+    testDoubleStart() {
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        StreamSink sink();
+        GrpcAsyncClientStream stream = env.client.bidiStreamAsync("SilentBidi",
+            NOTHING, sink.getOptions());
+        on_exit stream.cancel();
+        assertThrows("GRPC-STREAM-ERROR", "already been started",
+            sub () { stream.start(); });
+    }
+
+    testTimerAfterTerminal() {
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        StreamSink sink();
+        GrpcAsyncClientStream stream = env.client.bidiStreamAsync("SilentBidi",
+            NOTHING, sink.getOptions());
+        stream.cancel();
+        assertTrue(sink.waitForTerminal(30s));
+        assertThrows("GRPC-STREAM-ERROR", "no longer active",
+            sub () {
+                stream.armTimer("t", 1s, sub (GrpcAsyncClientStream s) {});
+            });
+    }
+
+    testUnknownMethod() {
+        TestEnv env(schema);
+        on_exit env.stop();
+
+        StreamSink sink();
+        assertThrows("GRPC-METHOD-ERROR", sub () {
+            env.client.serverStreamAsync("NoSuchMethod", {}, NOTHING, sink.getOptions());
+        });
+        assertThrows("GRPC-METHOD-ERROR", sub () {
+            env.client.bidiStreamAsync("NoSuchMethod", NOTHING, sink.getOptions());
+        });
+    }
+}

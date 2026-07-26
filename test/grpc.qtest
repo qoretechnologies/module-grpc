@@ -122,6 +122,10 @@ public class GrpcTest inherits QUnit::Test {
         # Streaming tests (Phase 5)
         addTestCase("helper: unframe multiple messages", \testUnframeMessages());
         addTestCase("helper: next frame size", \testNextFrameSize());
+        addTestCase("helper: call status from trailers", \testCallStatusTrailers());
+        addTestCase("helper: call status from a trailers-only response",
+            \testCallStatusTrailersOnly());
+        addTestCase("helper: call status from an HTTP failure", \testCallStatusHttpFailure());
         addTestCase("streaming: server stream", \testServerStream());
         addTestCase("streaming: client stream", \testClientStream());
         addTestCase("streaming: bidi stream", \testBidiStream());
@@ -1046,6 +1050,108 @@ public class GrpcTest inherits QUnit::Test {
         assertEq(9, GrpcHelper::nextFrameSize(framed), "complete frame size");
         assertEq(-1, GrpcHelper::nextFrameSize(<00>), "incomplete header");
         assertEq(-1, GrpcHelper::nextFrameSize(binary()), "empty buffer");
+    }
+
+    testCallStatusTrailers() {
+        # the normal case: a successful call reports OK and splits metadata
+        hash<GrpcCallResult> ok = GrpcHelper::parseCallStatus({
+            "status_code": 200,
+            "headers": {
+                ":status": "200",
+                "content-type": "application/grpc+proto",
+                "x-req": "abc",
+            },
+            "trailers": {"grpc-status": "0", "grpc-message": "OK", "x-trace": "t1"},
+        });
+        assertEq(GRPC_STATUS_OK, ok.status_code);
+        assertEq("OK", ok.status_message);
+        assertEq("t1", ok.trailing_metadata."x-trace");
+        assertEq("abc", ok.initial_metadata."x-req");
+        assertFalse(ok.initial_metadata.hasKey(":status"), "pseudo-headers are not metadata");
+        assertFalse(ok.trailing_metadata.hasKey("grpc-status"),
+            "the status is not repeated as metadata");
+
+        # a failure reported in the trailers
+        hash<GrpcCallResult> err = GrpcHelper::parseCallStatus({
+            "status_code": 200,
+            "headers": {"content-type": "application/grpc+proto"},
+            "trailers": {"grpc-status": "5", "grpc-message": "not here"},
+        });
+        assertEq(GRPC_STATUS_NOT_FOUND, err.status_code);
+        assertEq("not here", err.status_message);
+
+        # a status with no message still gets a usable one
+        hash<GrpcCallResult> bare = GrpcHelper::parseCallStatus({
+            "status_code": 200,
+            "trailers": {"grpc-status": "8"},
+        });
+        assertEq(GRPC_STATUS_RESOURCE_EXHAUSTED, bare.status_code);
+        assertNeq("OK", bare.status_message, "a failure must not be described as OK");
+    }
+
+    testCallStatusTrailersOnly() {
+        # a Trailers-Only response: the status is in the response headers and
+        # there are no trailers at all -- reading only the trailers would
+        # report this failure as OK
+        hash<GrpcCallResult> res = GrpcHelper::parseCallStatus({
+            "status_code": 200,
+            "headers": {
+                ":status": "200",
+                "content-type": "application/grpc",
+                "grpc-status": "12",
+                "grpc-message": "Method not found!",
+            },
+        });
+        assertEq(GRPC_STATUS_UNIMPLEMENTED, res.status_code);
+        assertEq("Method not found!", res.status_message);
+        assertEq("application/grpc", res.initial_metadata."content-type");
+        assertFalse(res.initial_metadata.hasKey("grpc-status"),
+            "the status is not repeated as initial metadata");
+        assertFalse(res.initial_metadata.hasKey("grpc-message"),
+            "the status message is not repeated as initial metadata");
+
+        # trailers carrying a status win over headers that also carry one
+        hash<GrpcCallResult> both = GrpcHelper::parseCallStatus({
+            "status_code": 200,
+            "headers": {"grpc-status": "12"},
+            "trailers": {"grpc-status": "0", "grpc-message": "OK"},
+        });
+        assertEq(GRPC_STATUS_OK, both.status_code, "the trailers are authoritative");
+    }
+
+    testCallStatusHttpFailure() {
+        # a peer that is not a gRPC server sends no gRPC status at all
+        hash<GrpcCallResult> res = GrpcHelper::parseCallStatus({
+            "status_code": 502,
+            "headers": {"content-type": "text/html"},
+        });
+        assertEq(GRPC_STATUS_INTERNAL, res.status_code,
+            "an HTTP failure without a gRPC status must not be reported as OK");
+        assertTrue(res.status_message =~ /502/,
+            "the HTTP status must appear in the status message");
+
+        # a 2xx response with no gRPC status is not an error by itself
+        hash<GrpcCallResult> ok = GrpcHelper::parseCallStatus({
+            "status_code": 200,
+            "headers": {"content-type": "application/grpc+proto"},
+        });
+        assertEq(GRPC_STATUS_OK, ok.status_code);
+
+        # no response at all (the stream never produced one)
+        hash<GrpcCallResult> none = GrpcHelper::parseCallStatus(NOTHING);
+        assertEq(GRPC_STATUS_OK, none.status_code);
+        assertEq({}, none.initial_metadata);
+        assertEq({}, none.trailing_metadata);
+
+        # a malformed status must not be read as 0 (= OK)
+        hash<GrpcCallResult> bad = GrpcHelper::parseCallStatus({
+            "status_code": 200,
+            "trailers": {"grpc-status": "not-a-number"},
+        });
+        assertEq(GRPC_STATUS_INTERNAL, bad.status_code,
+            "an unparseable grpc-status must not be reported as OK");
+        assertTrue(bad.status_message =~ /not-a-number/,
+            "the offending value must appear in the status message");
     }
 
     # --- Streaming integration tests ---

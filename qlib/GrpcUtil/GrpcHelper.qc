@@ -156,6 +156,79 @@ public class GrpcHelper {
         }
     }
 
+    #! Extract the gRPC call status and metadata from an HTTP response
+    /** Handles the three ways a gRPC peer can report the outcome of a call:
+        - the normal case, where \c grpc-status is in the response trailers;
+        - the <b>Trailers-Only</b> response (gRPC spec), where a server that
+          fails before producing any message sends a single \c HEADERS frame
+          carrying \c grpc-status — this is what grpc-go, grpc-java, and
+          grpc-python send for \c UNIMPLEMENTED, and reading only the trailers
+          reports such a failure as @ref GRPC_STATUS_OK;
+        - a non-gRPC HTTP failure status, where the peer is not a gRPC server at
+          all (a proxy error, a wrong path on a plain HTTP server) and there is
+          no gRPC status to report.
+
+        @param response the HTTP response hash (\c status_code, \c headers,
+        \c trailers)
+
+        @return a @ref Qore::Grpc::GrpcCallResult "GrpcCallResult" with the
+        status and metadata filled in; \c body is left empty for the caller
+
+        @note \c grpc-status and \c grpc-message are excluded from both metadata
+        hashes; they are reported as \c status_code and \c status_message
+    */
+    static hash<GrpcCallResult> parseCallStatus(*hash<auto> response) {
+        int status_code = GRPC_STATUS_OK;
+        string status_message = "OK";
+        hash<string, string> trailing_metadata();
+        hash<string, string> initial_metadata();
+
+        # A Trailers-Only response carries the status in the response headers;
+        # prefer the trailers when they actually carry a status.
+        *hash<auto> status_source = exists response.trailers."grpc-status"
+            ? response.trailers
+            : response.headers;
+        if (exists status_source."grpc-status") {
+            string raw_status = status_source."grpc-status".toString();
+            if (raw_status !~ /^[0-9]+$/) {
+                # a malformed status must not be read as 0 (= OK) by int()
+                status_code = GRPC_STATUS_INTERNAL;
+                status_message = sprintf("the server sent an invalid grpc-status "
+                    "value: %y", raw_status);
+            } else {
+                status_code = raw_status.toInt();
+                if (status_source."grpc-message".val()) {
+                    status_message = status_source."grpc-message";
+                } else if (status_code != GRPC_STATUS_OK) {
+                    status_message = sprintf("gRPC status %d", status_code);
+                }
+            }
+        } else if (response.status_code && response.status_code >= 300) {
+            status_code = GRPC_STATUS_INTERNAL;
+            status_message = sprintf("the server returned HTTP status %d without a "
+                "gRPC status", response.status_code);
+        }
+
+        if (response.headers) {
+            map initial_metadata{$1.key} = $1.value.toString(),
+                response.headers.pairIterator(),
+                $1.key !~ /^:/ && $1.key != "grpc-status" && $1.key != "grpc-message";
+        }
+        if (response.trailers) {
+            map trailing_metadata{$1.key} = $1.value.toString(),
+                response.trailers.pairIterator(),
+                $1.key != "grpc-status" && $1.key != "grpc-message";
+        }
+
+        return <GrpcCallResult>{
+            "body": {},
+            "status_code": status_code,
+            "status_message": status_message,
+            "trailing_metadata": trailing_metadata,
+            "initial_metadata": initial_metadata,
+        };
+    }
+
     #! Build standard gRPC request headers
     /** @param method_path the full gRPC method path (e.g., "/package.Service/Method")
         @param opts optional call options

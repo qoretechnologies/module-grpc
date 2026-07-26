@@ -75,6 +75,12 @@ public namespace Grpc {
       pooling via \c HttpClientConnectionManager
     - @ref Grpc::GrpcClientStream "GrpcClientStream": client-side streaming
       handle with read/write/cancel
+    - @ref Grpc::GrpcAsyncClientStream "GrpcAsyncClientStream": event-driven
+      client-side streaming handle driven by the async socket I/O controller,
+      with no thread parked on a read and deadlines armed on the controller's
+      timeout heap
+    - @ref Grpc::GrpcFrameBuffer "GrpcFrameBuffer": incremental deframer for the
+      gRPC length-prefixed message framing
     - @ref Grpc::GrpcServerStream "GrpcServerStream": server-side streaming
       handle with read/write and metadata support
     - @ref Grpc::GrpcHelper "GrpcHelper": gRPC framing, header utilities, and
@@ -168,6 +174,66 @@ while (*hash<auto> msg = stream.read(5s)) {
 printf("Stream ended: %y\n", stream.readsDone());
 hash<GrpcCallResult> result = stream.finish();
     @endcode
+
+    @subsection grpcutil_client_async Event-Driven Streaming
+
+    @ref Grpc::GrpcClientStream "GrpcClientStream" is a blocking facade: every
+    @ref Grpc::GrpcClientStream::read() "read()" parks the calling thread, so a
+    long-lived subscription costs a dedicated thread even while nothing is
+    arriving.  @ref Grpc::GrpcAsyncClientStream "GrpcAsyncClientStream" is the
+    event-driven counterpart.  It installs an @ref Qore::EventNotifier
+    "EventNotifier" on the HTTP/2 stream and submits a poll operation to the
+    @ref AsyncSocketIo::AsyncSocketIoController "AsyncSocketIoController"; the
+    I/O thread signals the notifier as data arrives and the controller
+    dispatches gRPC deframing, protobuf decoding, and user callbacks to a
+    callback worker.  No user code runs on the I/O thread and no thread is
+    parked on a read, so idle streams cost nothing:
+
+    @code{.py}
+GrpcAsyncClientStream stream = client.serverStreamAsync("ListItems",
+    {"category": "books"}, NOTHING, <GrpcAsyncStreamOptions>{
+        "on_message": sub (hash<auto> msg) { printf("item: %y\n", msg); },
+        "on_complete": sub (hash<GrpcCallResult> result) {
+            printf("done: %d %s\n", result.status_code, result.status_message);
+        },
+    });
+stream.waitForDone(30s);
+    @endcode
+
+    Messages can also be delivered to a @ref Qore::Thread::Queue "Queue" instead
+    of callbacks; a @ref nothing sentinel follows the terminal event:
+
+    @code{.py}
+Queue q();
+GrpcAsyncClientStream stream = client.bidiStreamAsync("Chat", NOTHING,
+    <GrpcAsyncStreamOptions>{"queue": q});
+stream.write({"text": "Hello"});
+stream.finishWrites();
+while (*hash<auto> event = q.get(30s)) {
+    printf("%s: %y\n", event.event, event.data);
+}
+    @endcode
+
+    Deadlines are armed on the controller's timeout heap rather than
+    approximated with timed reads.  A call deadline and an inactivity bound are
+    configured through @ref Grpc::GrpcAsyncStreamOptions "GrpcAsyncStreamOptions",
+    and application-level timers can be armed on the same heap:
+
+    @code{.py}
+# end the call after 30s wherever it has got to
+GrpcAsyncClientStream stream = client.bidiStreamAsync("Subscribe", NOTHING,
+    <GrpcAsyncStreamOptions>{"on_message": \handle(), "deadline_ms": 30000});
+
+# ...or arm an application timer that fires on the delivery worker
+stream.armTimer("no-first-event", 90s, sub (GrpcAsyncClientStream s) {
+    s.cancel();
+});
+    @endcode
+
+    Delivery and timer callbacks run on the controller's callback worker and may
+    write to the stream, so a request/response protocol driven by what the server
+    sends — replenishing a credit window, answering a keepalive — needs no thread
+    of its own.
 
     @subsection grpcutil_client_metadata Metadata and Timeouts
 
@@ -295,6 +361,53 @@ printf("Fields: %y\n", keys msg_schema.fields);
     @subsection grpcutil_v1_0 GrpcUtil Module Version 1.0
 
     - initial release
+    - @ref Grpc::GrpcAsyncClientStream "GrpcAsyncClientStream": event-driven client
+      streaming driven by the async socket I/O controller
+      (<a href="https://github.com/qoretechnologies/qore/issues/5368">issue 5368</a>):
+      - gRPC messages are deframed and decoded on a controller callback worker as the
+        I/O thread delivers transport data; no caller thread is parked on a read and no
+        user code runs on the I/O thread
+      - delivery by callback (\c on_message, \c on_headers, \c on_complete,
+        \c on_failure) or by @ref Qore::Thread::Queue "Queue"
+      - stream lifecycle — initial metadata, trailers, \c end_stream, and transport
+        errors — is delivered through the same path, so the final
+        @ref Qore::Grpc::GrpcCallResult "GrpcCallResult" is reached without a drain loop
+      - the call deadline, an optional inactivity bound, the post-writes-done drain
+        bound, and application timers armed with
+        @ref Grpc::GrpcAsyncClientStream::armTimer() "armTimer()" are all armed on the
+        controller's timeout heap instead of being approximated with timed reads
+      - delivery and timer callbacks may write to the stream and cancel it, so
+        delivery-driven request/response protocols need no thread of their own
+        (requires the HTTP/2 client write path fixed in
+        <a href="https://github.com/qoretechnologies/qore/issues/5369">Qore issue 5369</a>)
+      - @ref Grpc::GrpcAsyncClientStream::cancel() "cancel()" is an asynchronous cancel
+        that never blocks and is safe to call from a delivery callback
+    - @ref Grpc::GrpcHelper::parseCallStatus() "GrpcHelper::parseCallStatus()": shared
+      status extraction used by every client path (unary,
+      @ref Grpc::GrpcClientStream "GrpcClientStream", and
+      @ref Grpc::GrpcAsyncClientStream "GrpcAsyncClientStream"), covering the status
+      sources a conformant peer can use:
+      - a <b>Trailers-Only</b> response, where a server that fails before producing any
+        message reports \c grpc-status in a single \c HEADERS frame and sends no
+        trailers at all — this is what grpc-go, grpc-java, and grpc-python send for
+        \c UNIMPLEMENTED, and reading only the trailers reported such a failure as
+        \c GRPC_STATUS_OK with an empty body
+      - a non-gRPC HTTP failure status, reported as \c GRPC_STATUS_INTERNAL rather
+        than as \c GRPC_STATUS_OK
+      - \c grpc-status and \c grpc-message are no longer repeated in the metadata
+        hashes, and @ref Grpc::GrpcClientStream::finish() "GrpcClientStream::finish()"
+        now populates \c initial_metadata instead of always returning it empty
+    - server-streaming calls submit their single request message with the stream rather
+      than writing it afterwards; the old two-step submission left a window in which a
+      server that rejects the call could close the stream first, surfacing an opaque
+      \c HTTP2-ERROR instead of the gRPC status the server sent
+    - @ref Grpc::GrpcClient "GrpcClient":
+      @ref Grpc::GrpcClient::serverStreamAsync() "serverStreamAsync()",
+      @ref Grpc::GrpcClient::clientStreamAsync() "clientStreamAsync()", and
+      @ref Grpc::GrpcClient::bidiStreamAsync() "bidiStreamAsync()" open event-driven
+      streams
+    - @ref Grpc::GrpcFrameBuffer "GrpcFrameBuffer": incremental gRPC deframer shared by
+      the blocking and event-driven client streams
     - @ref Grpc::GrpcReflectionService "GrpcReflectionService": built-in gRPC server
       reflection (grpc.reflection.v1) enabling client discovery of services via
       \c list_services, \c file_containing_symbol, and \c file_by_filename requests;

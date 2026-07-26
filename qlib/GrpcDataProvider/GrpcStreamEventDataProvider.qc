@@ -59,6 +59,11 @@ event_prov.stopEvents();
     @endcode
 */
 public class GrpcStreamEventDataProvider inherits AbstractDataProvider, DelayedObservable {
+    public {
+        #! How long a bidirectional stream may drain after stopEvents()
+        const DrainTimeout = 30s;
+    }
+
     private {
         #! The gRPC channel
         GrpcChannel channel;
@@ -79,9 +84,9 @@ public class GrpcStreamEventDataProvider inherits AbstractDataProvider, DelayedO
         *hash<auto> observer_request;
 
         #! The active gRPC client stream (shared between send and receive paths)
-        *GrpcClientStream stream;
+        *GrpcAsyncClientStream stream;
 
-        #! Flag: stream loop started
+        #! Flag: the stream has been opened
         bool started = False;
 
         #! Flag: stop requested
@@ -89,6 +94,9 @@ public class GrpcStreamEventDataProvider inherits AbstractDataProvider, DelayedO
 
         #! Flag: stream is active (False after stream completes or errors)
         bool active = True;
+
+        #! Flag: the terminal event has been delivered
+        bool finished = False;
 
         #! Mutex for state synchronization
         Mutex m();
@@ -140,6 +148,16 @@ public class GrpcStreamEventDataProvider inherits AbstractDataProvider, DelayedO
     }
 
     #! Called when all observers are registered; starts the stream
+    /** Opens the gRPC stream and hands it to the async socket I/O controller.
+        Events are delivered from a controller callback worker as the I/O thread
+        receives them; no thread is dedicated to this provider.
+
+        Connection establishment is performed synchronously; a failure to open
+        the stream is reported via @ref EVENT_GRPC_STREAM_ERROR rather than
+        thrown.
+
+        @throw GRPC-OBSERVABLE-ERROR if called more than once
+    */
     observersReady() {
         {
             AutoLock al(m);
@@ -148,20 +166,77 @@ public class GrpcStreamEventDataProvider inherits AbstractDataProvider, DelayedO
             }
             started = True;
         }
-        background streamLoop();
+
+        try {
+            GrpcClient client(channel, schema, service_info.name);
+
+            # Build call options
+            *hash<GrpcCallOptions> call_opts;
+            if (default_opts.timeout_ms) {
+                call_opts = <GrpcCallOptions>{
+                    "timeout_ms": default_opts.timeout_ms,
+                };
+            }
+
+            hash<GrpcAsyncStreamOptions> stream_opts = <GrpcAsyncStreamOptions>{
+                "on_message": \onStreamMessage(),
+                "on_complete": \onStreamComplete(),
+                "on_failure": \onStreamFailure(),
+            };
+
+            GrpcAsyncClientStream local_stream;
+            if (method_info.client_streaming) {
+                # Bidi-streaming: writes stay open for sendMessage()
+                local_stream = client.bidiStreamAsync(method_info.name, call_opts,
+                    stream_opts);
+            } else {
+                # Server-streaming: the request is sent and writes are half-closed
+                local_stream = client.serverStreamAsync(method_info.name,
+                    observer_request ?? {}, call_opts, stream_opts);
+            }
+
+            bool stop_now;
+            {
+                AutoLock al(m);
+                # the stream can reach its terminal state before this
+                # assignment; do not resurrect a finished stream
+                if (!finished) {
+                    stream = local_stream;
+                }
+                stop_now = stopping;
+                cond.broadcast();
+            }
+            if (stop_now) {
+                # stopEvents() was called before the stream was published
+                applyStop(local_stream);
+            }
+        } catch (hash<ExceptionInfo> ex) {
+            markFinished();
+            notifyObservers(EVENT_GRPC_STREAM_ERROR, {
+                "err": ex.err,
+                "desc": ex.desc,
+            });
+        }
     }
 
     #! Called to stop event generation
-    /** For bidi streams, signals writes-done so the server knows no more messages
-        will be sent. The read loop will exit when the server closes its side.
+    /** For server-streaming methods the stream is cancelled immediately.  For
+        bidirectional methods writes are half-closed so the server sees
+        end-of-client-input, and a drain deadline is armed on the async I/O
+        controller so a server that never closes its side cannot keep the
+        stream open indefinitely.
     */
     stopEvents() {
-        AutoLock al(m);
-        stopping = True;
-        # Wake up any threads waiting in waitForReady() so they see the stop
-        cond.broadcast();
-        if (stream && method_info.client_streaming) {
-            stream.writesDone();
+        *GrpcAsyncClientStream local_stream;
+        {
+            AutoLock al(m);
+            stopping = True;
+            # Wake up any threads waiting in waitForReady() so they see the stop
+            cond.broadcast();
+            local_stream = stream;
+        }
+        if (local_stream) {
+            applyStop(local_stream);
         }
     }
 
@@ -306,125 +381,74 @@ public class GrpcStreamEventDataProvider inherits AbstractDataProvider, DelayedO
         };
     }
 
-    #! Background thread that reads the stream and notifies observers
-    /** Handles both server-streaming and bidi-streaming patterns:
-        - Server-streaming: opens stream with request data, reads until server closes
-          or stopEvents() is called
-        - Bidi-streaming: opens stream without request, stores stream pointer for
-          sendMessage(), reads until server closes (even after stopEvents() signals
-          writesDone, continues reading server responses)
-
-        Uses a 5-second read timeout to allow periodic checking of the \c stopping flag.
-        For server-streaming, a stop request breaks the loop immediately.
-        For bidi-streaming, a stop request only signals writesDone(); the loop continues
-        reading until the server closes its side (\c readsDone()).
+    #! Applies the configured stop semantics to an open stream
+    /** Server-streaming methods are receive-only, so a stop cancels the stream
+        at the transport level.  Bidirectional methods half-close writes and let
+        the server close its side, bounded by @ref DrainTimeout armed on the
+        async I/O controller.
     */
-    private streamLoop() {
-        try {
-            GrpcClient client(channel, schema, service_info.name);
-
-            # Build call options
-            *hash<GrpcCallOptions> call_opts;
-            if (default_opts.timeout_ms) {
-                call_opts = <GrpcCallOptions>{
-                    "timeout_ms": default_opts.timeout_ms,
-                };
-            }
-
-            GrpcClientStream local_stream;
-            if (method_info.client_streaming) {
-                # Bidi-streaming: open stream, writes stay open for sendMessage()
-                local_stream = client.bidiStream(method_info.name, call_opts);
-                {
-                    AutoLock al(m);
-                    stream = local_stream;
-                    cond.broadcast();
-                    # If stopEvents() was called before stream creation, immediately
-                    # half-close writes so the server sees end-of-client-input
-                    if (stopping) {
-                        local_stream.writesDone();
-                    }
-                }
-            } else {
-                # Server-streaming: send request and half-close writes
-                local_stream = client.serverStream(method_info.name,
-                    observer_request ?? {}, call_opts);
-            }
-
-            # Drain deadline: after stopEvents() is called on a bidi stream, we continue
-            # reading server responses for up to 30s before giving up
-            *date drain_deadline;
-
-            while (True) {
-                *hash<auto> msg = local_stream.read(5s);
-                if (msg) {
-                    {
-                        AutoLock al(m);
-                        if (stopping && !method_info.client_streaming) {
-                            # Server-streaming: stop immediately
-                            break;
-                        }
-                    }
-                    notifyObservers(EVENT_GRPC_STREAM_MESSAGE, msg);
-                } else if (local_stream.readsDone()) {
-                    # Stream ended (server closed its side)
-                    break;
-                } else {
-                    # Read timeout -- check if we should stop
-                    AutoLock al(m);
-                    if (stopping) {
-                        if (!method_info.client_streaming) {
-                            # Server-streaming: stop immediately
-                            break;
-                        }
-                        # Bidi: enforce drain timeout to prevent indefinite hang
-                        if (!drain_deadline) {
-                            drain_deadline = now_us() + 30s;
-                        } else if (now_us() > drain_deadline) {
-                            break;
-                        }
-                    }
-                }
-            }
-
-            # Check if we stopped voluntarily for server-streaming
-            {
-                AutoLock al(m);
-                if (stopping && !method_info.client_streaming) {
-                    active = False;
-                    stream = NOTHING;
-                    cond.broadcast();
-                    return;
-                }
-            }
-
-            hash<GrpcCallResult> result = local_stream.finish();
-            {
-                AutoLock al(m);
-                active = False;
-                stream = NOTHING;
-                cond.broadcast();
-            }
-            if (result.status_code != GRPC_STATUS_OK) {
-                notifyObservers(EVENT_GRPC_STREAM_ERROR, {
-                    "err": sprintf("GRPC_STATUS_%d", result.status_code),
-                    "desc": result.status_message,
-                });
-            } else {
-                notifyObservers(EVENT_GRPC_STREAM_COMPLETE, {});
-            }
-        } catch (hash<ExceptionInfo> ex) {
-            {
-                AutoLock al(m);
-                active = False;
-                stream = NOTHING;
-                cond.broadcast();
-            }
-            notifyObservers(EVENT_GRPC_STREAM_ERROR, {
-                "err": ex.err,
-                "desc": ex.desc,
-            });
+    private applyStop(GrpcAsyncClientStream local_stream) {
+        if (method_info.client_streaming) {
+            local_stream.finishWrites(DrainTimeout);
+        } else {
+            local_stream.cancel();
         }
+    }
+
+    #! Delivers a message received from the server to the observers
+    /** Runs on an async I/O controller callback worker.
+    */
+    private onStreamMessage(hash<auto> msg) {
+        {
+            AutoLock al(m);
+            if (stopping && !method_info.client_streaming) {
+                # Server-streaming: nothing is delivered after a stop request
+                return;
+            }
+        }
+        notifyObservers(EVENT_GRPC_STREAM_MESSAGE, msg);
+    }
+
+    #! Delivers stream completion to the observers
+    /** Runs on an async I/O controller callback worker.
+    */
+    private onStreamComplete(hash<GrpcCallResult> result) {
+        bool suppress;
+        {
+            AutoLock al(m);
+            # a stop on a server stream cancels the transport; the resulting
+            # CANCELLED status is expected and is not reported to observers
+            suppress = stopping && !method_info.client_streaming;
+        }
+        markFinished();
+        if (suppress) {
+            return;
+        }
+        if (result.status_code != GRPC_STATUS_OK) {
+            notifyObservers(EVENT_GRPC_STREAM_ERROR, {
+                "err": sprintf("GRPC_STATUS_%d", result.status_code),
+                "desc": result.status_message,
+            });
+        } else {
+            notifyObservers(EVENT_GRPC_STREAM_COMPLETE, {});
+        }
+    }
+
+    #! Delivers a transport-level stream failure to the observers
+    /** Runs on an async I/O controller callback worker.
+    */
+    private onStreamFailure(hash<auto> error) {
+        markFinished();
+        notifyObservers(EVENT_GRPC_STREAM_ERROR, error);
+    }
+
+    #! Marks the stream inactive and releases it
+    private markFinished() {
+        AutoLock al(m);
+        active = False;
+        finished = True;
+        remove stream;
+        cond.broadcast();
     }
 }
 

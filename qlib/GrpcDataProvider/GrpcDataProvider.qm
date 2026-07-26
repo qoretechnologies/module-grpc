@@ -378,6 +378,17 @@ events.stopEvents();
 
     @subsection grpcdataprovider_v1_0 GrpcDataProvider v1.0
     - initial release
+    - @ref GrpcDataProvider::GrpcStreamEventDataProvider "GrpcStreamEventDataProvider" runs
+      on @ref Grpc::GrpcAsyncClientStream "GrpcAsyncClientStream"
+      (<a href="https://github.com/qoretechnologies/qore/issues/5368">issue 5368</a>):
+      - the per-provider background thread and its 5-second read poll are gone; events are
+        delivered from an async socket I/O controller callback worker as the I/O thread
+        receives them, so an idle subscription costs no thread and no periodic wakeups
+      - \c stopEvents() cancels the stream asynchronously for server-streaming methods; for
+        bidirectional methods it half-closes writes and arms the drain bound on the
+        controller instead of polling a \c stopping flag every 5 seconds
+      - \c observersReady() opens the stream synchronously; a failure to open it is reported
+        via @ref EVENT_GRPC_STREAM_ERROR
     - @ref GrpcDataProvider::GrpcDataProvider "GrpcDataProvider": root provider with schema
       discovery via proto files, inline content, or server reflection
     - @ref GrpcDataProvider::GrpcServiceDataProvider "GrpcServiceDataProvider": service-level

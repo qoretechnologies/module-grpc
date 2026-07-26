@@ -145,13 +145,14 @@ public class GrpcClient {
         hash<string, string> headers = GrpcHelper::buildRequestHeaders(
             method_info.full_path, opts);
 
-        # Start streaming with body_streaming=True to keep the request body open
+        # A server-streaming client sends exactly one message and half-closes,
+        # so the request is submitted with the stream rather than written after
+        # it: submitting and then writing leaves a window in which the server
+        # can reject the call and close the stream first, which surfaces as an
+        # opaque HTTP2-ERROR instead of the gRPC status the server sent
         HttpClientIo::HttpClientStreamHandle stream = m_channel.acquireStream();
         ensureStreamReady(stream);
-        stream.startStreaming("POST", method_info.full_path, headers, True);
-
-        # Send request with END_STREAM (client sends one message)
-        stream.sendData(framed, True);
+        stream.startStreaming("POST", method_info.full_path, headers, False, framed);
 
         return new GrpcClientStream(stream, m_schema,
             method_info.output_type, method_info.input_type, True);
@@ -200,6 +201,74 @@ public class GrpcClient {
         return clientStream(method, opts);
     }
 
+    #! Start an event-driven server-streaming call
+    /** Sends a single request and returns a
+        @ref Grpc::GrpcAsyncClientStream "GrpcAsyncClientStream" that is driven
+        by the async socket I/O controller: responses are decoded and delivered
+        on a callback worker as the I/O thread receives them, with no thread
+        parked on a read.
+
+        @param method the method name
+        @param request the request data
+        @param opts optional call options
+        @param stream_opts delivery sinks and deadlines for the async stream; if
+        \c deadline_ms is not set it defaults to \c opts.timeout_ms
+
+        @return a started @ref Grpc::GrpcAsyncClientStream "GrpcAsyncClientStream"
+
+        @throw GRPC-METHOD-ERROR if the method is not found
+        @throw GRPC-ERROR if starting the stream fails
+
+        @see serverStream() for the blocking equivalent
+    */
+    GrpcAsyncClientStream serverStreamAsync(string method, hash<auto> request,
+            *hash<GrpcCallOptions> opts, *hash<GrpcAsyncStreamOptions> stream_opts) {
+        hash<ProtobufMethodInfo> method_info = getMethodInfo(method);
+
+        # Encode and frame the request
+        binary encoded = m_schema.encode(method_info.input_type, request);
+        binary framed = GrpcHelper::frameMessage(encoded);
+
+        return startAsyncStream(method_info, opts, stream_opts, framed);
+    }
+
+    #! Start an event-driven client-streaming call
+    /** @param method the method name
+        @param opts optional call options
+        @param stream_opts delivery sinks and deadlines for the async stream; if
+        \c deadline_ms is not set it defaults to \c opts.timeout_ms
+
+        @return a started @ref Grpc::GrpcAsyncClientStream "GrpcAsyncClientStream"
+
+        @throw GRPC-METHOD-ERROR if the method is not found
+        @throw GRPC-ERROR if starting the stream fails
+
+        @see clientStream() for the blocking equivalent
+    */
+    GrpcAsyncClientStream clientStreamAsync(string method, *hash<GrpcCallOptions> opts,
+            *hash<GrpcAsyncStreamOptions> stream_opts) {
+        return startAsyncStream(getMethodInfo(method), opts, stream_opts);
+    }
+
+    #! Start an event-driven bidirectional streaming call
+    /** @param method the method name
+        @param opts optional call options
+        @param stream_opts delivery sinks and deadlines for the async stream; if
+        \c deadline_ms is not set it defaults to \c opts.timeout_ms
+
+        @return a started @ref Grpc::GrpcAsyncClientStream "GrpcAsyncClientStream"
+
+        @throw GRPC-METHOD-ERROR if the method is not found
+        @throw GRPC-ERROR if starting the stream fails
+
+        @see bidiStream() for the blocking equivalent
+    */
+    GrpcAsyncClientStream bidiStreamAsync(string method, *hash<GrpcCallOptions> opts,
+            *hash<GrpcAsyncStreamOptions> stream_opts) {
+        # bidi uses the same setup as client streaming
+        return clientStreamAsync(method, opts, stream_opts);
+    }
+
     #! Get service info
     /** @return the @ref GrpcServiceInfo for the bound service
     */
@@ -229,6 +298,57 @@ public class GrpcClient {
         }
     }
 
+    #! Opens an HTTP/2 stream with an EventNotifier and starts the async reader
+    /** @param method_info the resolved method
+        @param opts optional call options
+        @param stream_opts delivery sinks and deadlines for the async stream
+        @param request an optional framed request message sent with \c END_STREAM
+        (server-streaming); when omitted the write side stays open
+
+        @return a started @ref Grpc::GrpcAsyncClientStream "GrpcAsyncClientStream"
+    */
+    private GrpcAsyncClientStream startAsyncStream(hash<ProtobufMethodInfo> method_info,
+            *hash<GrpcCallOptions> opts, *hash<GrpcAsyncStreamOptions> stream_opts,
+            *binary request) {
+        hash<GrpcAsyncStreamOptions> sopts = stream_opts ?? <GrpcAsyncStreamOptions>{};
+        if (!exists sopts.deadline_ms && opts.timeout_ms) {
+            sopts.deadline_ms = opts.timeout_ms;
+        }
+
+        hash<string, string> headers = GrpcHelper::buildRequestHeaders(
+            method_info.full_path, opts);
+
+        # The notifier is signaled by the I/O thread whenever it pushes data,
+        # an error, or the end-of-stream marker for this stream
+        EventNotifier notifier();
+
+        HttpClientIo::HttpClientStreamHandle stream = m_channel.acquireStream();
+        ensureStreamReady(stream);
+        # startStreaming() with a notifier must not block, so readiness is
+        # established above.  A server-streaming call sends exactly one message
+        # and half-closes, so its request rides the stream submission: writing
+        # it afterwards leaves a window in which the server can reject the call
+        # and close the stream first, which surfaces as an opaque HTTP2-ERROR
+        # instead of the gRPC status the server sent.  Client-streaming and bidi
+        # calls keep the request write side open for write().
+        stream.startStreaming("POST", method_info.full_path, headers, !exists request,
+            request, notifier);
+
+        GrpcAsyncClientStream async_stream(stream, notifier, m_schema,
+            method_info.output_type, method_info.input_type, sopts, exists request);
+        try {
+            async_stream.start();
+        } catch (hash<ExceptionInfo> ex) {
+            try {
+                stream.cancel();
+            } catch (hash<ExceptionInfo> ex1) {
+                # the stream is already in a terminal state
+            }
+            rethrow;
+        }
+        return async_stream;
+    }
+
     private hash<ProtobufMethodInfo> getMethodInfo(string method) {
         *hash<ProtobufMethodInfo> info = m_methods{method};
         if (!info) {
@@ -240,35 +360,12 @@ public class GrpcClient {
     }
 
     private hash<GrpcCallResult> parseResponse(hash<auto> response, string output_type) {
-        # Extract status from trailers
-        int status_code = GRPC_STATUS_OK;
-        string status_message = "OK";
-        hash<string, string> trailing_metadata();
-        hash<string, string> initial_metadata();
-
-        # Parse initial metadata from response headers
-        if (response.headers) {
-            map initial_metadata{$1.key} = $1.value.toString(),
-                response.headers.pairIterator(),
-                $1.key !~ /^:/;
-        }
-
-        # Parse trailers
-        if (response.trailers) {
-            if (exists response.trailers."grpc-status") {
-                status_code = int(response.trailers."grpc-status");
-            }
-            if (exists response.trailers."grpc-message") {
-                status_message = response.trailers."grpc-message";
-            }
-            map trailing_metadata{$1.key} = $1.value.toString(),
-                response.trailers.pairIterator(),
-                $1.key != "grpc-status" && $1.key != "grpc-message";
-        }
+        # Extract the status and metadata; covers trailers, Trailers-Only
+        # responses, and non-gRPC HTTP failures
+        hash<GrpcCallResult> result = GrpcHelper::parseCallStatus(response);
 
         # Decode response body (if present and status is OK)
-        hash<auto> body();
-        if (response.body && status_code == GRPC_STATUS_OK) {
+        if (response.body && result.status_code == GRPC_STATUS_OK) {
             binary response_data;
             if (response.body.typeCode() == NT_BINARY) {
                 response_data = response.body;
@@ -277,17 +374,11 @@ public class GrpcClient {
             }
             if (response_data.size() >= 5) {
                 hash<auto> unframed = GrpcHelper::unframeMessage(response_data);
-                body = m_schema.decode(output_type, unframed.data);
+                result.body = m_schema.decode(output_type, unframed.data);
             }
         }
 
-        return <GrpcCallResult>{
-            "body": body,
-            "status_code": status_code,
-            "status_message": status_message,
-            "trailing_metadata": trailing_metadata,
-            "initial_metadata": initial_metadata,
-        };
+        return result;
     }
 }
 

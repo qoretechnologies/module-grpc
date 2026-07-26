@@ -71,6 +71,8 @@ public class GrpcInteropTest inherits QUnit::Test {
             \testQoreClientPythonClientStream());
         addTestCase("interop: qore client -> python server: bidi streaming",
             \testQoreClientPythonBidiStream());
+        addTestCase("interop: qore client -> python server: trailers-only status",
+            \testQoreClientPythonTrailersOnly());
 
         # Interop: grpcurl -> Qore gRPC server
         addTestCase("interop: grpcurl -> qore server: unary",
@@ -312,6 +314,59 @@ public class GrpcInteropTest inherits QUnit::Test {
         hash<GrpcCallResult> result = stream.finish();
         assertEq(GRPC_STATUS_OK, result.status_code,
             "python server: bidi status OK");
+    }
+
+    #! A real gRPC peer reports a call it cannot serve with a Trailers-Only response
+    /** grpc-python answers an unimplemented service with a single \c HEADERS
+        frame carrying \c grpc-status — there are no trailers at all.  A client
+        that reads only the trailers reports such a failure as
+        @ref GRPC_STATUS_OK, so every client path is checked here.
+    */
+    testQoreClientPythonTrailersOnly() {
+        if (!has_python_grpc) {
+            testSkip("Python grpcio not available");
+        }
+
+        hash<auto> py = startPythonServer();
+        on_exit py.proc.terminate();
+
+        # the Python server serves test.TestService only, so any method of this
+        # service is unimplemented on it
+        ProtobufSchema schema(test_dir, "async-stream.proto");
+        GrpcChannel channel(sprintf("http://localhost:%d", py.port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "AsyncTestService");
+
+        # unary
+        hash<GrpcCallResult> unary = client.call("ServerStream", {"name": "x", "id": 0},
+            <GrpcCallOptions>{"timeout_ms": 10000});
+        assertEq(GRPC_STATUS_UNIMPLEMENTED, unary.status_code,
+            "unary: a Trailers-Only failure must not be reported as OK");
+        assertTrue(unary.status_message.val(),
+            "unary: the server's status message must be reported");
+
+        # blocking stream
+        GrpcClientStream sync_stream = client.serverStream("ServerStream",
+            {"name": "x", "id": 0});
+        hash<GrpcCallResult> sync_result = sync_stream.finish();
+        assertEq(GRPC_STATUS_UNIMPLEMENTED, sync_result.status_code,
+            "sync stream: a Trailers-Only failure must not be reported as OK");
+        assertEq("application/grpc", sync_result.initial_metadata."content-type",
+            "sync stream: the response headers must be reported as initial metadata");
+
+        # event-driven stream
+        Queue q();
+        GrpcAsyncClientStream async_stream = client.serverStreamAsync("ServerStream",
+            {"name": "x", "id": 0}, NOTHING, <GrpcAsyncStreamOptions>{
+                "on_complete": sub (hash<GrpcCallResult> r) { q.push({"result": r}); },
+                "on_failure": sub (hash<auto> e) { q.push({"error": e}); },
+            });
+        hash<auto> event = q.get(20s);
+        assertNothing(event.error,
+            "async stream: a rejected call must be a gRPC status, not a transport error");
+        assertEq(GRPC_STATUS_UNIMPLEMENTED, event.result.status_code,
+            "async stream: a Trailers-Only failure must not be reported as OK");
+        assertTrue(async_stream.waitForDone(10s));
     }
 
     # ---- grpcurl -> Qore server tests ----

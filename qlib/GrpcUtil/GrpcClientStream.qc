@@ -68,7 +68,7 @@ public class GrpcClientStream {
         bool m_writes_done = False;
 
         #! Read buffer for accumulating partial gRPC frames
-        binary m_read_buf = binary();
+        GrpcFrameBuffer m_read_buf();
 
         #! Last response body decoded (for client-streaming finish())
         hash<auto> m_last_body;
@@ -142,11 +142,7 @@ public class GrpcClientStream {
             }
 
             # Append data to buffer
-            if (data.typeCode() == NT_BINARY) {
-                m_read_buf += data;
-            } else {
-                m_read_buf += binary(data);
-            }
+            m_read_buf.add(data);
         }
     }
 
@@ -178,48 +174,36 @@ public class GrpcClientStream {
 
     #! Get the final call result (status from trailers)
     /** Automatically calls writesDone() if not already called.
-        Reads any remaining messages and extracts the gRPC status from trailers.
+        Reads any remaining messages and extracts the gRPC status.
 
         @return a @ref GrpcCallResult with response body and status info
+
+        @see @ref Grpc::GrpcHelper::parseCallStatus() for the status sources
+        covered (trailers, a Trailers-Only response, a non-gRPC HTTP failure)
     */
     hash<GrpcCallResult> finish() {
         # Auto-close writes if needed
         writesDone();
 
         # Drain remaining messages — catch errors so we can still return status
-        int status_code = GRPC_STATUS_OK;
-        string status_message = "OK";
+        *hash<ExceptionInfo> drain_error;
         try {
             while (!m_reads_done) {
                 read();
             }
         } catch (hash<ExceptionInfo> ex) {
             m_reads_done = True;
-            status_code = GRPC_STATUS_INTERNAL;
-            status_message = sprintf("%s: %s", ex.err, ex.desc);
-        }
-        hash<string, string> trailing_metadata();
-
-        *hash<string, string> trailers = m_stream.getTrailers();
-        if (trailers) {
-            if (exists trailers."grpc-status") {
-                status_code = int(trailers."grpc-status");
-            }
-            if (exists trailers."grpc-message") {
-                status_message = trailers."grpc-message";
-            }
-            map trailing_metadata{$1.key} = $1.value,
-                trailers.pairIterator(),
-                $1.key != "grpc-status" && $1.key != "grpc-message";
+            drain_error = ex;
         }
 
-        return <GrpcCallResult>{
-            "body": m_last_body ?? {},
-            "status_code": status_code,
-            "status_message": status_message,
-            "trailing_metadata": trailing_metadata,
-            "initial_metadata": {},
-        };
+        hash<GrpcCallResult> result = GrpcHelper::parseCallStatus(m_stream.getResponse());
+        result.body = m_last_body ?? {};
+        # a drain failure only reports a status the server never sent itself
+        if (drain_error && result.status_code == GRPC_STATUS_OK) {
+            result.status_code = GRPC_STATUS_INTERNAL;
+            result.status_message = sprintf("%s: %s", drain_error.err, drain_error.desc);
+        }
+        return result;
     }
 
     #! Returns True if the stream has received END_STREAM from the server
@@ -239,21 +223,9 @@ public class GrpcClientStream {
 
     #! Try to parse a complete gRPC frame from the read buffer
     private *hash<auto> tryParseFrame() {
-        if (m_read_buf.size() < 5) {
+        *binary msg_data = m_read_buf.takeFrame();
+        if (!exists msg_data) {
             return NOTHING;
-        }
-        int len = (m_read_buf[1] << 24) | (m_read_buf[2] << 16)
-            | (m_read_buf[3] << 8) | m_read_buf[4];
-        if (m_read_buf.size() < 5 + len) {
-            return NOTHING;
-        }
-        # Extract the message
-        binary msg_data = m_read_buf.substr(5, len);
-        # Remove consumed bytes from buffer
-        if (m_read_buf.size() > 5 + len) {
-            m_read_buf = m_read_buf.substr(5 + len);
-        } else {
-            m_read_buf = binary();
         }
         return m_schema.decode(m_read_type, msg_data);
     }
