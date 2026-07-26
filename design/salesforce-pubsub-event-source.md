@@ -2,6 +2,15 @@
 
 Status: **proposed**, not started.
 
+Delivered as **two parallel tracks in separate repositories**, converging at activation:
+
+- **Track 1 — qore repo**: the `%try-child-module` parse directive, which lets a base module declare
+  optional child modules that the loader attaches once the base is fully published. Not specific to
+  this provider; see § *Extending a base module from another repository*.
+- **Track 2 — this repo**: the Avro codec, the Pub/Sub client and the event data providers.
+
+Neither track blocks the other until the final step. See § *Work breakdown*.
+
 References — this design follows them and does not restate their rules:
 
 - `~/src/qore/git/qore/design/data-provider-development-guide.md` (§ *Event Providers*, § *Common Pitfalls*)
@@ -243,7 +252,12 @@ module TestExt {
 }
 ```
 
-**Option A — lazy activation (works today, no Qore change).** The base loads its extenders on first
+Two mechanisms follow. **`%try-child-module` (Option B) is the chosen solution and is being built in
+parallel in the qore repository** — see § *Work breakdown*, Track 1. Option A is documented as the
+fallback that works with an unmodified Qore, so this provider is never blocked on the directive
+landing.
+
+**Option A — lazy activation (fallback; works today, no Qore change).** The base loads its extenders on first
 use, guarded once-only, from a point at which it is fully loaded:
 
 ```qore
@@ -279,7 +293,7 @@ Its limitation is real: activation is tied to something calling a provider metho
 UI, for instance — will not see the extension's actions. It also puts a check on a hot path and needs
 the same boilerplate in every extensible base.
 
-**Option B — a `%try-child-module` parse directive (the formal solution, recommended).** The parent
+**Option B — a `%try-child-module` parse directive (chosen; Track 1, built in parallel).** The parent
 declares its optional children, and the module loader loads and initialises each present child
 **automatically, after the parent is fully loaded and published** — strictly after the parent's `init`
 has run, which the test above shows is the necessary ordering:
@@ -311,10 +325,11 @@ and reads declaratively at the top of the parent. Points still to settle in the 
 - **visibility** — whether the loaded set is introspectable, so a missing action can be diagnosed by
   asking which children attached rather than by guesswork.
 
-This is a change in the **qore** repository, not here. Option A works today and is enough to ship the
-Pub/Sub provider; `%try-child-module` is what turns extension from a per-module convention into a
+This is work in the **qore** repository, tracked as Track 1 in § *Work breakdown* and scheduled
+alongside the provider rather than after it. It turns extension from a per-module convention into a
 supported language-level pattern, and would let `QorusOpenAiServices`, `QorusDiscordServices`,
-`QorusGoogleServices` and `QorusSlackServices` drop their explicit-load requirement as well.
+`QorusGoogleServices` and `QorusSlackServices` drop their explicit-load requirement as well — so its
+value is not limited to this provider, which is the reason for doing it now rather than deferring it.
 
 **Worth formalising, beyond activation.** `%try-child-module` fixes *when* extensions load. Three
 further gaps in the current convention are independent of it and remain open: the per-module
@@ -336,6 +351,21 @@ without losing its replay position.
 
 ## Work breakdown
 
+Two tracks run **in parallel**, in separate repositories, and are independent until they converge at
+activation.
+
+### Track 1 — qore repo: `%try-child-module`
+
+| # | Item | Depends on |
+|---|---|---|
+| Q1 | `%try-child-module` parse directive: parse, record the declaration, defer the load | — |
+| Q2 | Loader support: load and initialise declared children after the parent is fully published | Q1 |
+| Q3 | Failure policy — absent child silent, present-but-broken child raises | Q2 |
+| Q4 | Ordering, cycle detection, `PO_NO_MODULES` behaviour, introspection of what attached | Q2 |
+| Q5 | Tests, `doxygen/lang/245_parse_directives.dox.tmpl` entry, release notes | Q1–Q4 |
+
+### Track 2 — this repo: the Pub/Sub event source
+
 | # | Item | Depends on |
 |---|---|---|
 | 1 | Avro schema parsing + binary datum decode, tests against known vectors | — |
@@ -346,11 +376,21 @@ without losing its replay position.
 | 6 | Replay-ID tracking and resume-on-reconnect | 5 |
 | 7 | Events container + event providers, `DPAT_EVENT` registration, `registerApp()` with square logo | 3, 5 |
 | 8 | `qore_external_user_module()` entries, docs targets, `@section …intro` mainpage sections | 7 |
-| 9 | Port the Qorus `crm-to-erp` demo off `BBM_SalesforceStreamBase` | 7 |
-| 10 | **qore repo**: `%try-child-module` directive (§ *Extending a base module*) — optional; Option A ships without it | — |
 
-Items 1–3 are the real work, are independent of Salesforce, and are the part that moves if Avro gets
-its own repository.
+### Convergence
+
+| # | Item | Depends on |
+|---|---|---|
+| C1 | Add `%try-child-module SalesforcePubSubDataProvider` to `SalesforceRestDataProvider.qm` (qore repo) | Q3, 7 |
+| C2 | Port the Qorus `crm-to-erp` demo off `BBM_SalesforceStreamBase` | C1 |
+
+Nothing in Track 2 blocks on Track 1: items 1–8 build and test with the provider loaded explicitly.
+Only C1 needs the directive. If Track 1 slips, C1 can ship against the lazy-activation fallback
+(§ *Extending a base module* Option A) and be switched to the directive afterwards without touching
+the provider — the registration side is identical either way.
+
+Items 1–3 are the bulk of Track 2, are independent of Salesforce, and are the part that moves if Avro
+gets its own repository.
 
 Module registration follows `qore-module-structure.md`: directory modules, the `.qm` inside its own
 directory, one `qore_external_user_module("qlib/<Name>" "Deps")` call per module — which handles
