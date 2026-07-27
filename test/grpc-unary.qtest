@@ -39,6 +39,7 @@ public class GrpcUnaryTest inherits QUnit::Test {
         addTestCase("server lifecycle", \testServerLifecycle());
         addTestCase("multiple requests on same connection", \testMultipleRequests());
         addTestCase("secure server with TLS", \testSecureServer());
+        addTestCase("TLS peer verification mode", \testTlsVerifyMode());
 
         set_return_value(main());
     }
@@ -244,5 +245,49 @@ public class GrpcUnaryTest inherits QUnit::Test {
         hash<GrpcCallResult> result = client.call("UnaryCall", {"name": "tls"});
         assertEq(GRPC_STATUS_OK, result.status_code, "TLS call should succeed");
         assertEq("secure-tls", result.body.message, "TLS response");
+    }
+
+    #! A channel can require the server certificate to validate against the system CA store
+    /** Without this a channel accepts any certificate, which is convenient for a local test server
+        but wrong for a public endpoint.
+    */
+    testTlsVerifyMode() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                return {"message": "secure-" + request.name, "status": 0};
+            });
+        int port = server.addSecurePort("localhost:0",
+            <GrpcSslOptions>{"server_cert": CertPem, "server_key": KeyPem});
+        server.start();
+        on_exit server.shutdown();
+
+        string url = sprintf("https://localhost:%d", port);
+
+        # the test server's certificate is self-signed, so requiring verification must fail rather
+        # than silently accepting it
+        GrpcChannel strict(url, <GrpcChannelOptions>{
+            "ssl": <GrpcSslOptions>{"verify_mode": SSL_VERIFY_PEER},
+        });
+        on_exit strict.shutdown();
+        GrpcClient strict_client(strict, schema, "TestService");
+        assertThrows("GRPC-ERROR", \strict_client.call(), ("UnaryCall", {"name": "tls"}),
+            "a self-signed certificate is rejected when verification is required");
+
+        # SSL_VERIFY_NONE is the explicit form of the permissive default
+        GrpcChannel none(url, <GrpcChannelOptions>{
+            "ssl": <GrpcSslOptions>{"verify_mode": SSL_VERIFY_NONE},
+        });
+        on_exit none.shutdown();
+        GrpcClient none_client(none, schema, "TestService");
+        assertEq(GRPC_STATUS_OK, none_client.call("UnaryCall", {"name": "tls"}).status_code);
+
+        # and with no verification configuration at all, the permissive behavior is unchanged
+        GrpcChannel dflt(url);
+        on_exit dflt.shutdown();
+        GrpcClient dflt_client(dflt, schema, "TestService");
+        assertEq(GRPC_STATUS_OK, dflt_client.call("UnaryCall", {"name": "tls"}).status_code);
     }
 }

@@ -173,6 +173,21 @@ hashdecl Qore::Grpc::GrpcSslOptions {
 
     //! If True, require client certificate for mutual TLS (server-side)
     *bool require_client_auth;
+
+    //! Peer certificate verification mode for a client channel
+    /** When set, this is applied to the channel's connection manager verbatim; use
+        @ref Qore::SSL_VERIFY_PEER to require that the server's certificate validates against
+        the system CA store, which is what a public endpoint needs.
+
+        When not set, a client channel accepts all certificates including self-signed ones,
+        which is convenient for a local test server but must not be used against a production
+        service.
+
+        @see @ref Qore::SSL_VERIFY_NONE, @ref Qore::SSL_VERIFY_PEER
+
+        @since %grpc 1.0
+    */
+    *int verify_mode;
 }
 
 //! Options for a gRPC channel

@@ -891,6 +891,23 @@ events.observersReady();
         \c flight:// and \c flights:// connection schemes
       - @ref ArrowFlightDataProvider::ArrowFlightTypeHelper "ArrowFlightTypeHelper" for
         Arrow-to-DataProvider type mapping
+    - <b>SalesforcePubSubDataProvider module</b>: a Salesforce Pub/Sub API event source that
+      attaches itself to the Salesforce data provider in the %Qore library as its \c pubsub child,
+      so platform events, Change Data Capture events and custom channels drive Qore and Qorus logic
+      through the DataProvider observer API
+      - @ref SalesforcePubSubDataProvider::SalesforcePubSubEventsDataProvider
+        "SalesforcePubSubEventsDataProvider" events container, with one child provider per
+        subscribable channel in the org
+      - @ref SalesforcePubSubDataProvider::SalesforcePubSubEventDataProvider
+        "SalesforcePubSubEventDataProvider" observable provider per channel, with the event type
+        derived from the channel's Avro schema
+      - @ref SalesforcePubSubDataProvider::SalesforcePubSubClient "SalesforcePubSubClient" for the
+        \c eventbus.v1.PubSub service, with the Salesforce call metadata and an Avro schema cache
+      - @ref SalesforcePubSubDataProvider::SalesforcePubSubSubscription
+        "SalesforcePubSubSubscription" subscription state machine: delivery-driven flow control,
+        keepalive handling, replay-ID tracking, token refresh and reconnection with backoff
+      - @ref SalesforcePubSubDataProvider::SalesforcePubSubProto "SalesforcePubSubProto", the
+        vendored \c pubsub_api.proto as a cached \c ProtobufSchema
 
     @section grpclicense License
 

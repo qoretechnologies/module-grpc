@@ -21,6 +21,19 @@ The module has two layers:
 - **Binary module (`grpc.so`)**: C++ QPP wrapping `libprotobuf` for schema loading and message encoding/decoding. Only dependency is `libprotobuf` (no libgrpc++).
 - **Qore module (`GrpcUtil`)**: Pure Qore implementing the gRPC protocol natively on Qore's HTTP/2 stack.
 
+Three data provider modules are built on top of it:
+
+| Module | What |
+|---|---|
+| `GrpcDataProvider` | any gRPC service as a data provider, with reflection-based discovery |
+| `ArrowFlightDataProvider` | Apache Arrow Flight columnar data exchange |
+| `SalesforcePubSubDataProvider` | Salesforce Pub/Sub API event source (gRPC + Avro) |
+
+`SalesforcePubSubDataProvider` attaches itself to the Salesforce data provider in the Qore library
+as its `pubsub` child, so an existing `sfrest` connection gains platform event, Change Data Capture
+and custom channel event sources with no new connection type. See
+[`design/salesforce-pubsub.md`](design/salesforce-pubsub.md).
+
 ## Requirements
 
 - Qore 2.0+ (with HTTP/2 trailer support)

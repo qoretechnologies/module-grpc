@@ -1,0 +1,1435 @@
+#!/usr/bin/env qore
+# -*- mode: qore; indent-tabs-mode: nil -*-
+
+/*
+    Copyright (C) 2026 Qore Technologies, s.r.o., all rights reserved
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+
+    Salesforce Pub/Sub API event source test suite
+
+    Everything here runs against a local gRPC server speaking eventbus.v1 from the
+    module's own vendored pubsub_api.proto, with Avro payloads produced by the
+    builtin avro module.  Nothing has been exercised against a live Salesforce org.
+
+    The suite covers what the CometD building block this replaces provided and what a
+    replacement must not lose: the replay position across a reconnect, delivery-driven
+    flow-control replenishment, an empty FetchResponse read as liveness rather than
+    end-of-stream, recovery from an expired replay ID, and a token refresh on a
+    long-lived subscription.
+*/
+
+%modern
+
+%requires QUnit
+%requires protobuf
+%requires grpc
+%requires avro
+%requires AvroUtil
+%requires DataProvider
+%requires SalesforceRestClient
+%requires GrpcUtil
+%requires SalesforcePubSubDataProvider
+
+%exec-class SalesforcePubSubTest
+
+#! The Avro schema for the synthetic account change event used throughout
+const TestSchemaJson = '{
+    "type": "record",
+    "name": "AccountChangeEvent",
+    "namespace": "com.sf.eventbus.test",
+    "fields": [
+        {"name": "ChangeEventHeader", "type": {
+            "type": "record",
+            "name": "ChangeEventHeader",
+            "fields": [
+                {"name": "entityName", "type": "string"},
+                {"name": "recordIds", "type": {"type": "array", "items": "string"}},
+                {"name": "changeType", "type": "string"},
+                {"name": "commitNumber", "type": "long"}
+            ]
+        }},
+        {"name": "Name", "type": ["null", "string"], "default": null},
+        {"name": "AnnualRevenue", "type": ["null", "double"], "default": null}
+    ]
+}';
+
+#! The schema ID the test server reports for the test channel
+const TestSchemaId = "IeSFsaGYFkarQ8sMLLQrpg";
+
+#! The topic the tests subscribe to
+const TestTopic = "/data/AccountChangeEvent";
+
+#! Scripted behaviour and recorded traffic for the test Pub/Sub server
+/** Each \c Subscribe connection consumes one script from @ref scripts; a script is a list of
+    steps executed in order:
+    - <tt>{"send": {"events": list, "pending": int, "latest": binary}}</tt> — write a
+      \c FetchResponse; an empty or missing \c events list is a keepalive
+    - <tt>{"expect_request": True}</tt> — block until the client sends its next \c FetchRequest
+    - <tt>{"throw": {"err": string, "desc": string}}</tt> — fail the RPC with a gRPC status
+    - <tt>{"park": True}</tt> — send nothing further and hold the stream open until the test ends
+
+    The step sequence is deterministic because the client only ever writes a \c FetchRequest in
+    response to something: the opening request when the stream opens, a replenishment when a
+    response reports credit at or below the low-water mark, and a backstop request when the
+    flow-control deadline comes due.
+*/
+class PubSubScript {
+    private {
+        #! Scripts, one per Subscribe connection, consumed in order
+        list<list<hash<auto>>> scripts = ();
+
+        #! The script used once @ref scripts is exhausted
+        list<hash<auto>> default_script = ({"park": True},);
+
+        #! FetchRequests received, in order, across all connections
+        list<hash<auto>> requests = ();
+
+        #! Call metadata seen on each Subscribe connection, in order
+        list<hash<string, string>> metadata = ();
+
+        #! Number of Subscribe connections opened
+        int connections = 0;
+
+        #! Number of GetSchema calls served
+        int schema_calls = 0;
+
+        #! Number of GetTopic calls served
+        int topic_calls = 0;
+
+        #! State lock
+        Mutex m();
+
+        #! Signals recorded traffic
+        Condition cond();
+
+        #! Released when the test tears the server down, so parked handlers exit
+        Counter release(1);
+    }
+
+    #! Appends a script for the next connection
+    addScript(list<hash<auto>> script) {
+        AutoLock al(m);
+        scripts += list(script);
+    }
+
+    #! Sets the script used once the explicit scripts are exhausted
+    setDefaultScript(list<hash<auto>> script) {
+        AutoLock al(m);
+        default_script = script;
+    }
+
+    #! Returns the script for a new connection and counts it
+    list<hash<auto>> nextScript() {
+        AutoLock al(m);
+        ++connections;
+        cond.broadcast();
+        if (scripts) {
+            return shift scripts;
+        }
+        return default_script;
+    }
+
+    #! Records a FetchRequest
+    recordRequest(hash<auto> req) {
+        AutoLock al(m);
+        requests += req;
+        cond.broadcast();
+    }
+
+    #! Records the call metadata of a new connection
+    recordMetadata(hash<string, string> md) {
+        AutoLock al(m);
+        metadata += md;
+        cond.broadcast();
+    }
+
+    #! Counts a GetSchema call
+    countSchemaCall() {
+        AutoLock al(m);
+        ++schema_calls;
+    }
+
+    #! Counts a GetTopic call
+    countTopicCall() {
+        AutoLock al(m);
+        ++topic_calls;
+    }
+
+    #! Returns every FetchRequest received so far
+    list<hash<auto>> getRequests() {
+        AutoLock al(m);
+        return requests;
+    }
+
+    #! Returns the call metadata of the given connection
+    *hash<string, string> getMetadata(int index = 0) {
+        AutoLock al(m);
+        return metadata[index];
+    }
+
+    #! Returns the number of Subscribe connections opened
+    int getConnectionCount() {
+        AutoLock al(m);
+        return connections;
+    }
+
+    #! Returns the number of GetSchema calls served
+    int getSchemaCallCount() {
+        AutoLock al(m);
+        return schema_calls;
+    }
+
+    #! Returns the number of GetTopic calls served
+    int getTopicCallCount() {
+        AutoLock al(m);
+        return topic_calls;
+    }
+
+    #! Blocks until at least \a count FetchRequests have been recorded
+    bool waitForRequests(int count, timeout to = 30s) {
+        AutoLock al(m);
+        date deadline = now_us() + milliseconds(to);
+        while (requests.size() < count) {
+            int remaining_ms = (deadline - now_us()).durationMilliseconds();
+            if (remaining_ms <= 0) {
+                return False;
+            }
+            cond.wait(m, remaining_ms);
+        }
+        return True;
+    }
+
+    #! Blocks until at least \a count Subscribe connections have been opened
+    bool waitForConnections(int count, timeout to = 30s) {
+        AutoLock al(m);
+        date deadline = now_us() + milliseconds(to);
+        while (connections < count) {
+            int remaining_ms = (deadline - now_us()).durationMilliseconds();
+            if (remaining_ms <= 0) {
+                return False;
+            }
+            cond.wait(m, remaining_ms);
+        }
+        return True;
+    }
+
+    #! Blocks a parked handler until the test releases it
+    park(timeout to = 120s) {
+        release.waitForZero(to);
+    }
+
+    #! Releases every parked handler
+    releaseAll() {
+        release.dec();
+    }
+}
+
+#! A local gRPC server speaking eventbus.v1, plus a Pub/Sub client bound to it
+class PubSubTestServer {
+    public {
+        GrpcServer server;
+        int port;
+        PubSubScript script();
+    }
+
+    private {
+        bool stopped = False;
+        Mutex m();
+    }
+
+    constructor() {
+        ProtobufSchema schema = SalesforcePubSubProto::get();
+        server = new GrpcServer(schema);
+
+        # bind the shared state directly rather than capturing this object, which would create a
+        # reference cycle through the handler closures
+        PubSubScript st = script;
+        ProtobufSchema sch = schema;
+
+        server.registerHandler("PubSub", "GetSchema",
+            hash<auto> sub (hash<auto> request, hash<string, string> metadata) {
+                st.countSchemaCall();
+                if (request.schema_id != TestSchemaId) {
+                    throw "GRPC-NOT-FOUND", sprintf("no such schema ID %y", request.schema_id);
+                }
+                return {
+                    "schema_json": TestSchemaJson,
+                    "schema_id": TestSchemaId,
+                    "rpc_id": "test-rpc",
+                };
+            });
+
+        server.registerHandler("PubSub", "GetTopic",
+            hash<auto> sub (hash<auto> request, hash<string, string> metadata) {
+                st.countTopicCall();
+                if (request.topic_name != TestTopic) {
+                    throw "GRPC-NOT-FOUND", sprintf("no such topic %y", request.topic_name);
+                }
+                return {
+                    "topic_name": TestTopic,
+                    "tenant_guid": "00Dxx0000001gPLEAY",
+                    "can_publish": False,
+                    "can_subscribe": True,
+                    "schema_id": TestSchemaId,
+                    "rpc_id": "test-rpc",
+                };
+            });
+
+        server.registerHandler("PubSub", "Subscribe",
+            sub (GrpcServerStream stream, hash<string, string> metadata) {
+                st.recordMetadata(metadata);
+                list<hash<auto>> steps = st.nextScript();
+
+                # the opening FetchRequest always arrives on its own; it carries the topic and the
+                # replay position, which subsequent requests must not
+                *hash<auto> first = stream.read(30s);
+                if (!exists first) {
+                    return;
+                }
+                st.recordRequest(first);
+
+                foreach hash<auto> step in (steps) {
+                    if (step.park) {
+                        st.park();
+                        return;
+                    }
+                    if (step."throw") {
+                        throw step."throw".err, step."throw".desc;
+                    }
+                    if (step.expect_request) {
+                        *hash<auto> req = stream.read(30s);
+                        if (!exists req) {
+                            return;
+                        }
+                        st.recordRequest(req);
+                        continue;
+                    }
+                    if (step.send) {
+                        stream.write({
+                            "events": step.send.events ?? (),
+                            "latest_replay_id": step.send.latest ?? binary(),
+                            "rpc_id": "test-rpc",
+                            "pending_num_requested": step.send.pending ?? 0,
+                        });
+                    }
+                }
+            });
+
+        port = server.addInsecurePort("localhost:0");
+        server.start();
+    }
+
+    destructor() {
+        stop();
+    }
+
+    #! Returns the endpoint URL of this server
+    string getUrl() {
+        return sprintf("http://localhost:%d", port);
+    }
+
+    #! Shuts the server down; safe to call more than once
+    stop() {
+        {
+            AutoLock al(m);
+            if (stopped) {
+                return;
+            }
+            stopped = True;
+        }
+        script.releaseAll();
+        server.shutdown();
+    }
+}
+
+#! Collects what a subscription delivers, with deterministic waits
+class EventSink {
+    private {
+        list<hash<auto>> events = ();
+        list<hash<auto>> keepalives = ();
+        *hash<auto> failure;
+        Mutex m();
+        Condition cond();
+    }
+
+    onEvent(hash<auto> event) {
+        AutoLock al(m);
+        events += event;
+        cond.broadcast();
+    }
+
+    onKeepalive(hash<auto> ka) {
+        AutoLock al(m);
+        keepalives += ka;
+        cond.broadcast();
+    }
+
+    onFailure(hash<auto> err) {
+        AutoLock al(m);
+        failure = err;
+        cond.broadcast();
+    }
+
+    hash<auto> getOptions() {
+        return {
+            "on_event": \onEvent(),
+            "on_keepalive": \onKeepalive(),
+            "on_failure": \onFailure(),
+        };
+    }
+
+    list<hash<auto>> getEvents() {
+        AutoLock al(m);
+        return events;
+    }
+
+    list<hash<auto>> getKeepalives() {
+        AutoLock al(m);
+        return keepalives;
+    }
+
+    *hash<auto> getFailure() {
+        AutoLock al(m);
+        return failure;
+    }
+
+    bool waitForEvents(int count, timeout to = 30s) {
+        AutoLock al(m);
+        date deadline = now_us() + milliseconds(to);
+        while (events.size() < count) {
+            int remaining_ms = (deadline - now_us()).durationMilliseconds();
+            if (remaining_ms <= 0) {
+                return False;
+            }
+            cond.wait(m, remaining_ms);
+        }
+        return True;
+    }
+
+    bool waitForKeepalives(int count, timeout to = 30s) {
+        AutoLock al(m);
+        date deadline = now_us() + milliseconds(to);
+        while (keepalives.size() < count) {
+            int remaining_ms = (deadline - now_us()).durationMilliseconds();
+            if (remaining_ms <= 0) {
+                return False;
+            }
+            cond.wait(m, remaining_ms);
+        }
+        return True;
+    }
+
+    bool waitForFailure(timeout to = 30s) {
+        AutoLock al(m);
+        date deadline = now_us() + milliseconds(to);
+        while (!failure) {
+            int remaining_ms = (deadline - now_us()).durationMilliseconds();
+            if (remaining_ms <= 0) {
+                return False;
+            }
+            cond.wait(m, remaining_ms);
+        }
+        return True;
+    }
+}
+
+#! A Pub/Sub client that records token refreshes instead of performing them
+/** The token acquisition itself belongs to \c RestClientIo and is covered by the
+    \c SalesforceRestClient suite in the Qore repository; what has to be proven here is that the
+    reconnect path asks for a refresh when, and only when, the server reports
+    @ref GRPC_STATUS_UNAUTHENTICATED.
+*/
+class TestPubSubClient inherits SalesforcePubSubClient {
+    private {
+        Sequence refreshes();
+    }
+
+    constructor(hash<string, string> metadata, *hash<auto> opts)
+            : SalesforcePubSubClient(metadata, opts) {
+    }
+
+    bool refreshToken() {
+        refreshes.next();
+        return True;
+    }
+
+    int getRefreshCount() {
+        return refreshes.getCurrent();
+    }
+}
+
+#! An events container with a scripted describeGlobal response
+/** Substitutes for the REST round trip only: everything below it — the channel filter, the child
+    names, the summary info and the child providers — is the real implementation.
+*/
+class TestEventsProvider inherits SalesforcePubSubDataProvider::SalesforcePubSubEventsDataProvider {
+    private {
+        list<auto> sobjects;
+    }
+
+    constructor(SalesforceRestClient::SalesforceRestClient rest, list<auto> sobjects)
+            : SalesforcePubSubEventsDataProvider(rest) {
+        self.sobjects = sobjects;
+    }
+
+    private *list<auto> getChannelObjects() {
+        return sobjects;
+    }
+}
+
+public class SalesforcePubSubTest inherits QUnit::Test {
+    public {
+        #! Call metadata for a client that manages no authentication of its own
+        const TestMetadata = {
+            MetadataAccessToken: "an-access-token",
+            MetadataInstanceUrl: "https://acme.my.salesforce.com",
+            MetadataTenantId: "00Dxx0000001gPLEAY",
+        };
+
+        #! The replay preset wire values, as the server decodes them
+        const PresetLatest = 0;
+        const PresetEarliest = 1;
+        const PresetCustom = 2;
+    }
+
+    constructor() : Test("SalesforcePubSubTest", "1.0") {
+        addTestCase("vendored proto", \testVendoredProto());
+        addTestCase("channel name mapping", \testChannelNameMapping());
+        addTestCase("call metadata", \testCallMetadata());
+        addTestCase("schema cache", \testSchemaCache());
+        addTestCase("avro decode round trip", \testAvroDecode());
+        addTestCase("opening fetch request", \testOpeningFetchRequest());
+        addTestCase("replay preset wire values", \testReplayPresetWireValues());
+        addTestCase("keepalive is not end of stream", \testKeepalive());
+        addTestCase("delivery-driven flow control", \testFlowControlReplenishment());
+        addTestCase("flow control backstop", \testFlowControlBackstop());
+        addTestCase("manual replenishment", \testManualReplenishment());
+        addTestCase("replay resume on reconnect", \testReplayResumeOnReconnect());
+        addTestCase("corrupt replay ID recovery", \testCorruptReplayIdRecovery());
+        addTestCase("token refresh on unauthenticated", \testTokenRefresh());
+        addTestCase("no refresh on other failures", \testNoRefreshOnOtherFailure());
+        addTestCase("idle timeout detects a dead stream", \testIdleTimeout());
+        addTestCase("reconnect disabled", \testReconnectDisabled());
+        addTestCase("reconnect attempt limit", \testReconnectAttemptLimit());
+        addTestCase("stop is idempotent and terminal", \testStop());
+        addTestCase("subscription option validation", \testSubscriptionOptions());
+        addTestCase("client option validation", \testClientOptions());
+        addTestCase("channel enumeration", \testChannelEnumeration());
+        addTestCase("event provider types", \testEventProviderTypes());
+        addTestCase("event provider registration", \testProviderRegistration());
+
+        set_return_value(main());
+    }
+
+    #! The vendored proto is loaded from disk and describes the whole service
+    testVendoredProto() {
+        ProtobufSchema schema = SalesforcePubSubProto::get();
+        assertEq(schema, SalesforcePubSubProto::get(), "the schema is cached, not reparsed");
+
+        list<auto> services = schema.services();
+        assertEq(1, services.size(), "the proto declares exactly one service");
+        assertEq("PubSub", services[0].name);
+
+        hash<string, hash<auto>> methods;
+        map methods{$1.name} = $1, services[0].methods;
+        assertTrue(methods.hasKey("Subscribe"));
+        assertTrue(methods.Subscribe.client_streaming, "Subscribe is client-streaming");
+        assertTrue(methods.Subscribe.server_streaming, "Subscribe is server-streaming");
+        assertEq("/eventbus.v1.PubSub/Subscribe", methods.Subscribe.full_path);
+        assertEq("eventbus.v1.FetchRequest", methods.Subscribe.input_type);
+        assertEq("eventbus.v1.FetchResponse", methods.Subscribe.output_type);
+        assertFalse(methods.GetSchema.server_streaming, "GetSchema is unary");
+
+        # the proto must be a resource file that ships with the module, not a string constant: this
+        # is what the *.proto resource glob in QoreMacros.cmake exists for
+        string proto = get_script_dir() + "/../qlib/SalesforcePubSubDataProvider/"
+            + SalesforcePubSubProto::ProtoFileName;
+        assertTrue(is_file(proto), sprintf("%y is a file in the module directory", proto));
+
+        # the flow-control cap is the API's, so it has to match what the module enforces
+        assertEq(100, MaxNumRequested);
+        assertLt(MaxNumRequested + 1, DefaultNumRequested, "the default window is within the cap");
+    }
+
+    #! An event entity name maps to its topic name; anything else is rejected
+    testChannelNameMapping() {
+        assertEq("/data/AccountChangeEvent", get_topic_name("AccountChangeEvent"));
+        assertEq("/data/ContactChangeEvent", get_topic_name("ContactChangeEvent"));
+        assertEq("/event/Order_Shipped__e", get_topic_name("Order_Shipped__e"));
+
+        # a topic name is passed through, which is how a custom channel is reached
+        assertEq("/event/MyChannel__chn", get_topic_name("/event/MyChannel__chn"));
+        assertEq("/data/ChangeEvents", get_topic_name("/data/ChangeEvents"));
+
+        assertThrows("SALESFORCE-PUBSUB-CHANNEL-ERROR", \get_topic_name(), "Account");
+        assertThrows("SALESFORCE-PUBSUB-CHANNEL-ERROR", \get_topic_name(), "");
+
+        assertTrue(is_pubsub_channel("AccountChangeEvent"));
+        assertTrue(is_pubsub_channel("Order_Shipped__e"));
+        assertFalse(is_pubsub_channel("Account"), "a plain sobject is not a channel");
+        assertFalse(is_pubsub_channel("AccountHistory"));
+    }
+
+    #! The three Salesforce metadata headers are sent on every call
+    testCallMetadata() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+
+        SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        assertEq(srv.getUrl(), client.getUrl());
+        assertEq(TestMetadata, client.getCallMetadata());
+
+        # the metadata reaches the server as gRPC call metadata, which is how the org is
+        # identified: the endpoint is the same global host for every org
+        client.getTopic(TestTopic);
+        srv.script.addScript(({"park": True},));
+        SalesforcePubSubSubscription subscr = client.subscribe(TestTopic, {});
+        subscr.start();
+        on_exit subscr.stop();
+        assertTrue(srv.script.waitForRequests(1), "the opening FetchRequest arrived");
+
+        *hash<string, string> md = srv.script.getMetadata();
+        assertEq("an-access-token", md{MetadataAccessToken});
+        assertEq("https://acme.my.salesforce.com", md{MetadataInstanceUrl});
+        assertEq("00Dxx0000001gPLEAY", md{MetadataTenantId});
+
+        # a client built from explicit metadata must reject an incomplete org identity rather than
+        # opening a subscription that the server will reject
+        assertThrows("SALESFORCE-PUBSUB-ERROR", sub () {
+            new SalesforcePubSubClient(cast<hash<string, string>>(
+                TestMetadata - MetadataTenantId));
+        });
+        assertThrows("SALESFORCE-PUBSUB-ERROR", sub () {
+            new SalesforcePubSubClient(cast<hash<string, string>>(
+                TestMetadata + {MetadataInstanceUrl: ""}));
+        });
+
+        # no REST client to refresh with, so a refresh is a no-op rather than an error
+        assertFalse(client.refreshToken());
+        assertThrows("SALESFORCE-PUBSUB-ERROR", \client.getRestClient());
+    }
+
+    #! Schema IDs repeat for every event, so a second lookup must not hit the server
+    testSchemaCache() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+
+        SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        assertEq(0, client.getSchemaCacheSize());
+
+        AvroSchema s1 = client.getSchema(TestSchemaId);
+        assertEq(1, srv.script.getSchemaCallCount());
+        assertEq(1, client.getSchemaCacheSize());
+
+        AvroSchema s2 = client.getSchema(TestSchemaId);
+        assertEq(s1, s2, "the cached schema object is returned");
+        assertEq(1, srv.script.getSchemaCallCount(), "a cache hit issues no round trip");
+
+        assertEq("record", s1.getType());
+        assertEq("com.sf.eventbus.test.AccountChangeEvent", s1.getName(),
+            "AvroSchema::getName() reports the fullname");
+
+        # an unknown schema ID is an error from the server, and must not poison the cache
+        assertThrows("SALESFORCE-PUBSUB-ERROR", \client.getSchema(), "no-such-schema");
+        assertEq(1, client.getSchemaCacheSize());
+
+        # the cache is bounded so a long-lived process subscribing to many channels cannot grow
+        # without limit
+        SalesforcePubSubClient small(TestMetadata, {"url": srv.getUrl(), "schema_cache_size": 1});
+        small.getSchema(TestSchemaId);
+        assertEq(1, small.getSchemaCacheSize());
+        assertThrows("SALESFORCE-PUBSUB-ERROR", sub () {
+            new SalesforcePubSubClient(TestMetadata, {"schema_cache_size": 0});
+        });
+    }
+
+    #! An event encoded by the server round-trips through the delivery path unchanged
+    testAvroDecode() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+
+        hash<auto> payload = {
+            "ChangeEventHeader": {
+                "entityName": "Account",
+                "recordIds": ("001xx000003DGb2AAG", "001xx000003DGb3AAG"),
+                "changeType": "UPDATE",
+                "commitNumber": 11223344556677,
+            },
+            "Name": "Acme Corporation",
+            "AnnualRevenue": NOTHING,
+        };
+        binary replay_id = binary("replay-0001");
+        srv.script.addScript((
+            {"send": {"events": (makeEvent(payload, replay_id),), "pending": 99}},
+            {"park": True},
+        ));
+
+        EventSink sink();
+        SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        SalesforcePubSubSubscription subscr = client.subscribe(TestTopic, sink.getOptions());
+        subscr.start();
+        on_exit subscr.stop();
+
+        assertTrue(sink.waitForEvents(1), "the event was delivered");
+        # the replay position advances only after the consumer callback returns, so the state this
+        # test asserts is observable a moment after delivery
+        assertTrue(subscr.waitForEvents(1), "the event was fully processed");
+        hash<auto> event = sink.getEvents()[0];
+
+        assertEq(TestTopic, event.channel);
+        assertEq(TestSchemaId, event.event.schemaId);
+        assertEq(make_base64_string(replay_id), event.event.replayId);
+        assertEq("test-event-id", event.event.id);
+
+        # the decoded payload is the record the server encoded, including the nullable union
+        # branch, which is what the ["null", T] shape has to produce
+        assertEq("Account", event.payload.ChangeEventHeader.entityName);
+        assertEq(("001xx000003DGb2AAG", "001xx000003DGb3AAG"),
+            event.payload.ChangeEventHeader.recordIds);
+        assertEq("UPDATE", event.payload.ChangeEventHeader.changeType);
+        assertEq(11223344556677, event.payload.ChangeEventHeader.commitNumber);
+        assertEq("Acme Corporation", event.payload.Name);
+        assertNothing(event.payload.AnnualRevenue, "a null union branch decodes to NOTHING");
+
+        # the replay position advances to the delivered event
+        assertEq(make_base64_string(replay_id), subscr.getLastReplayId());
+        hash<auto> stats = subscr.getStats();
+        assertEq(1, stats.events);
+        assertEq(0, stats.keepalives);
+        assertTrue(stats.connected);
+    }
+
+    #! The first FetchRequest carries the topic and the replay position; later ones do not
+    testOpeningFetchRequest() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+
+        srv.script.addScript((
+            # credit at zero forces the client to replenish, which is what produces the second
+            # request this test inspects
+            {"send": {"events": (), "pending": 0, "latest": binary("keep-1")}},
+            {"expect_request": True},
+            {"park": True},
+        ));
+
+        SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        SalesforcePubSubSubscription subscr = client.subscribe(TestTopic, {
+            "num_requested": 50,
+        });
+        subscr.start();
+        on_exit subscr.stop();
+
+        assertTrue(srv.script.waitForRequests(2), "the opening and replenishing requests arrived");
+        list<hash<auto>> reqs = srv.script.getRequests();
+
+        assertEq(TestTopic, reqs[0].topic_name, "the opening request names the topic");
+        assertEq(PresetLatest, reqs[0].replay_preset, "LATEST is the default starting position");
+        assertEq(50, reqs[0].num_requested);
+        assertEq(0, reqs[0].replay_id.size(), "no replay ID without the CUSTOM preset");
+
+        # the topic cannot change within a stream, so subsequent requests carry only credit;
+        # sending it again would be redundant and sending a different one is an API error
+        assertEq("", reqs[1].topic_name, "a replenishing request carries no topic");
+        assertEq(50, reqs[1].num_requested, "credit is topped back up to the window");
+    }
+
+    #! Each replay preset is sent as its enum wire value, not its name
+    testReplayPresetWireValues() {
+        # the protobuf encoder takes only integers for an enum field and silently encodes 0 for
+        # anything else, so a preset sent by name would arrive as LATEST and quietly lose the
+        # replay position
+        assertEq(PresetLatest, SalesforcePubSubProto::getReplayPresetValue(ReplayLatest));
+        assertEq(PresetEarliest, SalesforcePubSubProto::getReplayPresetValue(ReplayEarliest));
+        assertEq(PresetCustom, SalesforcePubSubProto::getReplayPresetValue(ReplayCustom));
+        assertThrows("SALESFORCE-PUBSUB-ERROR",
+            \SalesforcePubSubProto::getReplayPresetValue(), "NOPE");
+
+        # and the value has to survive the round trip to the server
+        PubSubTestServer srv();
+        on_exit srv.stop();
+
+        binary start = binary("resume-here");
+        SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        SalesforcePubSubSubscription subscr = client.subscribe(TestTopic, {
+            "replay_preset": ReplayCustom,
+            "replay_id": make_base64_string(start),
+        });
+        subscr.start();
+        on_exit subscr.stop();
+
+        assertTrue(srv.script.waitForRequests(1));
+        hash<auto> req = srv.script.getRequests()[0];
+        assertEq(PresetCustom, req.replay_preset, "CUSTOM reaches the server as CUSTOM");
+        assertEq(start, req.replay_id, "the caller's replay ID is sent verbatim");
+
+        # a replay ID on its own implies CUSTOM; leaving the preset at LATEST would silently start
+        # at the tip and ignore the caller's stored position
+        PubSubTestServer srv2();
+        on_exit srv2.stop();
+        SalesforcePubSubClient c2(TestMetadata, {"url": srv2.getUrl()});
+        SalesforcePubSubSubscription s2 = c2.subscribe(TestTopic, {
+            "replay_id": make_base64_string(start),
+        });
+        s2.start();
+        on_exit s2.stop();
+        assertTrue(srv2.script.waitForRequests(1));
+        assertEq(PresetCustom, srv2.script.getRequests()[0].replay_preset);
+
+        # EARLIEST needs no ID
+        PubSubTestServer srv3();
+        on_exit srv3.stop();
+        SalesforcePubSubClient c3(TestMetadata, {"url": srv3.getUrl()});
+        SalesforcePubSubSubscription s3 = c3.subscribe(TestTopic, {
+            "replay_preset": ReplayEarliest,
+        });
+        s3.start();
+        on_exit s3.stop();
+        assertTrue(srv3.script.waitForRequests(1));
+        assertEq(PresetEarliest, srv3.script.getRequests()[0].replay_preset);
+    }
+
+    #! An empty FetchResponse is liveness and a replay-ID update, never end-of-stream
+    testKeepalive() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+
+        binary keep1 = binary("bus-latest-1");
+        binary keep2 = binary("bus-latest-2");
+        srv.script.addScript((
+            {"send": {"events": (), "pending": 90, "latest": keep1}},
+            {"send": {"events": (), "pending": 90, "latest": keep2}},
+            {"send": {"events": (makeEvent(makePayload(), binary("ev-1")),), "pending": 89}},
+            {"park": True},
+        ));
+
+        EventSink sink();
+        SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        SalesforcePubSubSubscription subscr = client.subscribe(TestTopic, sink.getOptions());
+        subscr.start();
+        on_exit subscr.stop();
+
+        assertTrue(sink.waitForKeepalives(2), "both keepalives were seen");
+        assertTrue(sink.waitForEvents(1),
+            "the stream stayed open across the keepalives and delivered the event after them");
+        assertTrue(subscr.waitForKeepalives(2));
+        assertTrue(subscr.waitForEvents(1));
+
+        assertEq(0, sink.getEvents().size() - 1, "an empty batch raises no event");
+        assertNothing(sink.getFailure(), "a keepalive is not a failure");
+        assertTrue(subscr.isConnected(), "an empty batch does not end the stream");
+
+        # the keepalive advances the replay position: this is what lets a resubscribe skip ground
+        # already covered rather than replaying from an old ID
+        assertEq(make_base64_string(keep2), sink.getKeepalives()[1].replayId);
+        assertEq(TestTopic, sink.getKeepalives()[0].channel);
+
+        hash<auto> stats = subscr.getStats();
+        assertEq(2, stats.keepalives);
+        assertEq(1, stats.events);
+        # credit stayed above the low-water mark throughout, so nothing was replenished and no
+        # backstop deadline was ever armed
+        assertEq(1, stats.fetch_requests, "only the opening request was sent");
+        assertFalse(stats.backstop_armed);
+        assertEq(0, stats.backstops);
+    }
+
+    #! Credit is replenished from the delivery path as events are consumed
+    testFlowControlReplenishment() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+
+        # 10 events against a window of 10 with a low-water mark of 4: the first batch leaves the
+        # server holding 5, which is above the mark, so nothing is replenished; the second leaves
+        # 3, which is at or below it, so a request goes out
+        srv.script.addScript((
+            {"send": {"events": makeEvents(5, 1), "pending": 5}},
+            {"send": {"events": makeEvents(2, 6), "pending": 3}},
+            {"expect_request": True},
+            {"park": True},
+        ));
+
+        EventSink sink();
+        SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        SalesforcePubSubSubscription subscr = client.subscribe(TestTopic, sink.getOptions() + {
+            "num_requested": 10,
+            "low_water_mark": 4,
+        });
+        subscr.start();
+        on_exit subscr.stop();
+
+        assertTrue(sink.waitForEvents(7), "all events were delivered");
+        assertTrue(subscr.waitForEvents(7));
+        assertTrue(srv.script.waitForRequests(2), "credit was replenished");
+
+        list<hash<auto>> reqs = srv.script.getRequests();
+        assertEq(2, reqs.size(), "exactly one replenishment, driven by consumption");
+        assertEq(7, reqs[1].num_requested, "the window is topped up by the deficit, not refilled");
+
+        # replenishment is driven by delivery, not by a clock: the request is already in by the
+        # time the events have been consumed, with no deadline having come due
+        hash<auto> stats = subscr.getStats();
+        assertEq(0, stats.backstops, "the 60s window was never the mechanism");
+        assertEq(7, stats.events);
+    }
+
+    #! With automatic replenishment off, the backstop deadline holds the stream open
+    testFlowControlBackstop() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+
+        # a consumer driving flow control itself can leave the server with no credit; the API then
+        # closes the stream unless a FetchRequest arrives within 60 seconds, so the deadline armed
+        # on the controller's timeout heap has to produce one
+        srv.script.addScript((
+            {"send": {"events": makeEvents(1, 1), "pending": 0}},
+            {"expect_request": True},
+            {"park": True},
+        ));
+
+        EventSink sink();
+        SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        SalesforcePubSubSubscription subscr = client.subscribe(TestTopic, sink.getOptions() + {
+            "num_requested": 10,
+            "auto_replenish": False,
+            "flow_control_backstop_ms": 1000,
+        });
+        subscr.start();
+        on_exit subscr.stop();
+
+        assertTrue(sink.waitForEvents(1));
+        assertTrue(srv.script.waitForRequests(2, 20s),
+            "the backstop deadline produced a FetchRequest");
+
+        assertEq(10, srv.script.getRequests()[1].num_requested);
+        assertEq(1, srv.script.getConnectionCount(),
+            "the stream was held open rather than being re-established");
+        hash<auto> stats = subscr.getStats();
+        assertEq(1, stats.backstops, "the backstop fired exactly once");
+        assertFalse(stats.backstop_armed, "the request discharged the deadline");
+    }
+
+    #! A consumer can drive flow control itself
+    testManualReplenishment() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+
+        srv.script.addScript((
+            {"send": {"events": makeEvents(1, 1), "pending": 2}},
+            {"expect_request": True},
+            {"park": True},
+        ));
+
+        EventSink sink();
+        SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        SalesforcePubSubSubscription subscr = client.subscribe(TestTopic, sink.getOptions() + {
+            "num_requested": 10,
+            "low_water_mark": 1,
+            "auto_replenish": False,
+        });
+        subscr.start();
+        on_exit subscr.stop();
+
+        assertTrue(sink.waitForEvents(1));
+        assertTrue(subscr.replenish(5), "an explicit count is granted");
+        assertTrue(srv.script.waitForRequests(2));
+        assertEq(5, srv.script.getRequests()[1].num_requested);
+
+        assertThrows("SALESFORCE-PUBSUB-ERROR", \subscr.replenish(), 0);
+        assertThrows("SALESFORCE-PUBSUB-ERROR", \subscr.replenish(), MaxNumRequested + 1);
+
+        # with no count, the window is topped back up to num_requested: the server reported 2 and
+        # 5 more were granted, so 3 remain
+        assertTrue(subscr.replenish(), "the window is topped up by the deficit");
+        assertEq(10, subscr.getStats().outstanding);
+        # and once it is full there is nothing left to grant
+        assertFalse(subscr.replenish(), "a full window sends nothing");
+    }
+
+    #! A failed stream is re-established from the last event delivered, not restarted
+    testReplayResumeOnReconnect() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+
+        binary last = binary("replay-0002");
+        srv.script.addScript((
+            {"send": {"events": (
+                makeEvent(makePayload(), binary("replay-0001")),
+                makeEvent(makePayload(), last),
+            ), "pending": 90}},
+            {"throw": {"err": "GRPC-INTERNAL", "desc": "the server went away"}},
+        ));
+        srv.script.addScript((
+            {"send": {"events": (makeEvent(makePayload(), binary("replay-0003")),), "pending": 90}},
+            {"park": True},
+        ));
+
+        EventSink sink();
+        SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        SalesforcePubSubSubscription subscr = client.subscribe(TestTopic, sink.getOptions() + {
+            "reconnect_delay_ms": 100,
+        });
+        subscr.start();
+        on_exit subscr.stop();
+
+        assertTrue(sink.waitForEvents(3, 30s), "delivery continued after the reconnect");
+        assertTrue(subscr.waitForEvents(3, 30s));
+        assertTrue(srv.script.waitForConnections(2), "the stream was re-established");
+
+        list<hash<auto>> reqs = srv.script.getRequests();
+        # this is the whole point of the replacement: the second subscription resumes after the
+        # last event actually delivered rather than starting again at the tip
+        assertEq(PresetCustom, reqs[1].replay_preset,
+            "the reconnect resumes from the stored position");
+        assertEq(last, reqs[1].replay_id, "resumed after the last delivered event");
+        assertEq(TestTopic, reqs[1].topic_name);
+
+        assertNothing(sink.getFailure(), "a recovered failure is not reported to the consumer");
+        hash<auto> stats = subscr.getStats();
+        assertEq(3, stats.events);
+        assertGt(0, stats.reconnects);
+        assertEq(make_base64_string(binary("replay-0003")), stats.replay_id);
+    }
+
+    #! An expired replay ID is recovered from by falling back to a preset
+    testCorruptReplayIdRecovery() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+
+        # replay IDs are retained for 72 hours; past that the only recovery is a preset, and
+        # retrying with the same stored ID would fail identically forever
+        srv.script.addScript((
+            {"send": {"events": (makeEvent(makePayload(), binary("stale-id")),), "pending": 90}},
+            {"throw": {"err": "GRPC-INVALID-ARGUMENT", "desc": ReplayIdCorruptedError}},
+        ));
+        srv.script.addScript(({"park": True},));
+
+        EventSink sink();
+        SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        SalesforcePubSubSubscription subscr = client.subscribe(TestTopic, sink.getOptions() + {
+            "replay_preset": ReplayEarliest,
+            "reconnect_delay_ms": 100,
+        });
+        subscr.start();
+        on_exit subscr.stop();
+
+        assertTrue(sink.waitForEvents(1));
+        assertTrue(srv.script.waitForConnections(2), "the subscription was restarted");
+        # the stale ID is cleared on the terminal event, which follows the last delivery
+        assertTrue(srv.script.waitForRequests(2));
+
+        list<hash<auto>> reqs = srv.script.getRequests();
+        assertEq(PresetEarliest, reqs[1].replay_preset,
+            "the unusable ID was dropped for the configured preset");
+        assertEq(0, reqs[1].replay_id.size(), "the stale replay ID is not sent again");
+        assertNothing(subscr.getLastReplayId(), "the stored position was cleared");
+        assertTrue(subscr.getStats().last_error.desc.find(ReplayIdCorruptedError) != -1);
+    }
+
+    #! An UNAUTHENTICATED failure refreshes the token before reconnecting
+    testTokenRefresh() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+
+        binary last = binary("replay-9001");
+        srv.script.addScript((
+            {"send": {"events": (makeEvent(makePayload(), last),), "pending": 90}},
+            {"throw": {"err": "GRPC-UNAUTHENTICATED", "desc": "the access token has expired"}},
+        ));
+        srv.script.addScript(({"park": True},));
+
+        EventSink sink();
+        TestPubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        SalesforcePubSubSubscription subscr = client.subscribe(TestTopic, sink.getOptions() + {
+            "reconnect_delay_ms": 100,
+        });
+        subscr.start();
+        on_exit subscr.stop();
+
+        assertTrue(sink.waitForEvents(1));
+        assertTrue(subscr.waitForEvents(1));
+        assertTrue(srv.script.waitForConnections(2), "the subscription was re-established");
+        assertTrue(srv.script.waitForRequests(2));
+
+        assertEq(1, client.getRefreshCount(), "the token was refreshed once before reconnecting");
+        # the replay position survives the token refresh, which is the requirement a long-lived
+        # subscription has: re-authenticating must not cost events
+        assertEq(PresetCustom, srv.script.getRequests()[1].replay_preset);
+        assertEq(last, srv.script.getRequests()[1].replay_id);
+    }
+
+    #! A failure that is not an auth failure does not refresh the token
+    testNoRefreshOnOtherFailure() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+
+        srv.script.addScript((
+            {"throw": {"err": "GRPC-INTERNAL", "desc": "transient server fault"}},
+        ));
+        srv.script.addScript(({"park": True},));
+
+        TestPubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        SalesforcePubSubSubscription subscr = client.subscribe(TestTopic, {
+            "reconnect_delay_ms": 100,
+        });
+        subscr.start();
+        on_exit subscr.stop();
+
+        assertTrue(srv.script.waitForConnections(2));
+        assertEq(0, client.getRefreshCount(),
+            "a transport fault is not an authentication failure");
+    }
+
+    #! Silence past the keepalive bound is a dead stream, and is detected
+    testIdleTimeout() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+
+        # the server contracts to send an empty FetchResponse within 270 seconds; a stream that
+        # goes quiet past that bound is dead even though the transport has not noticed
+        srv.script.addScript(({"park": True},));
+        srv.script.addScript((
+            {"send": {"events": (makeEvent(makePayload(), binary("after-idle")),), "pending": 90}},
+            {"park": True},
+        ));
+
+        EventSink sink();
+        SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        SalesforcePubSubSubscription subscr = client.subscribe(TestTopic, sink.getOptions() + {
+            # long enough that the reconnected stream cannot also be declared idle before its
+            # event is delivered on a loaded machine, short enough to keep the suite quick
+            "idle_timeout_ms": 3000,
+            "reconnect_delay_ms": 100,
+        });
+        subscr.start();
+        on_exit subscr.stop();
+
+        assertTrue(srv.script.waitForConnections(2, 30s),
+            "the idle bound ended the dead stream and a new one was opened");
+        assertTrue(sink.waitForEvents(1, 30s), "delivery resumed on the new stream");
+        assertNothing(sink.getFailure());
+    }
+
+    #! With reconnection disabled, a failed stream is reported to the consumer
+    testReconnectDisabled() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+
+        srv.script.addScript((
+            {"throw": {"err": "GRPC-INTERNAL", "desc": "no more service"}},
+        ));
+
+        EventSink sink();
+        SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        SalesforcePubSubSubscription subscr = client.subscribe(TestTopic, sink.getOptions() + {
+            "reconnect": False,
+        });
+        subscr.start();
+        on_exit subscr.stop();
+
+        assertTrue(sink.waitForFailure(), "the failure reached the consumer");
+        assertEq(1, srv.script.getConnectionCount(), "no reconnect was attempted");
+        assertFalse(subscr.isActive(), "the subscription is finished");
+        assertTrue(sink.getFailure().desc.find("no more service") != -1);
+        assertTrue(subscr.waitForDone(10s));
+    }
+
+    #! Reconnection gives up after the configured number of consecutive failures
+    testReconnectAttemptLimit() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+
+        srv.script.setDefaultScript((
+            {"throw": {"err": "GRPC-INTERNAL", "desc": "always failing"}},
+        ));
+
+        EventSink sink();
+        SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        SalesforcePubSubSubscription subscr = client.subscribe(TestTopic, sink.getOptions() + {
+            "reconnect_delay_ms": 100,
+            "max_reconnect_delay_ms": 100,
+            "max_reconnect_attempts": 2,
+        });
+        subscr.start();
+        on_exit subscr.stop();
+
+        assertTrue(sink.waitForFailure(30s), "the subscription gave up and said so");
+        assertFalse(subscr.isActive());
+        # the initial connection plus two reconnect attempts
+        assertEq(3, srv.script.getConnectionCount());
+    }
+
+    #! stop() is terminal and safe to call more than once
+    testStop() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+
+        srv.script.setDefaultScript(({"park": True},));
+
+        SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        SalesforcePubSubSubscription subscr = client.subscribe(TestTopic, {});
+        assertFalse(subscr.isActive(), "a subscription is inert until started");
+        subscr.start();
+        assertTrue(subscr.waitForConnected(10s));
+        # the client is connected once the stream is submitted, which is before the server handler
+        # has run; the assertion below counts connections server-side, so wait for that too
+        assertTrue(srv.script.waitForConnections(1, 10s));
+        assertThrows("SALESFORCE-PUBSUB-ERROR", \subscr.start());
+
+        subscr.stop();
+        subscr.stop();
+        assertFalse(subscr.isActive());
+        assertFalse(subscr.isConnected());
+        assertTrue(subscr.waitForDone(10s));
+        assertEq(1, srv.script.getConnectionCount(), "a stopped subscription does not reconnect");
+    }
+
+    #! Subscription options are validated up front rather than failing on the wire
+    testSubscriptionOptions() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+        SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
+
+        assertThrows("SALESFORCE-PUBSUB-ERROR", \client.subscribe(), (TestTopic,
+            {"replay_preset": "SOMETIME"}));
+        assertThrows("SALESFORCE-PUBSUB-ERROR", \client.subscribe(), (TestTopic,
+            {"replay_preset": ReplayCustom}));
+        assertThrows("SALESFORCE-PUBSUB-ERROR", \client.subscribe(), (TestTopic,
+            {"num_requested": 0}));
+        assertThrows("SALESFORCE-PUBSUB-ERROR", \client.subscribe(), (TestTopic,
+            {"num_requested": MaxNumRequested + 1}));
+        assertThrows("SALESFORCE-PUBSUB-ERROR", \client.subscribe(), (TestTopic,
+            {"num_requested": 10, "low_water_mark": 10}));
+        assertThrows("SALESFORCE-PUBSUB-ERROR", \client.subscribe(), (TestTopic,
+            {"num_requested": 10, "low_water_mark": -1}));
+
+        # a small window must still leave room for a low-water mark below it
+        SalesforcePubSubSubscription tiny = client.subscribe(TestTopic, {"num_requested": 1});
+        assertEq(TestTopic, tiny.getTopicName());
+        assertNothing(tiny.getLastReplayId());
+        assertEq(0, tiny.getStats().events);
+    }
+
+    #! Client options are validated and the endpoint defaults to the global Pub/Sub host
+    testClientOptions() {
+        # the endpoint is one global host for production orgs and sandboxes alike; only the OAuth2
+        # URLs are org-specific and the REST connection owns those
+        assertEq("https://api.pubsub.salesforce.com:7443", PubSubUrl);
+        SalesforcePubSubClient client(TestMetadata);
+        assertEq(PubSubUrl, client.getUrl(), "the endpoint defaults to the global host");
+        assertEq("eventbus.v1.PubSub", SalesforcePubSubProto::ServiceName);
+        assertEq("PubSub", client.getGrpcClient().getServiceInfo().name);
+    }
+
+    #! Channels come from describeGlobal, since the Pub/Sub API cannot list topics
+    testChannelEnumeration() {
+        SalesforceRestClient::SalesforceRestClient rest({
+            "oauth2_client_id": "id",
+            "oauth2_client_secret": "secret",
+            "token": "a-token",
+            "instance_url": "https://acme.my.salesforce.com",
+            "id_service_url": "https://login.salesforce.com/id/00Dxx0000001gPLEAY/005xx000001Svog",
+        }, True);
+
+        TestEventsProvider events(rest, (
+            {"name": "Account", "queryable": True},
+            {"name": "AccountChangeEvent", "queryable": False},
+            {"name": "ContactChangeEvent", "queryable": False},
+            {"name": "Order_Shipped__e", "queryable": False},
+            {"name": "AccountHistory", "queryable": True},
+            {"name": "Case", "queryable": True},
+        ));
+
+        assertEq(PubSubChildName, events.getName());
+        # only the event entities are subscribable; a plain sobject and a history object are not
+        assertEq(("AccountChangeEvent", "ContactChangeEvent", "Order_Shipped__e"),
+            events.getChildProviderNames());
+
+        hash<DataProviderInfo> info = events.getInfo();
+        assertTrue(info.supports_children);
+        assertTrue(info.children_can_support_observers,
+            "the events container advertises observable children");
+        assertFalse(info.children_can_support_records);
+
+        *list<hash<DataProviderSummaryInfo>> summary = events.getChildProviderSummaryInfo();
+        assertEq(3, summary.size());
+        assertEq("AccountChangeEvent", summary[0].name);
+        assertTrue(summary[0].supports_observable);
+        assertTrue(summary[0].desc.find("Change Data Capture") != -1);
+
+        AbstractDataProvider child = events.getChildProviderEx("AccountChangeEvent");
+        assertEq("AccountChangeEvent", child.getName());
+        assertTrue(child instanceof SalesforcePubSubEventDataProvider);
+        assertTrue(child instanceof DelayedObservable);
+        assertEq("/data/AccountChangeEvent",
+            cast<SalesforcePubSubEventDataProvider>(child).getTopicName());
+        assertEq("/event/Order_Shipped__e", cast<SalesforcePubSubEventDataProvider>(
+            events.getChildProviderEx("Order_Shipped__e")).getTopicName());
+
+        assertNothing(events.getChildProvider("Account"),
+            "a non-channel sobject is not a child even if describeGlobal lists it");
+        assertThrows("INVALID-CHILD-PROVIDER", \events.getChildProviderEx(), "Account");
+
+        # a provider built from a REST client rather than a connection can be introspected but
+        # cannot subscribe: the Pub/Sub call metadata needs the connection's async REST client
+        assertThrows("SALESFORCE-PUBSUB-ERROR",
+            \cast<SalesforcePubSubEventDataProvider>(child).getPubSubClient());
+    }
+
+    #! An event provider reports its event types and example data without subscribing
+    testEventProviderTypes() {
+        SalesforceRestClient::SalesforceRestClient rest({
+            "oauth2_client_id": "id",
+            "oauth2_client_secret": "secret",
+            "token": "a-token",
+            "instance_url": "https://acme.my.salesforce.com",
+            "id_service_url": "https://login.salesforce.com/id/00Dxx0000001gPLEAY/005xx000001Svog",
+        }, True);
+
+        SalesforcePubSubEventDataProvider prov(rest, "AccountChangeEvent");
+        assertEq("AccountChangeEvent", prov.getName());
+        assertTrue(prov.getDesc().find("Change Data Capture") != -1);
+        assertTrue(prov.getInfo().supports_observable);
+        assertNothing(prov.getSubscription(), "no subscription before observersReady()");
+
+        hash<string, hash<DataProviderMessageInfo>> types = prov.getEventTypes();
+        assertEq(2, types.size());
+        assertTrue(types.hasKey(EVENT_SALESFORCE_PUBSUB_EVENT));
+        assertTrue(types.hasKey(EVENT_SALESFORCE_PUBSUB_ERROR));
+
+        # the org is unreachable here, so the payload falls back to an untyped hash while the
+        # envelope stays fully described
+        AbstractDataProviderType t = types{EVENT_SALESFORCE_PUBSUB_EVENT}.type;
+        hash<string, AbstractDataField> fields = t.getFields();
+        assertEq(("channel", "event", "payload"), keys fields);
+        assertEq(("replayId", "id", "schemaId"), keys fields.event.getType().getFields());
+
+        # getExampleEventDataImpl() must be implemented, not inherited, and must produce
+        # resource-specific data rather than a generic stub
+        auto ex = prov.getExampleEventData(EVENT_SALESFORCE_PUBSUB_EVENT);
+        assertEq(NT_HASH, ex.typeCode());
+        assertTrue(ex.hasKey("channel"));
+        assertTrue(ex.payload.hasKey("ChangeEventHeader"),
+            "the example is a change event, not a generic id/created_time stub");
+        assertEq("Account", ex.payload.ChangeEventHeader.entityName);
+
+        auto err = prov.getExampleEventData(EVENT_SALESFORCE_PUBSUB_ERROR);
+        assertTrue(err.hasKey("err"));
+        assertTrue(err.hasKey("desc"));
+
+        # a platform event gets a platform-event example, not a change-event one
+        SalesforcePubSubEventDataProvider pe(rest, "Order_Shipped__e");
+        assertTrue(pe.getDesc().find("platform event") != -1);
+        assertFalse(pe.getExampleEventData(EVENT_SALESFORCE_PUBSUB_EVENT)
+            .payload.hasKey("ChangeEventHeader"));
+
+        # a subscription cannot be opened without a connection, and the failure has to name the
+        # reason rather than surfacing as a null dereference
+        assertThrows("SALESFORCE-PUBSUB-ERROR", \prov.observersReady());
+        # stopEvents() on a provider that never started is a no-op, not an error
+        prov.stopEvents();
+    }
+
+    #! The module registers the events container and the event action on the Salesforce app
+    testProviderRegistration() {
+        # the child is attached to the Salesforce data provider rather than published as its own
+        # app: Pub/Sub events are Salesforce events
+        assertEq(PubSubChildName, "pubsub");
+        assertTrue(SalesforceRestDataProvider::SalesforceRestDataProvider::ProviderInfo
+            .children_can_support_observers);
+
+        list<hash<DataProviderActionInfo>> actions =
+            DataProviderActionCatalog::getActions(SalesforceRestDataProvider::AppName);
+        *hash<DataProviderActionInfo> action;
+        foreach hash<DataProviderActionInfo> a in (actions) {
+            if (a.action == "pubsub-event") {
+                action = a;
+                break;
+            }
+        }
+        assertTrue(exists action, "the Pub/Sub event action is registered on the Salesforce app");
+        assertEq(DPAT_EVENT, action.action_code);
+        assertEq(EVENT_SALESFORCE_PUBSUB_EVENT, action.action_val);
+        assertEq("/pubsub/{channel}", action.path);
+        assertEq(("channel",), keys action.path_vars);
+
+        # the action carries a typed output so a Qog form is usable before a channel is chosen; the
+        # per-channel provider then refines the payload from that channel's Avro schema
+        assertTrue(exists action.output_type, "the event action declares an output type");
+        hash<string, AbstractDataField> out = action.output_type.getFields();
+        assertEq(("channel", "event", "payload"), keys out);
+        assertEq(("replayId", "id", "schemaId"), keys out.event.getType().getFields());
+        map assertTrue($1.getDescription().val(),
+            sprintf("output field %y has a description", $1.getName())), out.iterator();
+        assertLt(81, action.short_desc.size(), "short_desc is within the 80 character bound");
+
+        # every option the provider reads from context is offered by the action, and each one
+        # carries the display metadata the UI needs
+        assertEq(keys SalesforcePubSubEventDataProvider::LocalOptions, keys action.options);
+        foreach hash<auto> i in (action.options.pairIterator()) {
+            assertTrue(i.value.display_name.val(), sprintf("option %y has a display_name", i.key));
+            assertTrue(i.value.short_desc.val(), sprintf("option %y has a short_desc", i.key));
+            assertTrue(exists i.value.type, sprintf("option %y has a type", i.key));
+        }
+        # the replay preset is a closed set, so it must be declared as allowed values rather than
+        # described in prose
+        assertEq(3, action.options.replay_preset.allowed_values.size());
+        assertEq((ReplayLatest, ReplayEarliest, ReplayCustom),
+            (map $1.value, action.options.replay_preset.allowed_values));
+    }
+
+    #! Returns the standard test payload
+    private static hash<auto> makePayload() {
+        return {
+            "ChangeEventHeader": {
+                "entityName": "Account",
+                "recordIds": ("001xx000003DGb2AAG",),
+                "changeType": "UPDATE",
+                "commitNumber": 42,
+            },
+            "Name": "Acme Corporation",
+            "AnnualRevenue": 1234.5,
+        };
+    }
+
+    #! Builds a ConsumerEvent with an Avro-encoded payload
+    private static hash<auto> makeEvent(hash<auto> payload, binary replay_id,
+            string id = "test-event-id") {
+        AvroSchema schema(TestSchemaJson);
+        return {
+            "event": {
+                "id": id,
+                "schema_id": TestSchemaId,
+                "payload": schema.encode(payload),
+                "headers": (),
+            },
+            "replay_id": replay_id,
+        };
+    }
+
+    #! Builds \a count ConsumerEvents with sequential replay IDs
+    private static list<auto> makeEvents(int count, int first) {
+        list<auto> rv = ();
+        for (int i = 0; i < count; ++i) {
+            rv += SalesforcePubSubTest::makeEvent(SalesforcePubSubTest::makePayload(),
+                binary(sprintf("replay-%04d", first + i)), sprintf("event-%d", first + i));
+        }
+        return rv;
+    }
+}

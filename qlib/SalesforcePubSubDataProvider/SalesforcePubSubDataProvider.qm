@@ -1,0 +1,277 @@
+# -*- mode: qore; indent-tabs-mode: nil -*-
+#! @file SalesforcePubSubDataProvider.qm Qore Salesforce Pub/Sub API event data provider module
+
+/*  SalesforcePubSubDataProvider.qm Copyright 2026 Qore Technologies, s.r.o.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+*/
+
+%modern
+%allow-weak-references
+
+%requires(reexport) SalesforceRestDataProvider
+%requires(reexport) DataProvider
+%requires AvroUtil
+%requires AsyncSocketIo
+%requires protobuf
+%requires grpc
+%requires GrpcUtil
+
+module SalesforcePubSubDataProvider {
+    version = "1.0";
+    desc = "User module providing a Salesforce Pub/Sub API event data provider";
+    author = "Qore Technologies, s.r.o.";
+    url = "https://github.com/qoretechnologies/module-grpc";
+    license = "MIT";
+    init = sub () {
+        # attach the events container to the Salesforce data provider; dynamic children are only
+        # exposed when the parent provider was built from a connection, which is also the only
+        # case in which the async REST client needed for the Pub/Sub call metadata is available
+        SalesforceRestDataProvider::SalesforceRestDataProvider::registerChild(PubSubChildName,
+            AbstractDataProvider sub (string name,
+                    ConnectionProvider::AbstractConnection conn) {
+                return new SalesforcePubSubEventsDataProvider(
+                    cast<SalesforceRestClient::SalesforceRestConnection>(conn));
+            });
+
+        # Actions are registered against the *Salesforce* app rather than a new one: Pub/Sub
+        # events are Salesforce events, and a separate app would split one integration across two
+        # entries in the UI.  This is the extender convention already used by the Qorus service
+        # modules that extend open base modules.
+        DataProviderActionCatalog::registerAction(<DataProviderActionInfo>{
+            "app": SalesforceRestDataProvider::AppName,
+            "path": "/" + PubSubChildName + "/{channel}",
+            "path_vars": {
+                "channel": <DataProviderPathVarInfo>{
+                    "display_name": "Channel",
+                    "short_desc": "The Salesforce event channel",
+                    "desc": "The Salesforce event channel to subscribe to: a Change Data Capture "
+                        "entity such as `AccountChangeEvent` or a platform event such as "
+                        "`Order_Shipped__e`",
+                    "example_value": "AccountChangeEvent",
+                },
+            },
+            "action": "pubsub-event",
+            "groups": "Events",
+            "display_name": "Salesforce Event",
+            "short_desc": "React to a Salesforce platform or change data capture event",
+            "desc": "Reacts to events published on a Salesforce **Pub/Sub API** channel: platform "
+                "events, Change Data Capture events and custom channels all arrive through the "
+                "same subscription.\n\n"
+                "The subscription tracks its replay position, so a connection lost and "
+                "re-established resumes after the last event delivered rather than skipping "
+                "ahead. Salesforce retains replay IDs for **72 hours**.",
+            "action_code": DPAT_EVENT,
+            "action_val": EVENT_SALESFORCE_PUBSUB_EVENT,
+            "options": DataProviderActionCatalog::getActionOptionFromFields(
+                SalesforcePubSubEventDataProvider::LocalOptions),
+            # the envelope is static; the payload is channel-specific and is described by the
+            # per-channel provider's getEventTypesImpl() from that channel's own Avro schema
+            "output_type": SalesforcePubSubEventType,
+            "data_provider_info": SalesforcePubSubEventDataProvider::ProviderInfo,
+        });
+    };
+}
+
+/** @mainpage SalesforcePubSubDataProvider Module
+
+    @tableofcontents
+
+    @section salesforcepubsubdataproviderintro SalesforcePubSubDataProvider Module Introduction
+
+    The %SalesforcePubSubDataProvider module adds a
+    <a href="https://developer.salesforce.com/docs/platform/pub-sub-api/overview">Salesforce
+    Pub/Sub API</a> event source to the Salesforce data provider, so that platform events, Change
+    Data Capture events and custom channels can drive Qore and Qorus logic through the
+    DataProvider observer API.
+
+    The Pub/Sub API is gRPC over HTTP/2 with <a href="https://avro.apache.org/">Apache Avro</a>
+    binary event payloads.  This module supplies the Salesforce-specific layer only: the transport
+    comes from the \c GrpcUtil module in this repository, the Avro codec from the builtin \c avro
+    module, and authentication from \c SalesforceRestClient in the Qore library, so an existing
+    \c sfrest connection gains event support with no new connection type.
+
+    Key characteristics:
+    - <b>No thread per subscription</b>: the \c Subscribe bidirectional stream is driven by
+      \c GrpcAsyncClientStream on the async socket I/O controller.
+      An idle subscription costs no thread, and every deadline is armed on the controller's
+      timeout heap rather than approximated with timed reads
+    - <b>Replay position is preserved</b>: the replay ID of every delivered event is recorded, so a
+      stream that fails is re-established from that position instead of restarting
+    - <b>Delivery-driven flow control</b>: \c FetchRequest credit is replenished from the response
+      handler as events are consumed; the API's 60 second replenishment window is a backstop
+      deadline, not the mechanism
+    - <b>Keepalives are understood</b>: an empty \c FetchResponse is liveness plus a replay-ID
+      update, never end-of-stream
+    - <b>Typed events</b>: the event type is derived from the channel's Avro schema, so a Qog shows
+      real field names
+
+    @section salesforcepubsubdataprovider_hierarchy Provider Hierarchy
+
+    The module attaches to the Salesforce data provider as the \c pubsub child:
+
+    @verbatim
+<SalesforceRestConnection>
+  └── pubsub                  (SalesforcePubSubEventsDataProvider)
+        ├── AccountChangeEvent (SalesforcePubSubEventDataProvider)
+        ├── ContactChangeEvent (SalesforcePubSubEventDataProvider)
+        └── Order_Shipped__e   (SalesforcePubSubEventDataProvider)
+    @endverbatim
+
+    Children only appear under a \c SalesforceRestConnection, because
+    \c SalesforceRestDataProvider exposes dynamic children only when it was built from a
+    connection.
+
+    @subsection salesforcepubsubdataprovider_channels Channel Names
+
+    The Pub/Sub API has no list-topics RPC, so the channel list comes from the REST side:
+    \c describeGlobal lists Change Data Capture entities (ending in \c ChangeEvent) and platform
+    events (ending in \c __e), which is exactly the set of subscribable channels.  Children are
+    named by event entity name and the topic name is derived from it:
+
+    | Child name | Topic name |
+    |--|--|
+    | \c AccountChangeEvent | <tt>/data/AccountChangeEvent</tt> |
+    | \c Order_Shipped__e | <tt>/event/Order_Shipped__e</tt> |
+
+    A custom channel is not listed by \c describeGlobal; subscribe to one by setting the
+    \c topic_name option to its topic name.
+
+    @subsection salesforcepubsubdataprovider_classes Provided Classes
+
+    - @ref SalesforcePubSubDataProvider::SalesforcePubSubEventsDataProvider
+      "SalesforcePubSubEventsDataProvider": the events container, with one child per channel
+    - @ref SalesforcePubSubDataProvider::SalesforcePubSubEventDataProvider
+      "SalesforcePubSubEventDataProvider": the observable provider for a single channel
+    - @ref SalesforcePubSubDataProvider::SalesforcePubSubClient "SalesforcePubSubClient": the
+      \c eventbus.v1.PubSub service client, with the call metadata and the Avro schema cache
+    - @ref SalesforcePubSubDataProvider::SalesforcePubSubSubscription
+      "SalesforcePubSubSubscription": the subscription state machine — flow control, keepalive,
+      replay position, token refresh and reconnection
+    - @ref SalesforcePubSubDataProvider::SalesforcePubSubProto "SalesforcePubSubProto": the
+      vendored \c pubsub_api.proto as a cached \c ProtobufSchema
+
+    @section salesforcepubsubdataprovider_event_data Event Data
+
+    Each event is delivered as a hash mirroring the envelope the Salesforce streaming APIs use, so
+    that mappers written against the older CometD API port with little change:
+
+    @code{.py}
+{
+    "channel": "/data/AccountChangeEvent",
+    "event": {
+        "replayId": "AAAAAAAAAAEAAA==",   # base64; store to resume after this event
+        "id": "f7a1b0c2-3d4e-4f56-8a90-1b2c3d4e5f60",
+        "schemaId": "IeSFsaGYFkarQ8sMLLQrpg",
+    },
+    "payload": {                          # decoded Avro record
+        "ChangeEventHeader": {"entityName": "Account", "changeType": "UPDATE", ...},
+        "Name": "Acme Corporation",
+    },
+}
+    @endcode
+
+    @note The Pub/Sub API's replay ID is opaque binary, unlike the CometD API's monotonic integer;
+    it is reported base64-encoded and must be treated as an opaque token.
+
+    @section salesforcepubsubdataprovider_examples Examples
+
+    @subsection salesforcepubsubdataprovider_examples_qdp Listening with qdp
+
+    @par Example: list the channels in an org
+    @verbatim qdp mysfrest/pubsub list
+    @endverbatim
+
+    @par Example: subscribe to account changes
+    @verbatim qdp -s mysfrest mysfrest/pubsub/AccountChangeEvent listen
+    @endverbatim
+
+    @subsection salesforcepubsubdataprovider_examples_programmatic Programmatic Usage
+
+    @code{.py}
+%modern
+%requires SalesforcePubSubDataProvider
+%requires ConnectionProvider
+
+AbstractConnection conn = get_connection("mysfrest");
+AbstractDataProvider events = conn.getDataProvider()
+    .getChildProviderEx("pubsub")
+    .getChildProviderEx("AccountChangeEvent");
+
+class MyObserver inherits Observer {
+    update(string event_id, hash<auto> event) {
+        printf("%s: %y\n", event_id, event);
+    }
+}
+
+cast<Observable>(events).registerObserver(new MyObserver());
+cast<DelayedObservable>(events).observersReady();
+    @endcode
+
+    Resuming after a restart uses the stored replay ID:
+
+    @code{.py}
+SalesforcePubSubClient client(conn);
+SalesforcePubSubSubscription subscr = client.subscribe("/data/AccountChangeEvent", {
+    "replay_id": stored_replay_id,     # implies the CUSTOM replay preset
+    "on_event": sub (hash<auto> event) {
+        handle(event);
+        stored_replay_id = event.event.replayId;
+    },
+});
+subscr.start();
+    @endcode
+
+    @section salesforcepubsubdataprovider_endpoint Endpoint and Authentication
+
+    The Pub/Sub API endpoint is a single global host — @ref SalesforcePubSubDataProvider::PubSubUrl
+    "api.pubsub.salesforce.com:7443" — for production orgs and sandboxes alike.  The org is
+    identified by call metadata, not by the endpoint:
+
+    | Metadata header | Source |
+    |--|--|
+    | @ref SalesforcePubSubDataProvider::MetadataAccessToken "accesstoken" | \c SalesforceRestClientIo::getToken() |
+    | @ref SalesforcePubSubDataProvider::MetadataInstanceUrl "instanceurl" | \c SalesforceRestClientBase::getInstanceUrl() |
+    | @ref SalesforcePubSubDataProvider::MetadataTenantId "tenantid" | \c SalesforceRestClientBase::getOrgId() |
+
+    Only the OAuth2 URLs are org-specific, and the Salesforce REST connection already handles
+    those, so nothing here hardcodes a login host.
+
+    The endpoint's TLS certificate is verified against the system CA store.
+
+    @section salesforcepubsubdataprovider_relnotes Release Notes
+
+    @subsection salesforcepubsubdataprovider_v1_0 SalesforcePubSubDataProvider v1.0
+    - initial release
+    - @ref SalesforcePubSubDataProvider::SalesforcePubSubEventsDataProvider
+      "SalesforcePubSubEventsDataProvider": events container attached to the Salesforce data
+      provider as the \c pubsub child, with channel enumeration from \c describeGlobal
+    - @ref SalesforcePubSubDataProvider::SalesforcePubSubEventDataProvider
+      "SalesforcePubSubEventDataProvider": observable provider per channel, with the event type
+      derived from the channel's Avro schema
+    - @ref SalesforcePubSubDataProvider::SalesforcePubSubClient "SalesforcePubSubClient": Pub/Sub
+      service client with Salesforce call metadata and an Avro schema cache
+    - @ref SalesforcePubSubDataProvider::SalesforcePubSubSubscription
+      "SalesforcePubSubSubscription": subscription state machine with delivery-driven flow
+      control, keepalive handling, replay-ID tracking, token refresh and reconnection with backoff
+*/
+
+#! Contains all public definitions in the SalesforcePubSubDataProvider module
+public namespace SalesforcePubSubDataProvider {
+}

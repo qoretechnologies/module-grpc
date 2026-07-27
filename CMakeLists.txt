@@ -192,6 +192,7 @@ set(QMOD
     qlib/GrpcUtil
     qlib/GrpcDataProvider
     qlib/ArrowFlightDataProvider
+    qlib/SalesforcePubSubDataProvider
 )
 
 set(QORE_DOX_TMPL_SRC
@@ -231,6 +232,7 @@ qore_user_modules("${QMOD}")
 qore_external_user_module("qlib/GrpcUtil" "")
 qore_external_user_module("qlib/GrpcDataProvider" "")
 qore_external_user_module("qlib/ArrowFlightDataProvider" "")
+qore_external_user_module("qlib/SalesforcePubSubDataProvider" "")
 
 # install qpp metadata files
 if (COMMAND qore_install_qpp_metadata)
@@ -260,9 +262,12 @@ if (DOXYGEN_FOUND)
     # Create final-pass Doxyfile from the binary module's Doxyfile with user module tag files
     set(_tagfiles "${CMAKE_BINARY_DIR}/GrpcUtil.tag=../GrpcUtil/html "
         "${CMAKE_BINARY_DIR}/GrpcDataProvider.tag=../GrpcDataProvider/html")
-    set(_doc_deps docs-GrpcUtil docs-GrpcDataProvider docs-ArrowFlightDataProvider)
+    set(_doc_deps docs-GrpcUtil docs-GrpcDataProvider docs-ArrowFlightDataProvider
+        docs-SalesforcePubSubDataProvider)
     string(APPEND _tagfiles
-        " ${CMAKE_BINARY_DIR}/ArrowFlightDataProvider.tag=../ArrowFlightDataProvider/html")
+        " ${CMAKE_BINARY_DIR}/ArrowFlightDataProvider.tag=../ArrowFlightDataProvider/html"
+        " ${CMAKE_BINARY_DIR}/SalesforcePubSubDataProvider.tag="
+        "../SalesforcePubSubDataProvider/html")
 
     file(COPY_FILE ${CMAKE_BINARY_DIR}/Doxyfile ${CMAKE_BINARY_DIR}/Doxyfile.final)
     file(APPEND ${CMAKE_BINARY_DIR}/Doxyfile.final

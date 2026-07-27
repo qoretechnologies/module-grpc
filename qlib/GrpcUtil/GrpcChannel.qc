@@ -45,6 +45,12 @@ public class GrpcChannel {
     #! Create a new gRPC channel to the given target
     /** @param target the target URL (e.g., \c "https://localhost:50051" or \c "http://localhost:50051")
         @param opts optional channel options
+
+        @note For a \c https target with no TLS verification configuration, all certificates are
+        accepted, including self-signed ones; this is convenient for a local test server but must
+        not be used against a production service.  Set
+        \c opts.ssl.verify_mode to
+        \c SSL_VERIFY_PEER to require verification against the system CA store.
     */
     constructor(string target, *hash<GrpcChannelOptions> opts) {
         m_target = target;
@@ -56,16 +62,18 @@ public class GrpcChannel {
 
         # Configure TLS
         if (target =~ /^https:/) {
-            if (opts.ssl) {
-                # When root_certs is provided, use strict verification
-                if (opts.ssl.root_certs) {
-                    mgr_opts.ssl_verify_mode = SSL_VERIFY_PEER;
-                } else {
-                    # No root certs provided — accept all certs for development/testing
+            if (exists opts.ssl.verify_mode) {
+                # An explicit verification mode wins; SSL_VERIFY_NONE means "accept anything"
+                if (opts.ssl.verify_mode == SSL_VERIFY_NONE) {
                     mgr_opts.accept_all_certs = True;
+                } else {
+                    mgr_opts.ssl_verify_mode = opts.ssl.verify_mode;
                 }
+            } else if (opts.ssl.root_certs) {
+                # When root_certs is provided, use strict verification
+                mgr_opts.ssl_verify_mode = SSL_VERIFY_PEER;
             } else {
-                # No SSL options — accept all certs by default for convenience
+                # No verification configuration — accept all certs for development/testing
                 mgr_opts.accept_all_certs = True;
             }
         }
