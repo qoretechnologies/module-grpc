@@ -131,6 +131,47 @@ class StreamSink {
     }
 }
 
+#! A counter a server handler can bump and a test can wait on
+/** Handlers must not capture the TestEnv object, so the state they touch is bound into the handler
+    closure as its own object.
+*/
+class HandlerCounter {
+    private {
+        int count = 0;
+        Mutex m();
+        Condition cond();
+    }
+
+    #! Records one handler invocation
+    next() {
+        AutoLock al(m);
+        ++count;
+        cond.broadcast();
+    }
+
+    #! Returns the current count
+    int get() {
+        AutoLock al(m);
+        return count;
+    }
+
+    #! Blocks until the count reaches \a target
+    /** @return True if it did, False on timeout
+    */
+    bool waitFor(int target, timeout to = 30s) {
+        AutoLock al(m);
+        date deadline = now_us() + milliseconds(to);
+        while (count < target) {
+            int remaining_ms = (deadline - now_us()).durationMilliseconds();
+            if (remaining_ms <= 0) {
+                return False;
+            }
+            cond.wait(m, remaining_ms);
+        }
+        return True;
+    }
+}
+
 #! A gRPC server with the handlers used by these tests, plus a bound client
 class TestEnv {
     public {
@@ -149,6 +190,13 @@ class TestEnv {
 
         #! Counts the messages the SlowStream handler managed to write
         Sequence server_writes();
+
+        #! Counts BidiStream handlers that have started
+        /** Every gRPC call dispatched to a blocking handler runs on its own server thread, and
+            this server runs in the test process, so those threads are counted by num_threads()
+            alongside the client's.  A test that measures thread cost has to know when they exist.
+        */
+        HandlerCounter bidi_handlers();
     }
 
     constructor(ProtobufSchema schema) {
@@ -185,8 +233,10 @@ class TestEnv {
                 throw "GRPC-NOT-FOUND", "no such thing";
             });
 
+        HandlerCounter bidi = bidi_handlers;
         server.registerHandler("AsyncTestService", "BidiStream",
             sub (GrpcServerStream stream, hash<string, string> metadata) {
+                bidi.next();
                 while (*hash<auto> msg = stream.read(60s)) {
                     stream.write({"message": "echo: " + msg.name, "status": msg.id});
                 }
@@ -224,6 +274,18 @@ class TestEnv {
         return server_writes.getCurrent();
     }
 
+    #! Returns how many BidiStream handlers have started
+    int getBidiHandlerCount() {
+        return bidi_handlers.get();
+    }
+
+    #! Blocks until at least \a count BidiStream handlers have started
+    /** @return True if enough handlers have started, False on timeout
+    */
+    bool waitForBidiHandlers(int count, timeout to = 30s) {
+        return bidi_handlers.waitFor(count, to);
+    }
+
     #! Shuts the server and channel down; safe to call more than once
     stop() {
         {
@@ -248,6 +310,13 @@ public class GrpcAsyncStreamTest inherits QUnit::Test {
 
         #! Number of concurrently idle streams used by the no-thread test
         const IdleStreamCount = 8;
+
+        #! Slack allowed for growth of the controller's shared callback-worker pool
+        /** The pool grows on demand rather than being sized up front, so opening a burst of
+            streams can add a few shared workers.  That is not a per-stream cost: the bound stays
+            well under one extra thread per stream, which is what this suite has to rule out.
+        */
+        const ControllerPoolSlack = 4;
     }
 
     private {
@@ -512,8 +581,10 @@ public class GrpcAsyncStreamTest inherits QUnit::Test {
             NOTHING, warm.getOptions());
         warm_stream.write({"name": "warmup", "id": 0});
         assertTrue(warm.waitForMessages(1, 20s));
+        on_exit warm_stream.cancel();
 
         int baseline = num_threads();
+        int handler_baseline = env.getBidiHandlerCount();
 
         list<StreamSink> sinks = ();
         list<GrpcAsyncClientStream> streams = ();
@@ -523,16 +594,24 @@ public class GrpcAsyncStreamTest inherits QUnit::Test {
             streams += env.client.bidiStreamAsync("BidiStream", NOTHING,
                 sink.getOptions());
         }
-        on_exit {
-            map $1.cancel(), streams;
-            warm_stream.cancel();
-        }
+        on_exit map $1.cancel(), streams;
 
-        # the old implementation used one background thread per stream
+        # This server runs in the test process, and GrpcServerAsync dispatches every call to a
+        # blocking handler on a server thread of its own, so each of these streams costs one
+        # *server* thread that num_threads() counts alongside the client's.  Those threads start
+        # asynchronously as the server accepts each call, so the measurement has to wait for all
+        # of them: sampling earlier makes the result depend on how many happen to have started,
+        # which is what made this assertion flaky.
+        assertTrue(env.waitForBidiHandlers(handler_baseline + IdleStreamCount, 30s),
+            "every stream's server-side handler must be running before threads are counted");
+
+        # the old implementation used one background thread per stream *on the client side* as
+        # well, so it would have cost two threads per stream here instead of one
         int added = num_threads() - baseline;
-        assertTrue(added < IdleStreamCount,
-            sprintf("%d idle streams must not cost a thread each (%d threads added)",
-                IdleStreamCount, added));
+        assertTrue(added <= IdleStreamCount + ControllerPoolSlack,
+            sprintf("%d idle streams must not cost a client thread each (%d threads added, at "
+                "most %d expected: one server handler each plus the shared controller pool)",
+                IdleStreamCount, added, IdleStreamCount + ControllerPoolSlack));
 
         # the streams must survive well past the old 5s poll interval with
         # nothing read or written on them
