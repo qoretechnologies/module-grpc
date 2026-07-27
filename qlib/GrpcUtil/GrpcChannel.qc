@@ -51,6 +51,12 @@ public class GrpcChannel {
         not be used against a production service.  Set
         \c opts.ssl.verify_mode to
         \c SSL_VERIFY_PEER to require verification against the system CA store.
+
+        @note Verification is only as good as the trust store OpenSSL finds.  On a host whose
+        OpenSSL was built with an \c OPENSSLDIR that holds no CA bundle, verification fails with
+        \c "unable to get local issuer certificate" even for a valid certificate; \c "openssl
+        version -d" reports the directory, and the \c SSL_CERT_FILE environment variable pointing
+        at the system bundle is the override.
     */
     constructor(string target, *hash<GrpcChannelOptions> opts) {
         m_target = target;

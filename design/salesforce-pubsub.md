@@ -262,11 +262,43 @@ dead stream; reconnection disabled and the attempt limit; `stop()` idempotence; 
 channel enumeration and the summary info; the event types and example data; and the action
 registration.
 
-**Nothing has been exercised against a live Salesforce org** — the `salesforce` connection on the
-development machine has an expired OAuth token. Specifically unverified against a real org: that
-`describeGlobal` lists exactly the subscribable channels for every org shape, the real
-`ChangeEventHeader` field set, and the actual behaviour of a Salesforce-side replay-ID expiry.
+The REST round trip behind channel enumeration is substituted in the offline test (the
+`describeGlobal` response is scripted); everything below it — the channel filter, the child names,
+the summary info and the child providers — is the real implementation.
 
-The REST round trip behind channel enumeration is substituted in the test (the `describeGlobal`
-response is scripted); everything below it — the channel filter, the child names, the summary info
-and the child providers — is the real implementation.
+### Verified against a live org
+
+Run manually against a Salesforce developer org, not part of the automated suite, which needs no org
+to talk to:
+
+| | Result |
+|---|---|
+| Org identity from the connection | `getInstanceUrl()` and `getOrgId()` both correct after login |
+| Channel enumeration | 91 channels from `describeGlobal`, all `*ChangeEvent`; the filter matches what the org actually exposes |
+| `GetTopic` | `can_subscribe: True`, real `schema_id`, `tenant_guid: "core/prod/<org id>"` |
+| `GetSchema` | the real `com.sforce.eventbus.AccountChangeEvent` schema, 44 fields, `ChangeEventHeader` first; parsed by the builtin `avro` module without adjustment |
+| Schema cache | a second lookup returns the same object with no round trip |
+| Subscription | stream established to `api.pubsub.salesforce.com:7443` with TLS peer verification |
+| Keepalive | a real empty `FetchResponse` arrived and was read as liveness plus a replay-ID update; the stream stayed open and no failure was reported |
+| Event delivery | a test Account created, updated and deleted produced `CREATE`, `UPDATE` and `DELETE` events in order, decoded from Avro, with `Name` matching what was written |
+| Flow control | 3 events consumed against a window of 100 left `outstanding` at 97 and sent **no** replenishment — above the low-water mark, exactly as designed; `fetch_requests` stayed at 1, the opening request |
+| Timers | `reconnects: 0`, `backstops: 0`, `backstop_armed: False` — a healthy subscription armed nothing |
+| **Replay resume** | resubscribing with the `CREATE` event's replay ID delivered exactly the `UPDATE` and `DELETE` that followed it and did **not** redeliver the `CREATE` |
+
+The replay resume result also confirms the enum wire-value fix on the real server: had the preset
+gone out as its name and been silently encoded as `0`, the resubscribe would have started at the tip
+and delivered nothing at all.
+
+Still unverified: a Salesforce-side replay-ID expiry (it needs an ID older than the 72 hour
+retention window), a token expiring mid-subscription, and a platform event channel — the org
+exposes only Change Data Capture channels.
+
+### The endpoint needs a working CA trust store
+
+TLS peer verification is only as good as the trust store OpenSSL finds. On a host whose OpenSSL was
+built with an `OPENSSLDIR` that holds no CA bundle, `SSL_CTX_set_default_verify_paths()` finds
+nothing and the connection fails with `unable to get local issuer certificate` for a perfectly valid
+Salesforce certificate. `openssl version -d` reports the directory, and `SSL_CERT_FILE` pointing at
+the system bundle (for example `/etc/pki/tls/certs/ca-bundle.crt`) is the override. This is not
+specific to this module — it affects any verified TLS connection in %Qore on such a host — but it is
+the first thing to check if the Pub/Sub endpoint will not connect.
