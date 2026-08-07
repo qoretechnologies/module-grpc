@@ -501,7 +501,7 @@ class TestEventsProvider inherits SalesforcePubSubDataProvider::SalesforcePubSub
         list<auto> sobjects;
     }
 
-    constructor(SalesforceRestClient::SalesforceRestClient rest, list<auto> sobjects)
+    constructor(SalesforceRestClient::SalesforceRestClientIo rest, list<auto> sobjects)
             : SalesforcePubSubEventsDataProvider(rest) {
         self.sobjects = sobjects;
     }
@@ -520,12 +520,12 @@ class TestChannelProvider inherits SalesforcePubSubDataProvider::SalesforcePubSu
         SalesforcePubSubClient test_client;
     }
 
-    constructor(SalesforceRestClient::SalesforceRestClient rest, string channel,
+    constructor(SalesforceRestClient::SalesforceRestClientIo rest, string channel,
             SalesforcePubSubClient client) : SalesforcePubSubEventDataProvider(rest, channel) {
         test_client = client;
     }
 
-    constructor(SalesforceRestClient::SalesforceRestClient rest, string channel,
+    constructor(SalesforceRestClient::SalesforceRestClientIo rest, string channel,
             SalesforcePubSubClient client, string preset)
             : SalesforcePubSubEventDataProvider(rest, channel, NOTHING, preset) {
         test_client = client;
@@ -576,6 +576,9 @@ public class SalesforcePubSubTest inherits QUnit::Test {
         const TestRestOptions = {
             "oauth2_client_id": "id",
             "oauth2_client_secret": "secret",
+            # RestClientIo validates the OAuth2 option set in the constructor; the token below
+            # means no login is performed, but the authorization-code grant still requires this
+            "oauth2_redirect_url": "https://localhost:8080/callback",
             "token": "a-token",
             "instance_url": "https://acme.my.salesforce.com",
             "id_service_url": "https://login.salesforce.com/id/00Dxx0000001gPLEAY/005xx000001Svog",
@@ -1324,13 +1327,17 @@ public class SalesforcePubSubTest inherits QUnit::Test {
 
     #! Channels come from describeGlobal, since the Pub/Sub API cannot list topics
     testChannelEnumeration() {
-        SalesforceRestClient::SalesforceRestClient rest({
+        SalesforceRestClient::SalesforceRestClientIo rest({
             "oauth2_client_id": "id",
             "oauth2_client_secret": "secret",
+            # RestClientIo validates the OAuth2 option set in the constructor, so the
+            # authorization-code grant needs a redirect URL even though the token below means no
+            # login is ever performed
+            "oauth2_redirect_url": "https://localhost:8080/callback",
             "token": "a-token",
             "instance_url": "https://acme.my.salesforce.com",
             "id_service_url": "https://login.salesforce.com/id/00Dxx0000001gPLEAY/005xx000001Svog",
-        }, True);
+        });
 
         TestEventsProvider events(rest, (
             {"name": "Account", "queryable": True},
@@ -1371,21 +1378,28 @@ public class SalesforcePubSubTest inherits QUnit::Test {
             "a non-channel sobject is not a child even if describeGlobal lists it");
         assertThrows("INVALID-CHILD-PROVIDER", \events.getChildProviderEx(), "Account");
 
-        # a provider built from a REST client rather than a connection can be introspected but
-        # cannot subscribe: the Pub/Sub call metadata needs the connection's async REST client
-        assertThrows("SALESFORCE-PUBSUB-ERROR",
-            \cast<SalesforcePubSubEventDataProvider>(child).getPubSubClient());
+        # a provider built from a REST client rather than a connection can subscribe just as one
+        # built from a connection can: its client is a SalesforceRestClientIo, which carries the
+        # access token and the instance URL that are the whole of the Pub/Sub call metadata.  This
+        # threw while the provider held a blocking SalesforceRestClient, which supplied neither
+        SalesforcePubSubClient psc =
+            cast<SalesforcePubSubEventDataProvider>(child).getPubSubClient();
+        assertEq(PubSubUrl, psc.getUrl(), "a REST-client-built provider reaches the Pub/Sub host");
     }
 
     #! An event provider reports its event types and example data without subscribing
     testEventProviderTypes() {
-        SalesforceRestClient::SalesforceRestClient rest({
+        SalesforceRestClient::SalesforceRestClientIo rest({
             "oauth2_client_id": "id",
             "oauth2_client_secret": "secret",
+            # RestClientIo validates the OAuth2 option set in the constructor, so the
+            # authorization-code grant needs a redirect URL even though the token below means no
+            # login is ever performed
+            "oauth2_redirect_url": "https://localhost:8080/callback",
             "token": "a-token",
             "instance_url": "https://acme.my.salesforce.com",
             "id_service_url": "https://login.salesforce.com/id/00Dxx0000001gPLEAY/005xx000001Svog",
-        }, True);
+        });
 
         SalesforcePubSubEventDataProvider prov(rest, "AccountChangeEvent");
         assertEq("AccountChangeEvent", prov.getName());
@@ -1424,9 +1438,10 @@ public class SalesforcePubSubTest inherits QUnit::Test {
         assertFalse(pe.getExampleEventData(EVENT_SALESFORCE_PUBSUB_EVENT)
             .payload.hasKey("ChangeEventHeader"));
 
-        # a subscription cannot be opened without a connection, and the failure has to name the
-        # reason rather than surfacing as a null dereference
-        assertThrows("SALESFORCE-PUBSUB-ERROR", \prov.observersReady());
+        # the Pub/Sub client is available without a connection, so a provider built from a REST
+        # client is subscribable; no network I/O is performed until observersReady() is called
+        assertTrue(prov.getPubSubClient() instanceof SalesforcePubSubClient,
+            "a REST-client-built provider has a Pub/Sub client");
         # stopEvents() on a provider that never started is a no-op, not an error
         prov.stopEvents();
     }
@@ -1511,7 +1526,7 @@ public class SalesforcePubSubTest inherits QUnit::Test {
 
     #! A CDC channel exposes one child per change type; a platform event channel exposes none
     testChangeTypePresetChildren() {
-        SalesforceRestClient::SalesforceRestClient rest(TestRestOptions, True);
+        SalesforceRestClient::SalesforceRestClientIo rest(TestRestOptions);
 
         SalesforcePubSubEventDataProvider cdc(rest, "AccountChangeEvent");
         assertTrue(cdc.getInfo().supports_children);
@@ -1536,7 +1551,7 @@ public class SalesforcePubSubTest inherits QUnit::Test {
 
     #! A change type filter that could never match is rejected rather than delivering silence
     testChangeTypeOptionRejections() {
-        SalesforceRestClient::SalesforceRestClient rest(TestRestOptions, True);
+        SalesforceRestClient::SalesforceRestClientIo rest(TestRestOptions);
 
         # the preset child takes its filter from the provider path, so an explicit option is
         # either redundant or a contradiction
@@ -1602,7 +1617,7 @@ public class SalesforcePubSubTest inherits QUnit::Test {
             {"park": True},
         ));
 
-        SalesforceRestClient::SalesforceRestClient rest(TestRestOptions, True);
+        SalesforceRestClient::SalesforceRestClientIo rest(TestRestOptions);
         SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
         TestChannelProvider prov(rest, "AccountChangeEvent", client, "created");
 
@@ -1640,7 +1655,7 @@ public class SalesforcePubSubTest inherits QUnit::Test {
             {"park": True},
         ));
 
-        SalesforceRestClient::SalesforceRestClient rest(TestRestOptions, True);
+        SalesforceRestClient::SalesforceRestClientIo rest(TestRestOptions);
         SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
         TestChannelProvider prov(rest, "AccountChangeEvent", client, "created");
 
@@ -1667,7 +1682,7 @@ public class SalesforcePubSubTest inherits QUnit::Test {
         srv.script.setCanSubscribe(False);
         srv.script.addScript(({"park": True},));
 
-        SalesforceRestClient::SalesforceRestClient rest(TestRestOptions, True);
+        SalesforceRestClient::SalesforceRestClientIo rest(TestRestOptions);
         SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
         TestChannelProvider prov(rest, "AccountChangeEvent", client);
 

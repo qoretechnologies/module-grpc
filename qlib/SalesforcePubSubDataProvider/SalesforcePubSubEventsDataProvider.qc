@@ -40,10 +40,9 @@ public namespace SalesforcePubSubDataProvider {
     A custom channel is not listed by \c describeGlobal; subscribe to one by passing its topic
     name as the \c channel option of a child provider.
 
-    @note Enumeration uses the parent provider's blocking \c SalesforceRestClient rather than the
-    async \c SalesforceRestClientIo, because it needs the client retargeted at the org's instance
-    URL and the negotiated API version, neither of which the async client provides.  The Pub/Sub
-    gRPC path itself is entirely async.
+    @note Enumeration and the Pub/Sub gRPC path are both entirely async: the parent provider holds
+    a \c SalesforceRestClientIo rooted at the org's versioned REST API base (see
+    \c SalesforceRestClientIo::getApiClient()), so no blocking client is involved anywhere.
 */
 public class SalesforcePubSubEventsDataProvider inherits SalesforceRestDataProvider::SalesforceRestDataProviderBase {
     public {
@@ -82,14 +81,11 @@ public class SalesforcePubSubEventsDataProvider inherits SalesforceRestDataProvi
         pubsub_options = options;
     }
 
-    #! Creates the object from a Salesforce REST client
-    /** Channel enumeration works, but child providers cannot open a subscription, because the
-        Pub/Sub client needs the connection to acquire an async REST client for the call metadata.
-
-        @param rest the Salesforce REST client
+    #! Creates the object from an async Salesforce REST client
+    /** @param rest the async Salesforce REST client
         @param options Pub/Sub client options
     */
-    constructor(SalesforceRestClient::SalesforceRestClient rest, *hash<auto> options)
+    constructor(SalesforceRestClient::SalesforceRestClientIo rest, *hash<auto> options)
             : SalesforceRestDataProviderBase(rest) {
         pubsub_options = options;
     }

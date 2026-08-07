@@ -261,15 +261,12 @@ public class SalesforcePubSubEventDataProvider inherits
         pubsub_options = options;
     }
 
-    #! Creates the object from a Salesforce REST client
-    /** A provider created this way can report its event type but cannot open a subscription: the
-        Pub/Sub call metadata requires an async REST client, which only the connection can supply.
-
-        @param rest the Salesforce REST client
+    #! Creates the object from an async Salesforce REST client
+    /** @param rest the async Salesforce REST client
         @param channel_name the channel name; an event entity name or a topic name
         @param options Pub/Sub client options
     */
-    constructor(SalesforceRestClient::SalesforceRestClient rest, string channel_name,
+    constructor(SalesforceRestClient::SalesforceRestClientIo rest, string channel_name,
             *hash<auto> options) : SalesforceRestDataProviderBase(rest) {
         self.channel_name = channel_name;
         pubsub_options = options;
@@ -288,13 +285,13 @@ public class SalesforcePubSubEventDataProvider inherits
         preset_name = preset;
     }
 
-    #! Creates a change type preset child from a Salesforce REST client
-    /** @param rest the Salesforce REST client
+    #! Creates a change type preset child from an async Salesforce REST client
+    /** @param rest the async Salesforce REST client
         @param channel_name the channel name; an event entity name or a topic name
         @param options Pub/Sub client options
         @param preset the change type preset name; a key of @ref ChangeTypeChildMap
     */
-    constructor(SalesforceRestClient::SalesforceRestClient rest, string channel_name,
+    constructor(SalesforceRestClient::SalesforceRestClientIo rest, string channel_name,
             *hash<auto> options, string preset) : SalesforceRestDataProviderBase(rest) {
         self.channel_name = channel_name;
         pubsub_options = options;
@@ -476,21 +473,21 @@ public class SalesforcePubSubEventDataProvider inherits
     }
 
     #! Returns the Pub/Sub client, creating it on first use
-    /** @return the Pub/Sub client
+    /** A provider created from a REST client can subscribe just as one created from a connection
+        can: the provider's own client is a \c SalesforceRestClientIo, which carries the access
+        token and the org's instance URL -- the whole of the Pub/Sub call metadata.  This used to
+        throw for the REST-client case, because the provider then held a *blocking*
+        \c SalesforceRestClient that could supply neither.
 
-        @throw SALESFORCE-PUBSUB-ERROR the provider was not created from a connection, so no async
-        REST client is available for the call metadata
+        @return the Pub/Sub client
     */
     SalesforcePubSubClient getPubSubClient() {
         AutoLock al(m);
         if (!pubsub) {
-            if (!conn) {
-                throw "SALESFORCE-PUBSUB-ERROR", sprintf("cannot subscribe to Pub/Sub channel "
-                    "%y: this provider was created from a Salesforce REST client rather than a "
-                    "connection, and the Pub/Sub call metadata requires the connection's async "
-                    "REST client", channel_name);
-            }
-            pubsub = new SalesforcePubSubClient(conn, pubsub_options);
+            pubsub = conn
+                ? new SalesforcePubSubClient(conn, pubsub_options)
+                : new SalesforcePubSubClient(
+                    cast<SalesforceRestClient::SalesforceRestClientIo>(rest), pubsub_options);
         }
         return pubsub;
     }
