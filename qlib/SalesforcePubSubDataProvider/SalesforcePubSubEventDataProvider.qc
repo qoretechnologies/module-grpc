@@ -50,11 +50,27 @@ public class SalesforcePubSubEventDataProvider inherits
         SalesforceRestDataProvider::SalesforceRestDataProviderBase, DataProvider::DelayedObservable {
     public {
         #! Provider info
+        /** A Change Data Capture channel exposes one child per change type preset
+            (@ref ChangeTypeChildMap), so that an action can express "new record" through the
+            provider path rather than by presetting an option.
+        */
         const ProviderInfo = <DataProviderInfo>{
             "type": "SalesforcePubSubEventDataProvider",
             "desc": "Observable data provider for a single Salesforce Pub/Sub event channel",
             "supports_observable": True,
+            "supports_children": True,
+            "children_can_support_observers": True,
+            "children_can_support_apis": False,
+            "children_can_support_records": False,
         };
+
+        #! Provider info for a change type preset child, which has no children of its own
+        const PresetProviderInfo = cast<hash<DataProviderInfo>>(ProviderInfo + {
+            "desc": "Observable data provider for one change type on a Salesforce Change Data "
+                "Capture channel",
+            "supports_children": False,
+            "children_can_support_observers": False,
+        });
 
         #! Provider summary info
         static hash<DataProviderSummaryInfo> ProviderSummaryInfo =
@@ -75,6 +91,75 @@ public class SalesforcePubSubEventDataProvider inherits
                     "name.  Set this to subscribe to a **custom channel**, which "
                     "`describeGlobal` does not list; for example `/event/MyChannel__chn`",
                 "example_value": "/data/AccountChangeEvent",
+            },
+            "change_type": <DataProviderOptionInfo>{
+                "display_name": "Change Types",
+                "short_desc": "Which Change Data Capture change types to deliver",
+                "type": new DataProvider::SoftListDataType(
+                    AbstractDataProviderTypeMap."string", True),
+                "desc": "Restricts delivery to the given **Change Data Capture** change types; "
+                    "leave empty to receive every change on the channel.\n\n"
+                    "A **gap event** reports a change that Salesforce could not deliver in full. "
+                    "Gap types satisfy the type they stand in for, so selecting `CREATE` also "
+                    "delivers `GAP_CREATE` rather than dropping the create silently. "
+                    "`GAP_OVERFLOW` is always delivered, whatever the filter, because it reports "
+                    "that an unknown number of changes were lost.\n\n"
+                    "This option applies to Change Data Capture channels only; platform events "
+                    "carry no `ChangeEventHeader` and setting it on a platform event channel is "
+                    "an error.",
+                "element_allowed_values": (
+                    <AllowedValueInfo>{
+                        "value": ChangeTypeCreate,
+                        "display_name": "Create",
+                        "desc": "A record was created",
+                    },
+                    <AllowedValueInfo>{
+                        "value": ChangeTypeUpdate,
+                        "display_name": "Update",
+                        "desc": "A record was updated",
+                    },
+                    <AllowedValueInfo>{
+                        "value": ChangeTypeDelete,
+                        "display_name": "Delete",
+                        "desc": "A record was deleted",
+                    },
+                    <AllowedValueInfo>{
+                        "value": ChangeTypeUndelete,
+                        "display_name": "Undelete",
+                        "desc": "A record was restored from the recycle bin",
+                    },
+                    <AllowedValueInfo>{
+                        "value": ChangeTypeGapCreate,
+                        "display_name": "Gap: Create",
+                        "desc": "A record was created, but the change could not be delivered; "
+                            "implied by `CREATE`",
+                    },
+                    <AllowedValueInfo>{
+                        "value": ChangeTypeGapUpdate,
+                        "display_name": "Gap: Update",
+                        "desc": "A record was updated, but the change could not be delivered; "
+                            "implied by `UPDATE`",
+                    },
+                    <AllowedValueInfo>{
+                        "value": ChangeTypeGapDelete,
+                        "display_name": "Gap: Delete",
+                        "desc": "A record was deleted, but the change could not be delivered; "
+                            "implied by `DELETE`",
+                    },
+                    <AllowedValueInfo>{
+                        "value": ChangeTypeGapUndelete,
+                        "display_name": "Gap: Undelete",
+                        "desc": "A record was restored, but the change could not be delivered; "
+                            "implied by `UNDELETE`",
+                    },
+                    <AllowedValueInfo>{
+                        "value": ChangeTypeGapOverflow,
+                        "display_name": "Gap: Overflow",
+                        "desc": "An unknown number of changes were lost; always delivered",
+                    },
+                ),
+                "example_value": (ChangeTypeCreate,),
+                "preselected": True,
             },
             "replay_preset": <DataProviderOptionInfo>{
                 "display_name": "Replay Preset",
@@ -134,6 +219,21 @@ public class SalesforcePubSubEventDataProvider inherits
         #! The topic name resolved from the channel name or the \c channel option
         *string topic_name;
 
+        #! The Change Data Capture change types to deliver, or @ref nothing for all of them
+        /** Set by @ref observersReady() before the subscription is started, so it is in place
+            before any event can be delivered.
+        */
+        *softlist<string> change_types;
+
+        #! The change type preset name if this provider is a preset child of a channel provider
+        /** A key of @ref ChangeTypeChildMap; when set, the change type filter comes from the
+            provider path and the \c change_type option may not be given.
+
+            @note Set by the constructor and never modified afterwards, so unlike
+            @ref change_types it is read without holding @ref m.
+        */
+        *string preset_name;
+
         #! The Pub/Sub client, created on first use
         *SalesforcePubSubClient pubsub;
 
@@ -175,6 +275,32 @@ public class SalesforcePubSubEventDataProvider inherits
         pubsub_options = options;
     }
 
+    #! Creates a change type preset child from a Salesforce connection
+    /** @param conn the Salesforce REST connection
+        @param channel_name the channel name; an event entity name or a topic name
+        @param options Pub/Sub client options
+        @param preset the change type preset name; a key of @ref ChangeTypeChildMap
+    */
+    constructor(SalesforceRestClient::SalesforceRestConnection conn, string channel_name,
+            *hash<auto> options, string preset) : SalesforceRestDataProviderBase(conn) {
+        self.channel_name = channel_name;
+        pubsub_options = options;
+        preset_name = preset;
+    }
+
+    #! Creates a change type preset child from a Salesforce REST client
+    /** @param rest the Salesforce REST client
+        @param channel_name the channel name; an event entity name or a topic name
+        @param options Pub/Sub client options
+        @param preset the change type preset name; a key of @ref ChangeTypeChildMap
+    */
+    constructor(SalesforceRestClient::SalesforceRestClient rest, string channel_name,
+            *hash<auto> options, string preset) : SalesforceRestDataProviderBase(rest) {
+        self.channel_name = channel_name;
+        pubsub_options = options;
+        preset_name = preset;
+    }
+
     #! Stops the subscription and deletes the object
     destructor() {
         stopEvents();
@@ -182,12 +308,44 @@ public class SalesforcePubSubEventDataProvider inherits
 
     #! Returns the data provider name
     string getName() {
-        return channel_name;
+        return preset_name ?? channel_name;
     }
 
     #! Returns the data provider description
     *string getDesc() {
+        if (preset_name.val()) {
+            return sprintf("Salesforce Pub/Sub channel `%s` restricted to `%s` changes; the "
+                "matching gap change type is delivered with it", channel_name,
+                ChangeTypeChildMap{preset_name});
+        }
         return SalesforcePubSubEventDataProvider::getChannelDesc(channel_name);
+    }
+
+    #! Returns the change type preset names available on this channel
+    /** Only a Change Data Capture channel has them, and only a channel provider that is not
+        already a preset child.
+    */
+    private *list<string> getChildProviderNamesImpl() {
+        if (preset_name.val() || is_platform_event_channel(channel_name)) {
+            return;
+        }
+        return keys ChangeTypeChildMap;
+    }
+
+    #! Returns the given change type preset child, or @ref nothing if the name is unknown
+    /** @param name the change type preset name; a key of @ref ChangeTypeChildMap
+
+        @return a provider for this channel restricted to that change type
+    */
+    private *AbstractDataProvider getChildProviderImpl(string name) {
+        if (preset_name.val() || !ChangeTypeChildMap.hasKey(name)
+            || is_platform_event_channel(channel_name)) {
+            return;
+        }
+        if (conn) {
+            return new SalesforcePubSubEventDataProvider(conn, channel_name, pubsub_options, name);
+        }
+        return new SalesforcePubSubEventDataProvider(rest, channel_name, pubsub_options, name);
     }
 
     #! Returns a description for the given channel name
@@ -243,6 +401,35 @@ public class SalesforcePubSubEventDataProvider inherits
             ctx{keys LocalOptions});
 
         string topic = copts.topic_name.val() ? copts.topic_name : get_topic_name(channel_name);
+
+        # the change type filter comes from the provider path for a preset child, so an explicit
+        # option would be either redundant or a contradiction; reject it rather than silently
+        # picking one
+        *softlist<string> want;
+        if (preset_name.val()) {
+            if (copts.change_type) {
+                throw "SALESFORCE-PUBSUB-OPTION-ERROR", sprintf("the \"change_type\" option "
+                    "cannot be set on the %y child of channel %y, which already selects %y; "
+                    "subscribe to the channel itself to filter explicitly", preset_name,
+                    channel_name, ChangeTypeChildMap{preset_name});
+            }
+            want = (ChangeTypeChildMap{preset_name},);
+        } else {
+            want = copts.change_type;
+        }
+
+        # a change type filter on a platform event channel would drop every event, since platform
+        # events carry no ChangeEventHeader; that is always a configuration error, so reject it
+        # here rather than delivering silence
+        if (want && is_platform_event_channel(topic)) {
+            throw "SALESFORCE-PUBSUB-OPTION-ERROR", sprintf("the \"change_type\" option was set "
+                "to %y for topic %y, but that is a platform event channel; platform events carry "
+                "no \"ChangeEventHeader\", so no event could ever match.  Remove the "
+                "\"change_type\" option to subscribe to this channel", want, topic);
+        }
+
+        checkCanSubscribe(topic);
+
         # hash<auto!> rather than hash<auto>: the latter narrows its value type from the callbacks
         # below, so adding a string or int option to it would be a runtime error
         hash<auto!> sub_opts = {
@@ -263,6 +450,7 @@ public class SalesforcePubSubEventDataProvider inherits
         {
             AutoLock al(m);
             topic_name = topic;
+            change_types = want;
             subscription = subscr;
         }
         try {
@@ -309,7 +497,7 @@ public class SalesforcePubSubEventDataProvider inherits
 
     #! Returns data provider static info
     private hash<DataProviderInfo> getStaticInfoImpl() {
-        return ProviderInfo;
+        return preset_name.val() ? PresetProviderInfo : ProviderInfo;
     }
 
     #! This provider has no generic API call child
@@ -443,8 +631,64 @@ public class SalesforcePubSubEventDataProvider inherits
         }
     }
 
+    #! Verifies that the org allows this subscription before one is opened
+    /** A subscription to a Change Data Capture channel whose entity has not been selected in
+        <b>Setup -> Change Data Capture</b> succeeds and then delivers nothing, which is the worst
+        failure mode available: it is indistinguishable from an idle org.  The Pub/Sub API reports
+        this authoritatively through \c TopicInfo.can_subscribe, so it is checked before
+        subscribing and reported as an error naming the entity and where to enable it.
+
+        The check is a diagnostic aid rather than a gate: if \c GetTopic cannot be performed at
+        all, this returns and lets the subscription itself report the real failure.
+
+        @param topic the resolved topic name
+
+        @throw SALESFORCE-PUBSUB-SUBSCRIBE-ERROR the org reports that this topic cannot be
+        subscribed to
+    */
+    private checkCanSubscribe(string topic) {
+        hash<auto> info;
+        try {
+            info = getPubSubClient().getTopic(topic);
+        } catch (hash<ExceptionInfo> ex) {
+            return;
+        }
+        if (!exists info.can_subscribe || info.can_subscribe) {
+            return;
+        }
+        string hint;
+        if (topic =~ /ChangeEvent$/) {
+            string entity = (topic =~ x/^(?:.*\/)?(.*)ChangeEvent$/)[0] ?? "the entity";
+            hint = sprintf("; enable Change Data Capture for %y in Setup -> Integrations -> "
+                "Change Data Capture, or check that the connection's user has the \"View All "
+                "Data\" or \"View All Records\" permission for it", entity);
+        } else {
+            hint = "; check that the channel exists and that the connection's user is permitted "
+                "to subscribe to it";
+        }
+        throw "SALESFORCE-PUBSUB-SUBSCRIBE-ERROR", sprintf("the org reports that topic %y cannot "
+            "be subscribed to%s", topic, hint);
+    }
+
     #! Called by the subscription for each event received
+    /** Events excluded by the \c change_type filter are not delivered to observers.  The
+        subscription advances its replay position after this callback returns and does so
+        unconditionally, so filtering here cannot cause a reconnect to re-deliver or skip events;
+        that ordering is relied on and must be preserved.
+    */
     private eventReceived(hash<auto> event) {
+        *softlist<string> want;
+        {
+            AutoLock al(m);
+            want = change_types;
+        }
+        if (want) {
+            auto ct = event.payload.ChangeEventHeader.changeType;
+            *string change_type = ct.typeCode() == NT_STRING ? ct : NOTHING;
+            if (!change_type_matches(want, change_type)) {
+                return;
+            }
+        }
         notifyObservers(EVENT_SALESFORCE_PUBSUB_EVENT, event);
     }
 

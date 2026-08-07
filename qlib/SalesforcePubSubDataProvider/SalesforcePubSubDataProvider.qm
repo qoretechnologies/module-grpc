@@ -86,6 +86,119 @@ module SalesforcePubSubDataProvider {
             "output_type": SalesforcePubSubEventType,
             "data_provider_info": SalesforcePubSubEventDataProvider::ProviderInfo,
         });
+
+        # Named Change Data Capture actions.  Each resolves to a change type preset child of the
+        # channel provider, so the provider path carries the filter and the action does not have
+        # to preset an option that a caller could omit.  This follows the DropboxDataProvider
+        # convention, where every named event action has its own path.
+        hash<string, hash<ActionOptionInfo>> preset_options =
+            DataProviderActionCatalog::getActionOptionFromFields(
+                SalesforcePubSubEventDataProvider::LocalOptions - "change_type");
+
+        hash<DataProviderPathVarInfo> cdc_channel_var = <DataProviderPathVarInfo>{
+            "display_name": "Object",
+            "short_desc": "The Salesforce object to watch",
+            "desc": "The Change Data Capture channel to subscribe to, named after the object it "
+                "reports on: `AccountChangeEvent` for `Account`, `OpportunityChangeEvent` for "
+                "`Opportunity`, and so on.\n\n"
+                "Change Data Capture must be enabled for the object in **Setup -> Integrations "
+                "-> Change Data Capture**",
+            "example_value": "AccountChangeEvent",
+        };
+
+        DataProviderActionCatalog::registerAction(<DataProviderActionInfo>{
+            "app": SalesforceRestDataProvider::AppName,
+            "path": "/" + PubSubChildName + "/{channel}/created",
+            "path_vars": {"channel": cdc_channel_var},
+            "action": "new-record",
+            "groups": "Events",
+            "display_name": "New Salesforce Record",
+            "short_desc": "React when a record of the given object is created",
+            "desc": "Reacts when a record of the given Salesforce object is **created**, using "
+                "the **Pub/Sub API** Change Data Capture stream.\n\n"
+                "Delivery is real time rather than polled, and the subscription tracks its replay "
+                "position, so a connection lost and re-established resumes after the last event "
+                "delivered rather than skipping the records created while it was down. Salesforce "
+                "retains replay IDs for **72 hours**.\n\n"
+                "A `GAP_CREATE` event, which reports a create that Salesforce could not deliver "
+                "in full, is delivered by this action as well, so a create is never silently "
+                "lost.\n\n"
+                "Change Data Capture must be enabled for the object in **Setup -> Integrations "
+                "-> Change Data Capture**",
+            "action_code": DPAT_EVENT,
+            "action_val": EVENT_SALESFORCE_PUBSUB_EVENT,
+            "options": preset_options,
+            "output_type": SalesforcePubSubEventType,
+            "data_provider_info": SalesforcePubSubEventDataProvider::PresetProviderInfo,
+        });
+
+        DataProviderActionCatalog::registerAction(<DataProviderActionInfo>{
+            "app": SalesforceRestDataProvider::AppName,
+            "path": "/" + PubSubChildName + "/{channel}/updated",
+            "path_vars": {"channel": cdc_channel_var},
+            "action": "updated-record",
+            "groups": "Events",
+            "display_name": "Updated Salesforce Record",
+            "short_desc": "React when a record of the given object is updated",
+            "desc": "Reacts when a record of the given Salesforce object is **updated**, using "
+                "the **Pub/Sub API** Change Data Capture stream.\n\n"
+                "The event payload carries the `ChangeEventHeader.changedFields` list, so the "
+                "fields that actually changed are known without re-reading the record.\n\n"
+                "Delivery is real time rather than polled, and the subscription resumes from its "
+                "last replay position after a reconnect; Salesforce retains replay IDs for "
+                "**72 hours**.\n\n"
+                "A `GAP_UPDATE` event, which reports an update that Salesforce could not deliver "
+                "in full, is delivered by this action as well.\n\n"
+                "Change Data Capture must be enabled for the object in **Setup -> Integrations "
+                "-> Change Data Capture**",
+            "action_code": DPAT_EVENT,
+            "action_val": EVENT_SALESFORCE_PUBSUB_EVENT,
+            "options": preset_options,
+            "output_type": SalesforcePubSubEventType,
+            "data_provider_info": SalesforcePubSubEventDataProvider::PresetProviderInfo,
+        });
+
+        DataProviderActionCatalog::registerAction(<DataProviderActionInfo>{
+            "app": SalesforceRestDataProvider::AppName,
+            "path": "/" + PubSubChildName + "/ContactChangeEvent/created",
+            "action": "new-contact",
+            "groups": "Events",
+            "display_name": "New Salesforce Contact",
+            "short_desc": "React when a contact is created",
+            "desc": "Reacts when a Salesforce **contact** is created, using the **Pub/Sub API** "
+                "Change Data Capture stream.\n\n"
+                "This is the `new-record` action fixed to the `Contact` object. Delivery is real "
+                "time rather than polled, and the subscription resumes from its last replay "
+                "position after a reconnect.\n\n"
+                "Change Data Capture must be enabled for `Contact` in **Setup -> Integrations "
+                "-> Change Data Capture**",
+            "action_code": DPAT_EVENT,
+            "action_val": EVENT_SALESFORCE_PUBSUB_EVENT,
+            "options": preset_options,
+            "output_type": SalesforcePubSubEventType,
+            "data_provider_info": SalesforcePubSubEventDataProvider::PresetProviderInfo,
+        });
+
+        DataProviderActionCatalog::registerAction(<DataProviderActionInfo>{
+            "app": SalesforceRestDataProvider::AppName,
+            "path": "/" + PubSubChildName + "/LeadChangeEvent/created",
+            "action": "new-lead",
+            "groups": "Events",
+            "display_name": "New Salesforce Lead",
+            "short_desc": "React when a lead is created",
+            "desc": "Reacts when a Salesforce **lead** is created, using the **Pub/Sub API** "
+                "Change Data Capture stream.\n\n"
+                "This is the `new-record` action fixed to the `Lead` object. Delivery is real "
+                "time rather than polled, and the subscription resumes from its last replay "
+                "position after a reconnect.\n\n"
+                "Change Data Capture must be enabled for `Lead` in **Setup -> Integrations "
+                "-> Change Data Capture**",
+            "action_code": DPAT_EVENT,
+            "action_val": EVENT_SALESFORCE_PUBSUB_EVENT,
+            "options": preset_options,
+            "output_type": SalesforcePubSubEventType,
+            "data_provider_info": SalesforcePubSubEventDataProvider::PresetProviderInfo,
+        });
     };
 }
 
@@ -128,15 +241,40 @@ module SalesforcePubSubDataProvider {
 
     @verbatim
 <SalesforceRestConnection>
-  └── pubsub                  (SalesforcePubSubEventsDataProvider)
-        ├── AccountChangeEvent (SalesforcePubSubEventDataProvider)
-        ├── ContactChangeEvent (SalesforcePubSubEventDataProvider)
-        └── Order_Shipped__e   (SalesforcePubSubEventDataProvider)
+  └── pubsub                     (SalesforcePubSubEventsDataProvider)
+        ├── AccountChangeEvent   (SalesforcePubSubEventDataProvider)
+        │     ├── created        (CREATE, with GAP_CREATE)
+        │     ├── updated        (UPDATE, with GAP_UPDATE)
+        │     ├── deleted        (DELETE, with GAP_DELETE)
+        │     └── undeleted      (UNDELETE, with GAP_UNDELETE)
+        ├── ContactChangeEvent   (SalesforcePubSubEventDataProvider)
+        └── Order_Shipped__e     (SalesforcePubSubEventDataProvider)
     @endverbatim
 
     Children only appear under a \c SalesforceRestConnection, because
     \c SalesforceRestDataProvider exposes dynamic children only when it was built from a
     connection.
+
+    @subsection salesforcepubsubdataprovider_change_types Change Types
+
+    A Change Data Capture channel exposes one child per change type, so that an action can express
+    "a record was created" through the provider path rather than by presetting an option a caller
+    could omit.  Subscribing to the channel itself delivers every change, and the \c change_type
+    option filters it explicitly.
+
+    Platform event channels have no such children: they carry no \c ChangeEventHeader, so there is
+    nothing to filter on, and setting \c change_type on one is an error rather than a subscription
+    that silently delivers nothing.
+
+    Two rules keep a filter from hiding data loss:
+    - a **gap event** — one that reports a change Salesforce could not deliver in full — satisfies
+      the change type it stands in for, so \c GAP_CREATE reaches a subscriber that asked for
+      \c CREATE
+    - \c GAP_OVERFLOW, which reports that an unknown number of changes were lost, is delivered
+      whatever the filter
+
+    Filtering never affects the replay position: the subscription advances it for every event
+    received, so a reconnect neither re-delivers nor skips the events a filter dropped.
 
     @subsection salesforcepubsubdataprovider_channels Channel Names
 
@@ -265,6 +403,15 @@ subscr.start();
     - @ref SalesforcePubSubDataProvider::SalesforcePubSubEventDataProvider
       "SalesforcePubSubEventDataProvider": observable provider per channel, with the event type
       derived from the channel's Avro schema
+    - Change Data Capture change type filtering: the \c change_type option, and a child per change
+      type (@ref ChangeTypeChildMap) so that the provider path can carry the filter; gap events
+      satisfy the change type they stand in for and \c GAP_OVERFLOW is never filtered out
+    - named Change Data Capture actions \c new-record, \c updated-record, \c new-contact and
+      \c new-lead, registered against the Salesforce app alongside the generic \c pubsub-event
+      action
+    - subscriptions are rejected with an actionable error when the org reports that the channel
+      cannot be subscribed to, rather than opening a subscription that delivers nothing because
+      Change Data Capture was never enabled for the entity
     - @ref SalesforcePubSubDataProvider::SalesforcePubSubClient "SalesforcePubSubClient": Pub/Sub
       service client with Salesforce call metadata and an Avro schema cache
     - @ref SalesforcePubSubDataProvider::SalesforcePubSubSubscription

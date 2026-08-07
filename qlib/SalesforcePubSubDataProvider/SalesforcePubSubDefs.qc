@@ -158,4 +158,127 @@ public bool sub is_pubsub_channel(string name) {
     return name =~ /ChangeEvent$/ || name =~ /__e$/;
 }
 
+#! Returns @ref True if the given channel is a platform event channel
+/** Platform events carry no \c ChangeEventHeader, so a change type filter can never match one.
+
+    @param channel the channel name; either a topic name or an sobject name
+
+    @return @ref True if \a channel identifies a platform event channel
+*/
+public bool sub is_platform_event_channel(string channel) {
+    return channel =~ /__e$/;
+}
+
+#! Change Data Capture change type: the record was created
+public const ChangeTypeCreate = "CREATE";
+
+#! Change Data Capture change type: the record was updated
+public const ChangeTypeUpdate = "UPDATE";
+
+#! Change Data Capture change type: the record was deleted
+public const ChangeTypeDelete = "DELETE";
+
+#! Change Data Capture change type: the record was restored from the recycle bin
+public const ChangeTypeUndelete = "UNDELETE";
+
+#! Gap event: a record was created, but the event could not carry the change
+public const ChangeTypeGapCreate = "GAP_CREATE";
+
+#! Gap event: a record was updated, but the event could not carry the change
+public const ChangeTypeGapUpdate = "GAP_UPDATE";
+
+#! Gap event: a record was deleted, but the event could not carry the change
+public const ChangeTypeGapDelete = "GAP_DELETE";
+
+#! Gap event: a record was restored, but the event could not carry the change
+public const ChangeTypeGapUndelete = "GAP_UNDELETE";
+
+#! Gap event: so many changes occurred that Salesforce could not attribute them individually
+/** Unlike the other gap types this one stands in for no single change type, so it is always
+    delivered; see @ref change_type_matches().
+*/
+public const ChangeTypeGapOverflow = "GAP_OVERFLOW";
+
+#! Maps each gap change type to the change type it stands in for
+/** @ref ChangeTypeGapOverflow is deliberately absent: it corresponds to no single change type.
+*/
+public const GapChangeTypeMap = {
+    "GAP_CREATE": ChangeTypeCreate,
+    "GAP_UPDATE": ChangeTypeUpdate,
+    "GAP_DELETE": ChangeTypeDelete,
+    "GAP_UNDELETE": ChangeTypeUndelete,
+};
+
+#! Every change type that can appear in a \c ChangeEventHeader
+public const ChangeTypes = (
+    ChangeTypeCreate,
+    ChangeTypeUpdate,
+    ChangeTypeDelete,
+    ChangeTypeUndelete,
+    ChangeTypeGapCreate,
+    ChangeTypeGapUpdate,
+    ChangeTypeGapDelete,
+    ChangeTypeGapUndelete,
+    ChangeTypeGapOverflow,
+);
+
+#! Change type presets exposed as children of a Change Data Capture channel provider
+/** Each preset is a child of a channel provider that delivers only one kind of change, so the
+    provider path itself carries the filter and a catalog action does not have to preset an option
+    to express "new record" rather than "any change".
+
+    The gap type that stands in for each change is delivered with it; see
+    @ref change_type_matches().
+*/
+public const ChangeTypeChildMap = {
+    "created": ChangeTypeCreate,
+    "updated": ChangeTypeUpdate,
+    "deleted": ChangeTypeDelete,
+    "undeleted": ChangeTypeUndelete,
+};
+
+#! Returns @ref True if an event with the given change type passes the given change type filter
+/** The rules, in order:
+    - an empty or absent filter delivers everything
+    - @ref ChangeTypeGapOverflow is always delivered; it reports that Salesforce could not deliver
+      an unknown number of changes, and dropping it would turn visible data loss into silent data
+      loss
+    - an event with no change type at all is not a change event, so it cannot satisfy a change type
+      filter and is not delivered
+    - an exact match is delivered, which is how a filter selects a specific gap type
+    - otherwise a gap type is delivered if the type it stands in for was requested, so a
+      \c GAP_CREATE reaches a subscriber that asked for \c CREATE rather than being dropped as
+      though the create had not happened
+
+    @param requested the requested change types, or @ref nothing for no filter
+    @param change_type the change type of the event, or @ref nothing if the event carries no
+    \c ChangeEventHeader
+
+    @return @ref True if the event should be delivered
+
+    @par Example:
+    @code{.py}
+bool deliver = change_type_matches(("CREATE",), "GAP_CREATE");    # True
+    @endcode
+*/
+public bool sub change_type_matches(*softlist<string> requested, *string change_type) {
+    if (!requested) {
+        return True;
+    }
+    if (change_type == ChangeTypeGapOverflow) {
+        return True;
+    }
+    if (!exists change_type) {
+        return False;
+    }
+    # this runs for every event delivered on the subscription, so it scans the requested list
+    # rather than building a lookup hash per call; @ref ChangeTypes has nine members, so the
+    # scan is a handful of string comparisons against an allocation on the hot path
+    if (inlist(change_type, requested)) {
+        return True;
+    }
+    *string base = GapChangeTypeMap{change_type};
+    return base.val() && inlist(base, requested);
+}
+
 } # namespace SalesforcePubSubDataProvider

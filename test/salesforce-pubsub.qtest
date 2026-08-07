@@ -115,6 +115,9 @@ class PubSubScript {
         #! Number of GetTopic calls served
         int topic_calls = 0;
 
+        #! What GetTopic reports for \c can_subscribe
+        bool can_subscribe = True;
+
         #! State lock
         Mutex m();
 
@@ -204,6 +207,18 @@ class PubSubScript {
         return topic_calls;
     }
 
+    #! Sets what GetTopic reports for \c can_subscribe
+    setCanSubscribe(bool val) {
+        AutoLock al(m);
+        can_subscribe = val;
+    }
+
+    #! Returns what GetTopic should report for \c can_subscribe
+    bool getCanSubscribe() {
+        AutoLock al(m);
+        return can_subscribe;
+    }
+
     #! Blocks until at least \a count FetchRequests have been recorded
     bool waitForRequests(int count, timeout to = 30s) {
         AutoLock al(m);
@@ -288,7 +303,7 @@ class PubSubTestServer {
                     "topic_name": TestTopic,
                     "tenant_guid": "00Dxx0000001gPLEAY",
                     "can_publish": False,
-                    "can_subscribe": True,
+                    "can_subscribe": st.getCanSubscribe(),
                     "schema_id": TestSchemaId,
                     "rpc_id": "test-rpc",
                 };
@@ -496,6 +511,58 @@ class TestEventsProvider inherits SalesforcePubSubDataProvider::SalesforcePubSub
     }
 }
 
+#! A channel provider with an injected Pub/Sub client
+/** Substitutes for the connection-derived client only: the change type filter, the option checks,
+    the can-subscribe check and the subscription itself are all the real implementation.
+*/
+class TestChannelProvider inherits SalesforcePubSubDataProvider::SalesforcePubSubEventDataProvider {
+    private {
+        SalesforcePubSubClient test_client;
+    }
+
+    constructor(SalesforceRestClient::SalesforceRestClient rest, string channel,
+            SalesforcePubSubClient client) : SalesforcePubSubEventDataProvider(rest, channel) {
+        test_client = client;
+    }
+
+    constructor(SalesforceRestClient::SalesforceRestClient rest, string channel,
+            SalesforcePubSubClient client, string preset)
+            : SalesforcePubSubEventDataProvider(rest, channel, NOTHING, preset) {
+        test_client = client;
+    }
+
+    SalesforcePubSubClient getPubSubClient() {
+        return test_client;
+    }
+}
+
+#! Collects the events an observable data provider raises
+class ChangeEventCollector inherits DataProvider::Observer {
+    private {
+        list<hash<auto>> events();
+        Mutex m();
+        Condition cond();
+    }
+
+    update(string event_id, hash<auto> data_) {
+        AutoLock al(m);
+        events += {"event_id": event_id, "data": data_};
+        cond.broadcast();
+    }
+
+    #! Returns every event raised so far
+    list<hash<auto>> getEvents() {
+        AutoLock al(m);
+        return events;
+    }
+
+    #! Returns the change types of the events raised so far, in order
+    list<auto> getChangeTypes() {
+        AutoLock al(m);
+        return map $1.data.payload.ChangeEventHeader.changeType, events;
+    }
+}
+
 public class SalesforcePubSubTest inherits QUnit::Test {
     public {
         #! Call metadata for a client that manages no authentication of its own
@@ -503,6 +570,15 @@ public class SalesforcePubSubTest inherits QUnit::Test {
             MetadataAccessToken: "an-access-token",
             MetadataInstanceUrl: "https://acme.my.salesforce.com",
             MetadataTenantId: "00Dxx0000001gPLEAY",
+        };
+
+        #! Options for a REST client that is never actually used to reach an org
+        const TestRestOptions = {
+            "oauth2_client_id": "id",
+            "oauth2_client_secret": "secret",
+            "token": "a-token",
+            "instance_url": "https://acme.my.salesforce.com",
+            "id_service_url": "https://login.salesforce.com/id/00Dxx0000001gPLEAY/005xx000001Svog",
         };
 
         #! The replay preset wire values, as the server decodes them
@@ -536,6 +612,13 @@ public class SalesforcePubSubTest inherits QUnit::Test {
         addTestCase("channel enumeration", \testChannelEnumeration());
         addTestCase("event provider types", \testEventProviderTypes());
         addTestCase("event provider registration", \testProviderRegistration());
+        addTestCase("change type matching", \testChangeTypeMatching());
+        addTestCase("change type preset children", \testChangeTypePresetChildren());
+        addTestCase("change type option rejections", \testChangeTypeOptionRejections());
+        addTestCase("named change event actions", \testNamedChangeEventActions());
+        addTestCase("change type filtering", \testChangeTypeFiltering());
+        addTestCase("gap events reach the base type", \testGapChangeTypeDelivery());
+        addTestCase("can-subscribe check", \testCanSubscribeCheck());
 
         set_return_value(main());
     }
@@ -1397,6 +1480,231 @@ public class SalesforcePubSubTest inherits QUnit::Test {
     }
 
     #! Returns the standard test payload
+    #! The change type filter is pure logic, so its rules are pinned directly
+    testChangeTypeMatching() {
+        # no filter delivers everything, including an event with no ChangeEventHeader
+        assertTrue(change_type_matches(NOTHING, "UPDATE"));
+        assertTrue(change_type_matches(NOTHING, NOTHING));
+        assertTrue(change_type_matches((), "DELETE"), "an empty filter is no filter");
+
+        assertTrue(change_type_matches((ChangeTypeCreate,), ChangeTypeCreate));
+        assertFalse(change_type_matches((ChangeTypeCreate,), ChangeTypeUpdate));
+        assertTrue(change_type_matches((ChangeTypeCreate, ChangeTypeUpdate), ChangeTypeUpdate),
+            "multi-select");
+
+        # a gap event stands in for the change it could not carry: dropping it would turn a
+        # visible "we missed something" into silent data loss
+        assertTrue(change_type_matches((ChangeTypeCreate,), ChangeTypeGapCreate));
+        assertFalse(change_type_matches((ChangeTypeCreate,), ChangeTypeGapUpdate));
+        assertTrue(change_type_matches((ChangeTypeGapCreate,), ChangeTypeGapCreate),
+            "a gap type can be selected explicitly");
+        assertFalse(change_type_matches((ChangeTypeGapCreate,), ChangeTypeCreate),
+            "selecting only the gap type does not select the base type");
+
+        # GAP_OVERFLOW reports an unknown number of lost changes and is never filtered out
+        assertTrue(change_type_matches((ChangeTypeCreate,), ChangeTypeGapOverflow));
+        assertTrue(change_type_matches((ChangeTypeDelete,), ChangeTypeGapOverflow));
+
+        # a platform event carries no ChangeEventHeader, so it cannot satisfy a change filter
+        assertFalse(change_type_matches((ChangeTypeCreate,), NOTHING));
+    }
+
+    #! A CDC channel exposes one child per change type; a platform event channel exposes none
+    testChangeTypePresetChildren() {
+        SalesforceRestClient::SalesforceRestClient rest(TestRestOptions, True);
+
+        SalesforcePubSubEventDataProvider cdc(rest, "AccountChangeEvent");
+        assertTrue(cdc.getInfo().supports_children);
+        assertTrue(cdc.getInfo().children_can_support_observers);
+        assertEq(("created", "updated", "deleted", "undeleted"), cdc.getChildProviderNames());
+
+        AbstractDataProvider kid = cdc.getChildProviderEx("created");
+        assertEq("created", kid.getName());
+        assertTrue(kid.getInfo().supports_observable, "a preset child is still observable");
+        assertFalse(kid.getInfo().supports_children, "a preset child has no children of its own");
+        assertNothing(kid.getChildProviderNames());
+        assertTrue(kid.getDesc().find("CREATE") != -1,
+            "the description names the change type the child selects");
+
+        assertNothing(cdc.getChildProvider("bogus"), "an unknown preset is not a child");
+
+        # platform events carry no ChangeEventHeader, so there is nothing to filter on
+        SalesforcePubSubEventDataProvider pe(rest, "Order_Shipped__e");
+        assertNothing(pe.getChildProviderNames());
+        assertNothing(pe.getChildProvider("created"));
+    }
+
+    #! A change type filter that could never match is rejected rather than delivering silence
+    testChangeTypeOptionRejections() {
+        SalesforceRestClient::SalesforceRestClient rest(TestRestOptions, True);
+
+        # the preset child takes its filter from the provider path, so an explicit option is
+        # either redundant or a contradiction
+        SalesforcePubSubEventDataProvider preset(rest, "AccountChangeEvent", NOTHING, "created");
+        assertThrows("SALESFORCE-PUBSUB-OPTION-ERROR", "cannot be set on the",
+            sub () {
+                DataProviderDataContextHelper ctx({"change_type": (ChangeTypeUpdate,)});
+                preset.observersReady();
+            });
+
+        # a filter on a platform event channel would drop every event
+        SalesforcePubSubEventDataProvider pe(rest, "Order_Shipped__e");
+        assertThrows("SALESFORCE-PUBSUB-OPTION-ERROR", "platform event channel",
+            sub () {
+                DataProviderDataContextHelper ctx({"change_type": (ChangeTypeCreate,)});
+                pe.observersReady();
+            });
+    }
+
+    #! The named CDC actions carry the filter in the path rather than in a preset option
+    testNamedChangeEventActions() {
+        hash<string, string> expected = {
+            "new-record": "/pubsub/{channel}/created",
+            "updated-record": "/pubsub/{channel}/updated",
+            "new-contact": "/pubsub/ContactChangeEvent/created",
+            "new-lead": "/pubsub/LeadChangeEvent/created",
+        };
+
+        foreach hash<auto> i in (expected.pairIterator()) {
+            hash<DataProviderActionInfo> act =
+                DataProviderActionCatalog::getAppActionEx(SalesforceRestDataProvider::AppName,
+                    i.key);
+            assertEq(i.value, act.path, sprintf("%y resolves to a preset child", i.key));
+            assertEq(DPAT_EVENT, act.action_code);
+            assertEq(EVENT_SALESFORCE_PUBSUB_EVENT, act.action_val);
+            # the path carries the filter, so the option must not be offered as well: an action
+            # that let the user widen "New Record" to "any change" would misname itself
+            assertFalse(act.options.hasKey("change_type"),
+                sprintf("%y does not expose the change_type option", i.key));
+            assertTrue(act.options.hasKey("replay_preset"),
+                sprintf("%y keeps the replay options", i.key));
+        }
+
+        # the generic action remains, and is the only one that exposes the filter
+        hash<DataProviderActionInfo> generic =
+            DataProviderActionCatalog::getAppActionEx(SalesforceRestDataProvider::AppName,
+                "pubsub-event");
+        assertEq("/pubsub/{channel}", generic.path);
+        assertTrue(generic.options.hasKey("change_type"));
+    }
+
+    #! Only events matching the preset reach observers, and the rest do not stall the stream
+    testChangeTypeFiltering() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+
+        srv.script.addScript((
+            {"send": {"events": (
+                makeEvent(makePayload(ChangeTypeCreate), binary("ev-1")),
+                makeEvent(makePayload(ChangeTypeUpdate), binary("ev-2")),
+                makeEvent(makePayload(ChangeTypeCreate), binary("ev-3")),
+            ), "pending": 90}},
+            {"park": True},
+        ));
+
+        SalesforceRestClient::SalesforceRestClient rest(TestRestOptions, True);
+        SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        TestChannelProvider prov(rest, "AccountChangeEvent", client, "created");
+
+        ChangeEventCollector collector();
+        cast<Observable>(prov).registerObserver(collector);
+        prov.observersReady();
+        on_exit prov.stopEvents();
+
+        # the subscription counts every event it decoded, filtered or not, so this is a
+        # deterministic barrier: once it reports 3, the filter has run on all of them
+        *SalesforcePubSubSubscription subscr = prov.getSubscription();
+        assertTrue(exists subscr, "observersReady() opened the subscription");
+        assertTrue(subscr.waitForEvents(3, 30s), "all three events reached the subscription");
+
+        assertEq((ChangeTypeCreate, ChangeTypeCreate), collector.getChangeTypes(),
+            "only the creates were raised to observers");
+
+        # the replay position must advance over filtered events too, or a reconnect would
+        # re-deliver everything the filter dropped
+        assertEq(make_base64_string(binary("ev-3")), subscr.getLastReplayId(),
+            "the replay position advanced past the filtered event");
+    }
+
+    #! A gap event reaches the subscriber that asked for the change it stands in for
+    testGapChangeTypeDelivery() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+
+        srv.script.addScript((
+            {"send": {"events": (
+                makeEvent(makePayload(ChangeTypeGapCreate), binary("gap-1")),
+                makeEvent(makePayload(ChangeTypeGapUpdate), binary("gap-2")),
+                makeEvent(makePayload(ChangeTypeGapOverflow), binary("gap-3")),
+            ), "pending": 90}},
+            {"park": True},
+        ));
+
+        SalesforceRestClient::SalesforceRestClient rest(TestRestOptions, True);
+        SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        TestChannelProvider prov(rest, "AccountChangeEvent", client, "created");
+
+        ChangeEventCollector collector();
+        cast<Observable>(prov).registerObserver(collector);
+        prov.observersReady();
+        on_exit prov.stopEvents();
+
+        *SalesforcePubSubSubscription subscr = prov.getSubscription();
+        assertTrue(exists subscr, "observersReady() opened the subscription");
+        assertTrue(subscr.waitForEvents(3, 30s));
+
+        # GAP_CREATE stands in for the create that was asked for; GAP_OVERFLOW is always
+        # delivered because it reports an unknown number of lost changes; GAP_UPDATE is not
+        # a create and is dropped
+        assertEq((ChangeTypeGapCreate, ChangeTypeGapOverflow), collector.getChangeTypes());
+    }
+
+    #! A channel the org will not let us subscribe to fails loudly instead of delivering nothing
+    testCanSubscribeCheck() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+
+        srv.script.setCanSubscribe(False);
+        srv.script.addScript(({"park": True},));
+
+        SalesforceRestClient::SalesforceRestClient rest(TestRestOptions, True);
+        SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        TestChannelProvider prov(rest, "AccountChangeEvent", client);
+
+        ChangeEventCollector collector();
+        cast<Observable>(prov).registerObserver(collector);
+
+        # a CDC entity that has not been selected in Setup accepts the subscription and then
+        # delivers nothing, which is indistinguishable from an idle org; the error names the
+        # entity and where to enable it
+        hash<ExceptionInfo> ex;
+        try {
+            prov.observersReady();
+            fail("observersReady() must reject a topic the org cannot subscribe to");
+        } catch (hash<ExceptionInfo> e) {
+            ex = e;
+        }
+        assertEq("SALESFORCE-PUBSUB-SUBSCRIBE-ERROR", ex.err);
+        assertTrue(ex.desc.find("Change Data Capture") != -1,
+            "the error says how to enable the channel");
+        assertTrue(ex.desc.find("Account") != -1, "the error names the entity");
+        assertNothing(prov.getSubscription(), "no subscription was opened");
+
+        # the check is a diagnostic aid, not a gate: once the org allows it, the subscription
+        # proceeds normally
+        srv.script.setCanSubscribe(True);
+        prov.observersReady();
+        on_exit prov.stopEvents();
+        assertTrue(srv.script.waitForRequests(1), "the subscription opened once permitted");
+    }
+
+    #! Builds a test payload with the given Change Data Capture change type
+    private static hash<auto> makePayload(string change_type) {
+        hash<auto> rv = SalesforcePubSubTest::makePayload();
+        rv.ChangeEventHeader.changeType = change_type;
+        return rv;
+    }
+
     private static hash<auto> makePayload() {
         return {
             "ChangeEventHeader": {
