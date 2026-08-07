@@ -57,6 +57,7 @@ module ArrowFlightDataProvider {
         # Register app in action catalog
         DataProviderActionCatalog::registerApp(<DataProviderAppInfo>{
             "name": ArrowFlightDataProvider::AppName,
+            "presentation_source_locale": "en",
             "display_name": "Arrow Flight",
             "short_desc": "Arrow Flight columnar data service",
             "desc": "Connect to [Apache Arrow Flight](https://arrow.apache.org/docs/format/"

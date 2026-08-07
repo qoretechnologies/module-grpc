@@ -48,6 +48,7 @@ module GrpcDataProvider {
         # Register app in action catalog
         DataProviderActionCatalog::registerApp(<DataProviderAppInfo>{
             "name": GrpcDataProvider::AppName,
+            "presentation_source_locale": "en",
             "display_name": "gRPC Server",
             "short_desc": "gRPC remote procedure call server",
             "desc": "Connect to gRPC services using protobuf schemas for "
@@ -88,14 +89,14 @@ module GrpcDataProvider {
                     "display_name": "Service",
                     "short_desc": "The gRPC service name",
                     "type": AbstractDataProviderTypeMap."string",
-                    "desc": "The gRPC service name",
+                    "desc": "The gRPC service name as defined in the protobuf schema",
                     "required": True,
                 },
                 "method": <ActionOptionInfo>{
                     "display_name": "Method",
                     "short_desc": "The gRPC method name",
                     "type": AbstractDataProviderTypeMap."string",
-                    "desc": "The gRPC method name",
+                    "desc": "The gRPC method name as defined in the service",
                     "required": True,
                 },
             },
