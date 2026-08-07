@@ -169,6 +169,23 @@ public bool sub is_platform_event_channel(string channel) {
     return channel =~ /__e$/;
 }
 
+#! Returns the Change Data Capture entity for a channel, or @ref nothing if it is not one
+/** Accepts either the topic name or the bare entity name, so a caller does not have to know
+    which form it holds: <tt>"/data/AccountChangeEvent"</tt> and \c "AccountChangeEvent" both
+    yield \c "AccountChangeEvent".
+
+    @param channel the channel name; either a topic name or an sobject name
+
+    @return the change event entity name, or @ref nothing if \a channel is not a Change Data
+    Capture channel
+
+    @since %SalesforcePubSubDataProvider 1.0
+*/
+public *string sub get_change_event_entity(string channel) {
+    string name = replace(channel, ChangeEventTopicPrefix, "");
+    return name =~ /ChangeEvent$/ ? name : NOTHING;
+}
+
 #! Change Data Capture change type: the record was created
 public const ChangeTypeCreate = "CREATE";
 

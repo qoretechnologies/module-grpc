@@ -622,6 +622,8 @@ public class SalesforcePubSubTest inherits QUnit::Test {
         addTestCase("change type filtering", \testChangeTypeFiltering());
         addTestCase("gap events reach the base type", \testGapChangeTypeDelivery());
         addTestCase("can-subscribe check", \testCanSubscribeCheck());
+        addTestCase("cdc entity naming", \testCdcEntityNaming());
+        addTestCase("cdc enablement registration", \testCdcEnablementRegistration());
 
         set_return_value(main());
     }
@@ -1492,6 +1494,76 @@ public class SalesforcePubSubTest inherits QUnit::Test {
         assertEq(3, action.options.replay_preset.allowed_values.size());
         assertEq((ReplayLatest, ReplayEarliest, ReplayCustom),
             (map $1.value, action.options.replay_preset.allowed_values));
+    }
+
+    #! The mapping between a channel, its change event entity and the Setup developer name
+    /** These names are a Salesforce convention rather than anything this module invents, so they
+        are pinned: a member created with the wrong \c DeveloperName would be invisible to Setup
+        and could be created twice.
+    */
+    testCdcEntityNaming() {
+        # a topic name, a bare entity name and a preset child path all yield the same entity
+        assertEq("AccountChangeEvent", get_change_event_entity("/data/AccountChangeEvent"));
+        assertEq("AccountChangeEvent", get_change_event_entity("AccountChangeEvent"));
+        # a custom object keeps its "__ChangeEvent" spelling
+        assertEq("MyObject__ChangeEvent", get_change_event_entity("/data/MyObject__ChangeEvent"));
+        # platform events and custom channels are not change events
+        assertNothing(get_change_event_entity("/event/Order_Shipped__e"));
+        assertNothing(get_change_event_entity("Order_Shipped__e"));
+        assertNothing(get_change_event_entity("/event/MyChannel__chn"));
+
+        # Setup names the member after the *object*, not after the event
+        assertEq("CM_ChangeEvents_Account",
+            SalesforcePubSubCdc::getDeveloperName("AccountChangeEvent"));
+        assertEq("CM_ChangeEvents_Case", SalesforcePubSubCdc::getDeveloperName("CaseChangeEvent"));
+        assertEq("CM_ChangeEvents_MyObject__",
+            SalesforcePubSubCdc::getDeveloperName("MyObject__ChangeEvent"));
+        assertEq("ChangeEvents", SalesforcePubSubCdc::StandardEventChannel);
+        assertEq("PlatformEventChannelMember", SalesforcePubSubCdc::ChannelMemberSobject);
+    }
+
+    #! Change Data Capture enablement is offered explicitly, and is never implicit
+    testCdcEnablementRegistration() {
+        # the option that lets a subscription enable the entity defaults to off: subscribing to
+        # events must not quietly change org configuration
+        *hash<auto> opt = SalesforcePubSubEventDataProvider::LocalOptions.enable_cdc;
+        assertTrue(exists opt, "the enable_cdc option exists");
+        assertEq(False, opt.default_value, "enable_cdc is off unless asked for");
+        assertTrue(opt.display_name.val());
+        assertTrue(opt.short_desc.val());
+        assertLt(81, opt.short_desc.size(), "short_desc is within the 80 character bound");
+        # the description has to warn about the side effects, since this mutates the org
+        assertTrue(opt.desc =~ /72-hour/, "the description names the retention side effect");
+        assertTrue(opt.desc =~ /enable-change-data-capture/,
+            "the description points at the explicit action");
+
+        # the explicit action, for enabling once rather than as part of a subscription
+        list<hash<DataProviderActionInfo>> actions =
+            DataProviderActionCatalog::getActions(SalesforceRestDataProvider::AppName);
+        *hash<DataProviderActionInfo> action =
+            (select actions, $1.action == "enable-change-data-capture")[0];
+        assertTrue(exists action, "the enablement action is registered on the Salesforce app");
+        assertEq(DPAT_API, action.action_code);
+        assertEq(("Events",), action.groups,
+            "the enablement action sits with the event actions it exists to make work");
+        assertEq("/" + SalesforcePubSubEnableCdcDataProvider::ProviderName, action.path);
+        assertNothing(action.path_vars, "the entity is an option, not a path variable");
+        assertLt(81, action.short_desc.size(), "short_desc is within the 80 character bound");
+        assertTrue(action.desc =~ /72-hour/, "the description names the retention side effect");
+
+        # the request option is offered with the metadata a form needs
+        assertEq(("entity",), keys action.options);
+        assertTrue(action.options.entity.display_name.val());
+        assertTrue(action.options.entity.short_desc.val());
+        assertTrue(exists action.options.entity.type);
+        assertTrue(action.options.entity.example_value.val());
+
+        # a typed output, so the result is usable in a flow rather than opaque
+        assertTrue(exists action.output_type, "the action declares an output type");
+        hash<string, AbstractDataField> out = action.output_type.getFields();
+        assertEq(("entity", "developer_name", "event_channel", "id", "already_enabled"), keys out);
+        map assertTrue($1.getDescription().val(),
+            sprintf("output field %y has a description", $1.getName())), out.iterator();
     }
 
     #! Returns the standard test payload

@@ -52,12 +52,11 @@ printf("%s\n", schema.getJson());
 
     @section salesforcepubsubclient_options Client Options
 
-    | Option | Type | Default | Description |
-    |--|--|--|--|
-    | \c url | \c string | @ref PubSubUrl | the Pub/Sub endpoint; the default is the single global host, so this is normally only set to point at a test server |
-    | \c call_timeout_ms | \c int | \c 30000 | timeout for the unary \c GetTopic and \c GetSchema calls |
-    | \c schema_cache_size | \c int | \c 256 | maximum number of Avro schemas held in the schema cache |
-    | \c channel_options | \c hash | - | \c GrpcChannelOptions for the channel; TLS peer verification is required by default for an \c https endpoint |
+    |!Option|!Type|!Default|!Description
+    |\c url|\c string|@ref PubSubUrl|the Pub/Sub endpoint; the default is the single global host, so this is normally only set to point at a test server
+    |\c call_timeout_ms|\c int|\c 30000|timeout for the unary \c GetTopic and \c GetSchema calls
+    |\c schema_cache_size|\c int|\c 256|maximum number of Avro schemas held in the schema cache
+    |\c channel_options|\c hash|-|\c GrpcChannelOptions for the channel; TLS peer verification is required by default for an \c https endpoint
 */
 public class SalesforcePubSubClient {
     public {
@@ -384,8 +383,15 @@ public class SalesforcePubSubClient {
     private hash<auto> unaryCall(string method, hash<auto> request) {
         hash<GrpcCallResult> result = client.call(method, request, getCallOptions());
         if (result.status_code != GRPC_STATUS_OK) {
+            # the status code is carried as the exception argument so that a caller can tell the
+            # org's answer apart from a transport failure; checkCanSubscribe() depends on this to
+            # distinguish "this channel does not exist" from "the org could not be reached"
             throw "SALESFORCE-PUBSUB-ERROR", sprintf("%s failed with gRPC status %d: %s",
-                method, result.status_code, result.status_message);
+                method, result.status_code, result.status_message), {
+                "method": method,
+                "status_code": result.status_code,
+                "status_message": result.status_message,
+            };
         }
         return result.body;
     }

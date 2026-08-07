@@ -50,6 +50,47 @@ module SalesforcePubSubDataProvider {
                     cast<SalesforceRestClient::SalesforceRestConnection>(conn));
             });
 
+        # Change Data Capture enablement is a sibling of the events container rather than a child
+        # of it: the events container's children are the org's channels, and a fixed non-channel
+        # child would be lost among them
+        SalesforceRestDataProvider::SalesforceRestDataProvider::registerChild(
+            SalesforcePubSubEnableCdcDataProvider::ProviderName,
+            AbstractDataProvider sub (string name,
+                    ConnectionProvider::AbstractConnection conn) {
+                return new SalesforcePubSubEnableCdcDataProvider(
+                    cast<SalesforceRestClient::SalesforceRestConnection>(conn));
+            });
+
+        # Enabling Change Data Capture is offered as an explicit action rather than done
+        # implicitly by a subscription: it mutates org configuration and starts a 72-hour
+        # retention stream, neither of which should happen as a side effect of listening
+        DataProviderActionCatalog::registerAction(<DataProviderActionInfo>{
+            "app": SalesforceRestDataProvider::AppName,
+            "path": "/" + SalesforcePubSubEnableCdcDataProvider::ProviderName,
+            "action": "enable-change-data-capture",
+            # grouped with the event actions: this exists to make those deliver, so it belongs
+            # where someone configuring Salesforce events will look for it
+            "groups": "Events",
+            "display_name": "Enable Change Data Capture",
+            "short_desc": "Enable Change Data Capture for a Salesforce object",
+            "desc": "Enables **Change Data Capture** for a Salesforce object, so that its "
+                "creates, updates, deletes and undeletes can be subscribed to through the "
+                "**Pub/Sub API**.\n\n"
+                "Change Data Capture must be switched on per object before a subscription "
+                "delivers anything, and a subscription to an object that was never enabled "
+                "succeeds and then stays silent -- so this is usually run **once**, when an "
+                "integration is set up, rather than as part of a flow.\n\n"
+                "Enabling an object that is already enabled is not an error.\n\n"
+                "**This changes org configuration.** It starts a 72-hour retention stream for "
+                "the object, and the number of objects an org may select depends on its edition "
+                "and add-ons. The connection's user needs permission to modify metadata.",
+            "action_code": DPAT_API,
+            "options": DataProviderActionCatalog::getActionOptionFromFields(
+                SalesforceEnableCdcRequestDataType::Fields),
+            "output_type": SalesforceEnableCdcResponseType,
+            "data_provider_info": SalesforcePubSubEnableCdcDataProvider::ProviderInfo,
+        });
+
         # Actions are registered against the *Salesforce* app rather than a new one: Pub/Sub
         # events are Salesforce events, and a separate app would split one integration across two
         # entries in the UI.  This is the extender convention already used by the Qorus service
@@ -283,10 +324,9 @@ module SalesforcePubSubDataProvider {
     events (ending in \c __e), which is exactly the set of subscribable channels.  Children are
     named by event entity name and the topic name is derived from it:
 
-    | Child name | Topic name |
-    |--|--|
-    | \c AccountChangeEvent | <tt>/data/AccountChangeEvent</tt> |
-    | \c Order_Shipped__e | <tt>/event/Order_Shipped__e</tt> |
+    |!Child name|!Topic name
+    |\c AccountChangeEvent|<tt>/data/AccountChangeEvent</tt>
+    |\c Order_Shipped__e|<tt>/event/Order_Shipped__e</tt>
 
     A custom channel is not listed by \c describeGlobal; subscribe to one by setting the
     \c topic_name option to its topic name.
@@ -382,11 +422,10 @@ subscr.start();
     "api.pubsub.salesforce.com:7443" — for production orgs and sandboxes alike.  The org is
     identified by call metadata, not by the endpoint:
 
-    | Metadata header | Source |
-    |--|--|
-    | @ref SalesforcePubSubDataProvider::MetadataAccessToken "accesstoken" | \c SalesforceRestClientIo::getToken() |
-    | @ref SalesforcePubSubDataProvider::MetadataInstanceUrl "instanceurl" | \c SalesforceRestClientBase::getInstanceUrl() |
-    | @ref SalesforcePubSubDataProvider::MetadataTenantId "tenantid" | \c SalesforceRestClientBase::getOrgId() |
+    |!Metadata header|!Source
+    |@ref SalesforcePubSubDataProvider::MetadataAccessToken "accesstoken"|\c SalesforceRestClientIo::getToken()
+    |@ref SalesforcePubSubDataProvider::MetadataInstanceUrl "instanceurl"|\c SalesforceRestClientBase::getInstanceUrl()
+    |@ref SalesforcePubSubDataProvider::MetadataTenantId "tenantid"|\c SalesforceRestClientBase::getOrgId()
 
     Only the OAuth2 URLs are org-specific, and the Salesforce REST connection already handles
     those, so nothing here hardcodes a login host.
@@ -411,7 +450,15 @@ subscr.start();
       action
     - subscriptions are rejected with an actionable error when the org reports that the channel
       cannot be subscribed to, rather than opening a subscription that delivers nothing because
-      Change Data Capture was never enabled for the entity
+      Change Data Capture was never enabled for the entity; the error names every way of fixing it
+    - Change Data Capture can be enabled from here rather than only diagnosed: the
+      \c enable-change-data-capture action enables an object once, and the \c enable_cdc
+      subscription option enables it on demand.  Neither happens implicitly -- enabling starts a
+      72-hour retention stream and changes org configuration, so it is never a side effect of
+      listening
+    - @ref SalesforcePubSubDataProvider::SalesforcePubSubCdc "SalesforcePubSubCdc": Change Data
+      Capture entity selection through the Tooling API's \c PlatformEventChannelMember, with the
+      \c CM_ChangeEvents_<Object> developer name convention that Setup itself uses
     - @ref SalesforcePubSubDataProvider::SalesforcePubSubClient "SalesforcePubSubClient": Pub/Sub
       service client with Salesforce call metadata and an Avro schema cache
     - @ref SalesforcePubSubDataProvider::SalesforcePubSubSubscription

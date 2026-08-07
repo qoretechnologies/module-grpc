@@ -186,22 +186,21 @@ on_exit subscr.stop();
 
     @section salesforcepubsubsubscription_options Subscription Options
 
-    | Option | Type | Default | Description |
-    |--|--|--|--|
-    | \c on_event | \c code | - | called with each delivered event |
-    | \c on_keepalive | \c code | - | called with each empty \c FetchResponse |
-    | \c on_failure | \c code | - | called once when the subscription gives up |
-    | \c replay_preset | \c string | @ref ReplayLatest | starting position |
-    | \c replay_id | \c string | - | base64 replay ID for @ref ReplayCustom |
-    | \c num_requested | \c int | @ref DefaultNumRequested | flow-control window |
-    | \c low_water_mark | \c int | @ref DefaultLowWaterMark | credit level triggering replenishment |
-    | \c auto_replenish | \c bool | @ref True | replenish credit automatically on delivery |
-    | \c flow_control_backstop_ms | \c int | @ref DefaultFlowControlBackstopMs | backstop deadline |
-    | \c idle_timeout_ms | \c int | @ref DefaultIdleTimeoutMs | inactivity bound |
-    | \c reconnect | \c bool | @ref True | reconnect after a stream failure |
-    | \c reconnect_delay_ms | \c int | @ref DefaultReconnectDelayMs | initial backoff |
-    | \c max_reconnect_delay_ms | \c int | @ref DefaultMaxReconnectDelayMs | backoff ceiling |
-    | \c max_reconnect_attempts | \c int | \c 0 | consecutive failures tolerated; \c 0 = unlimited |
+    |!Option|!Type|!Default|!Description
+    |\c on_event|\c code|-|called with each delivered event
+    |\c on_keepalive|\c code|-|called with each empty \c FetchResponse
+    |\c on_failure|\c code|-|called once when the subscription gives up
+    |\c replay_preset|\c string|@ref ReplayLatest|starting position
+    |\c replay_id|\c string|-|base64 replay ID for @ref ReplayCustom
+    |\c num_requested|\c int|@ref DefaultNumRequested|flow-control window
+    |\c low_water_mark|\c int|@ref DefaultLowWaterMark|credit level triggering replenishment
+    |\c auto_replenish|\c bool|@ref True|replenish credit automatically on delivery
+    |\c flow_control_backstop_ms|\c int|@ref DefaultFlowControlBackstopMs|backstop deadline
+    |\c idle_timeout_ms|\c int|@ref DefaultIdleTimeoutMs|inactivity bound
+    |\c reconnect|\c bool|@ref True|reconnect after a stream failure
+    |\c reconnect_delay_ms|\c int|@ref DefaultReconnectDelayMs|initial backoff
+    |\c max_reconnect_delay_ms|\c int|@ref DefaultMaxReconnectDelayMs|backoff ceiling
+    |\c max_reconnect_attempts|\c int|\c 0|consecutive failures tolerated; \c 0 = unlimited
 */
 public class SalesforcePubSubSubscription {
     private {

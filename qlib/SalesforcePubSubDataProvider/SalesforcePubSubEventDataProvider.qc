@@ -206,6 +206,24 @@ public class SalesforcePubSubEventDataProvider inherits
                     "`FetchRequest`",
                 "default_value": DefaultNumRequested,
             },
+            "enable_cdc": <DataProviderOptionInfo>{
+                "display_name": "Enable Change Data Capture",
+                "short_desc": "Switch Change Data Capture on for the object if it is not already",
+                "type": AbstractDataProviderTypeMap."*bool",
+                "desc": "If `True`, and the org reports that this **Change Data Capture** channel "
+                    "cannot be subscribed to because the object was never selected, switch it on "
+                    "and continue, rather than failing.\n\n"
+                    "This exists because a subscription to an object that is not enabled succeeds "
+                    "and then delivers nothing, which is indistinguishable from an idle org. The "
+                    "default is `False`: subscribing to events should not quietly change org "
+                    "configuration.\n\n"
+                    "**This changes org configuration.** It starts a 72-hour retention stream for "
+                    "the object, and the number of objects an org may select depends on its "
+                    "edition and add-ons. The connection's user needs permission to modify "
+                    "metadata. For a one-time, auditable step, use the "
+                    "`enable-change-data-capture` action instead.",
+                "default_value": False,
+            },
         };
     }
 
@@ -425,7 +443,7 @@ public class SalesforcePubSubEventDataProvider inherits
                 "\"change_type\" option to subscribe to this channel", want, topic);
         }
 
-        checkCanSubscribe(topic);
+        checkCanSubscribe(topic, copts.enable_cdc ?? False);
 
         # hash<auto!> rather than hash<auto>: the latter narrows its value type from the callbacks
         # below, so adding a string or int option to it would be a runtime error
@@ -639,32 +657,70 @@ public class SalesforcePubSubEventDataProvider inherits
         all, this returns and lets the subscription itself report the real failure.
 
         @param topic the resolved topic name
+        @param enable_cdc if @ref True and the topic is a Change Data Capture channel whose entity
+        was never selected, select it and continue instead of failing
 
         @throw SALESFORCE-PUBSUB-SUBSCRIBE-ERROR the org reports that this topic cannot be
         subscribed to
     */
-    private checkCanSubscribe(string topic) {
-        hash<auto> info;
-        try {
-            info = getPubSubClient().getTopic(topic);
-        } catch (hash<ExceptionInfo> ex) {
+    private checkCanSubscribe(string topic, bool enable_cdc = False) {
+        if (canSubscribe(topic)) {
             return;
         }
-        if (!exists info.can_subscribe || info.can_subscribe) {
-            return;
+
+        *string entity = get_change_event_entity(topic);
+        if (entity && enable_cdc) {
+            # the caller asked for this explicitly; enabling is never done without being asked
+            hash<auto> h = SalesforcePubSubCdc::enable(getApiRest(), entity);
+            info("Change Data Capture enabled for %y (%s)", entity,
+                h.already_enabled ? "was already enabled" : "newly enabled");
+            if (canSubscribe(topic)) {
+                return;
+            }
+            # the selection is made but the org has not yet published the channel; say so
+            # precisely rather than opening a subscription that would deliver nothing
+            throw "SALESFORCE-PUBSUB-SUBSCRIBE-ERROR", sprintf("Change Data Capture was enabled "
+                "for %y, but the org does not report topic %y as subscribable yet; retry the "
+                "subscription", entity, topic);
         }
+
         string hint;
-        if (topic =~ /ChangeEvent$/) {
-            string entity = (topic =~ x/^(?:.*\/)?(.*)ChangeEvent$/)[0] ?? "the entity";
-            hint = sprintf("; enable Change Data Capture for %y in Setup -> Integrations -> "
-                "Change Data Capture, or check that the connection's user has the \"View All "
-                "Data\" or \"View All Records\" permission for it", entity);
+        if (entity) {
+            hint = sprintf("; enable Change Data Capture for %y -- either with the "
+                "\"enable-change-data-capture\" action, or by setting the \"enable_cdc\" option "
+                "on this subscription, or by hand in Setup -> Integrations -> Change Data "
+                "Capture -- and check that the connection's user has the \"View All Data\" or "
+                "\"View All Records\" permission for it", entity);
         } else {
             hint = "; check that the channel exists and that the connection's user is permitted "
                 "to subscribe to it";
         }
         throw "SALESFORCE-PUBSUB-SUBSCRIBE-ERROR", sprintf("the org reports that topic %y cannot "
             "be subscribed to%s", topic, hint);
+    }
+
+    #! Returns @ref True if the org reports the topic as subscribable
+    /** Two different answers mean "no", and only one of them was obvious.  \c TopicInfo carries a
+        \c can_subscribe flag, but a Change Data Capture entity that was never selected does not
+        produce \c can_subscribe = @ref False -- it produces no \c TopicInfo at all: \c GetTopic
+        fails with \c GRPC_STATUS_NOT_FOUND and the message "The topic information for org ... and
+        topic ... not found".  Verified against a live org: an unselected entity and a nonexistent
+        object are indistinguishable here, and both are \c NOT_FOUND.
+
+        Every other \c GetTopic failure -- transport, TLS, authentication -- is not evidence about
+        the channel, so it is swallowed and the subscription is left to report the real cause.
+
+        @param topic the resolved topic name
+
+        @return @ref True if the topic may be subscribed to, or if the org could not be asked
+    */
+    private bool canSubscribe(string topic) {
+        try {
+            hash<auto> info = getPubSubClient().getTopic(topic);
+            return !exists info.can_subscribe || info.can_subscribe;
+        } catch (hash<ExceptionInfo> ex) {
+            return ex.arg.status_code != GRPC_STATUS_NOT_FOUND;
+        }
     }
 
     #! Called by the subscription for each event received

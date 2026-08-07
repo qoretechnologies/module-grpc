@@ -148,9 +148,101 @@ public class SalesforcePubSubErrorDataType inherits DataProvider::HashDataType {
     }
 }
 
+
+#! Request type for enabling Change Data Capture on an object
+/** \c Fields is public so that the action registration can build its options from it.
+*/
+public class SalesforceEnableCdcRequestDataType inherits DataProvider::HashDataType {
+    public {
+        #! Field definitions
+        const Fields = {
+            "entity": {
+                "display_name": "Change Event",
+                "short_desc": "The change event to enable",
+                "type": AbstractDataProviderTypeMap."string",
+                "desc": "The **change event** to enable Change Data Capture for, named after the "
+                    "object it reports on with a `ChangeEvent` suffix: `AccountChangeEvent` for "
+                    "`Account`, `CaseChangeEvent` for `Case`, and so on.  A custom object uses "
+                    "`__ChangeEvent`, for example `MyObject__ChangeEvent`.\n\n"
+                    "Enabling an object that is already enabled is **not** an error; the response "
+                    "reports it through `already_enabled`.\n\n"
+                    "**Enabling Change Data Capture is not free of side effects**: it starts a "
+                    "72-hour retention stream for the object, and the number of objects an org "
+                    "may select depends on its edition and add-ons.",
+                "example_value": "AccountChangeEvent",
+            },
+        };
+    }
+
+    #! Creates the type
+    constructor() : HashDataType("SalesforceEnableCdcRequest") {
+        addQoreFields(Fields);
+    }
+}
+
+#! Response type for enabling Change Data Capture on an object
+public class SalesforceEnableCdcResponseDataType inherits DataProvider::HashDataType {
+    private {
+        #! Field definitions
+        const Fields = {
+            "entity": {
+                "display_name": "Change Event",
+                "short_desc": "The change event that was enabled",
+                "type": AbstractDataProviderTypeMap."string",
+                "desc": "The change event that Change Data Capture is now enabled for",
+                "example_value": "AccountChangeEvent",
+            },
+            "developer_name": {
+                "display_name": "Developer Name",
+                "short_desc": "The channel member developer name",
+                "type": AbstractDataProviderTypeMap."string",
+                "desc": "The `DeveloperName` of the `PlatformEventChannelMember` record holding "
+                    "the selection; this follows the `CM_ChangeEvents_<Object>` convention that "
+                    "**Setup** itself uses, so a selection made here is indistinguishable from "
+                    "one made by hand",
+                "example_value": "CM_ChangeEvents_Account",
+            },
+            "event_channel": {
+                "display_name": "Event Channel",
+                "short_desc": "The event channel the object was selected on",
+                "type": AbstractDataProviderTypeMap."string",
+                "desc": "The event channel the object was selected on; this is always the "
+                    "standard `ChangeEvents` channel",
+                "example_value": "ChangeEvents",
+            },
+            "id": {
+                "display_name": "Record ID",
+                "short_desc": "The channel member record ID",
+                "type": AbstractDataProviderTypeMap."*string",
+                "desc": "The ID of the `PlatformEventChannelMember` record holding the selection",
+                "example_value": "0v82o000000KyjWAAS",
+            },
+            "already_enabled": {
+                "display_name": "Already Enabled",
+                "short_desc": "True if the object was already enabled",
+                "type": AbstractDataProviderTypeMap."bool",
+                "desc": "`True` if Change Data Capture was already enabled for the object, so "
+                    "that this call changed nothing; `False` if it was enabled by this call",
+                "example_value": False,
+            },
+        };
+    }
+
+    #! Creates the type
+    constructor() : HashDataType("SalesforceEnableCdcResponse") {
+        addQoreFields(Fields);
+    }
+}
+
 #! Pub/Sub event envelope type singleton
 public const SalesforcePubSubEventType = new SalesforcePubSubEventDataType();
 
 #! Pub/Sub subscription failure type singleton
 public const SalesforcePubSubErrorType = new SalesforcePubSubErrorDataType();
+
+#! The Change Data Capture enablement request type
+public const SalesforceEnableCdcRequestType = new SalesforceEnableCdcRequestDataType();
+
+#! The Change Data Capture enablement response type
+public const SalesforceEnableCdcResponseType = new SalesforceEnableCdcResponseDataType();
 }

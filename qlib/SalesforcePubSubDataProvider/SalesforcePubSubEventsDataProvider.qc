@@ -97,7 +97,7 @@ public class SalesforcePubSubEventsDataProvider inherits SalesforceRestDataProvi
 
     #! Returns the data provider description
     *string getDesc() {
-        return sprintf("Salesforce Pub/Sub API event channels for URL `%s`", rest.getURL());
+        return sprintf("Salesforce Pub/Sub API event channels for URL `%s`", rest.getUrl());
     }
 
     #! Returns a list of child data provider names, if any
@@ -156,7 +156,7 @@ public class SalesforcePubSubEventsDataProvider inherits SalesforceRestDataProvi
 
     #! Returns the \c describeGlobal sobject list
     private *list<auto> getChannelObjects() {
-        return rest.get("sobjects").body.sobjects;
+        return doRestCommand("GET", "sobjects").body.sobjects;
     }
 }
 
