@@ -360,7 +360,12 @@ public class SalesforcePubSubEventDataProvider inherits
         if (conn) {
             return new SalesforcePubSubEventDataProvider(conn, channel_name, pubsub_options, name);
         }
-        return new SalesforcePubSubEventDataProvider(rest, channel_name, pubsub_options, name);
+        # the base declares "rest" as *RestClientIo, though both of its constructors guarantee a
+        # SalesforceRestClientIo; cast rather than rely on the implicit runtime check, so a client
+        # that is not one is reported here and not inside the constructor
+        return new SalesforcePubSubEventDataProvider(
+            cast<SalesforceRestClient::SalesforceRestClientIo>(rest), channel_name, pubsub_options,
+            name);
     }
 
     #! Returns a description for the given channel name

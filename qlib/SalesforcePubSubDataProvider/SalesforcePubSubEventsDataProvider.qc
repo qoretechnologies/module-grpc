@@ -136,7 +136,11 @@ public class SalesforcePubSubEventsDataProvider inherits SalesforceRestDataProvi
         if (conn) {
             return new SalesforcePubSubEventDataProvider(conn, name, pubsub_options);
         }
-        return new SalesforcePubSubEventDataProvider(rest, name, pubsub_options);
+        # the base declares "rest" as *RestClientIo, though both of its constructors guarantee a
+        # SalesforceRestClientIo; cast rather than rely on the implicit runtime check, so a client
+        # that is not one is reported here and not inside the constructor
+        return new SalesforcePubSubEventDataProvider(
+            cast<SalesforceRestClient::SalesforceRestClientIo>(rest), name, pubsub_options);
     }
 
     #! Returns data provider static info

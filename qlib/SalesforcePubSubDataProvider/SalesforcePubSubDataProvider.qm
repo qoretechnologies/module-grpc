@@ -436,6 +436,11 @@ subscr.start();
 
     @subsection salesforcepubsubdataprovider_v1_0 SalesforcePubSubDataProvider v1.0
     - initial release
+    - everything runs on the async socket I/O controller: the \c Subscribe stream, and the REST
+      calls behind channel enumeration and Change Data Capture enablement, which are made on the
+      \c SalesforceRestClientIo held by \c SalesforceRestDataProviderBase.  A provider built from a
+      REST client rather than a connection can therefore subscribe like any other -- the async
+      client carries the access token and the instance URL that the Pub/Sub call metadata needs
     - @ref SalesforcePubSubDataProvider::SalesforcePubSubEventsDataProvider
       "SalesforcePubSubEventsDataProvider": events container attached to the Salesforce data
       provider as the \c pubsub child, with channel enumeration from \c describeGlobal

@@ -1,24 +1,9 @@
 # Salesforce Pub/Sub API event source
 
-Status: **implemented** — `qlib/SalesforcePubSubDataProvider/`, tests in `test/salesforce-pubsub.qtest`.
+`qlib/SalesforcePubSubDataProvider/`, tests in `test/salesforce-pubsub.qtest`.
 
-Tracked as [qore#5365](https://github.com/qoretechnologies/qore/issues/5365).
-
-This document records the decisions taken while building it and the reasons for them. It does not
-restate the rules in `data-provider-development-guide.md` § *Event Providers*,
-`data-provider-checklist.md` § 9 or `async-socket-io.md`; the implementation follows those.
-
-## Why
-
-Qorus solutions that react to Salesforce changes depended on `BBM_SalesforceStreamBase`, a
-building-block class speaking the Salesforce **CometD / Bayeux** streaming API over HTTP
-long-polling. It was the last thing tying the Qorus demos repository to the `building-blocks`
-submodule, and CometD is the transport Salesforce is steering integrations away from in favour of
-the **Pub/Sub API** (gRPC + Avro).
-
-There is no Bayeux implementation anywhere in the Qore module ecosystem, so replacing the building
-block meant either writing one or moving to Pub/Sub. Pub/Sub is the better target because this
-module already provides the transport.
+The implementation follows `data-provider-development-guide.md` § *Event Providers*,
+`data-provider-checklist.md` § 9 and `async-socket-io.md`; this document does not restate them.
 
 ## Layering
 
@@ -36,44 +21,39 @@ avro (builtin) + AvroUtil              event payload decode and the DataProvider
 SalesforceRestClient (Qore library)    OAuth2, the org identity, describeGlobal
 ```
 
-Nothing new was added to `GrpcUtil` beyond a TLS option (below): `GrpcUtil` is the generic gRPC
-transport and has no business knowing about Salesforce.
+`GrpcUtil` is the generic gRPC transport and knows nothing about Salesforce. Everything
+Salesforce-specific — the call metadata, the vendored proto, the Avro payload mapping and the
+provider tree — is in this module.
 
 ## Decisions
 
-### The Avro decode happens in Qore, not in C++ through `QoreAvroApi`
-
-`module-grpc` is a binary module and *could* consume `QoreAvroApi` (qore#5371), but it is not used
-here.
+### The Avro decode happens in Qore
 
 The read loop is in Qore by construction: events arrive in the `GrpcAsyncClientStream` delivery
-sinks, which are Qore closures running on an async I/O controller callback worker. Decoding there
-means `AvroSchema::decode()` — one call on an object the schema cache already holds. A C++ decode
-path would have to be reached *from* that Qore callback anyway, so it would add a layer without
-removing one.
-
-The C++ API's advantage — decode on the hot path while handing the same schema to `AvroUtil` for
-the DataProvider type without parsing it twice — is already had here for free: `AvroSchema` is a
-Qore object, the cache holds it, and `AvroTypeHelper::schemaToDataType()` takes the same object.
-
-qore#5371 is justified by the versioned C++ API mechanism and the JSON relocation regardless; this
-provider is simply not one of its consumers.
+sinks, which are Qore closures running on an async I/O controller callback worker. Decoding there is
+`AvroSchema::decode()` — one call on an object the schema cache already holds. A C++ decode path
+would have to be reached *from* that Qore callback anyway, so it would add a layer without removing
+one, and it would gain nothing on the schema side either: `AvroSchema` is a Qore object, the cache
+holds it, and `AvroTypeHelper::schemaToDataType()` takes that same object, so a channel's schema is
+never parsed twice.
 
 ### Actions attach to the Salesforce app; no `registerApp()`, no logo
 
 The events are Salesforce events. Registering `SalesforcePubSub` as its own application would split
-one integration across two entries in the UI, with a second Salesforce logo. So the module
-registers **no app** and instead registers its `DPAT_EVENT` action against
+one integration across two entries in the UI, with a second Salesforce logo. So the module registers
+**no app** and instead registers its `DPAT_EVENT` action against
 `SalesforceRestDataProvider::AppName`.
 
-This is the extender convention already established by `QorusOpenAiServices`,
-`QorusDiscordServices`, `QorusGoogleServices` and `QorusSlackServices`, which all pass
-`"app": <Base>DataProvider::AppName`. The dependency direction stays right — the extender knows the
-base, the base knows nothing about extenders — while activation is inverted by
-`%try-child-module` so the extension is not silently absent.
+This is the extender convention established by `QorusOpenAiServices`, `QorusDiscordServices`,
+`QorusGoogleServices` and `QorusSlackServices`, which all pass `"app": <Base>DataProvider::AppName`.
+The dependency direction stays right — the extender knows the base, the base knows nothing about
+extenders — while activation is inverted by `%try-child-module` so the extension is not silently
+absent.
 
-This is a deliberate departure from the issue's task list, which said "`registerApp()` with a
-square logo".
+That inversion has a standing cost: a child that is *present but unloadable* fails its parent, so a
+build of this module that does not match the installed `SalesforceRestDataProvider` does not merely
+lose the `pubsub` child — it makes `SalesforceRestDataProvider` unloadable for every consumer,
+Pub/Sub or not. This module tracks the base's API and has to be deployed with it.
 
 ### One action with a `{channel}` path variable, not one action per channel
 
@@ -82,38 +62,34 @@ once at `/pubsub/{channel}`, and the subscription options (`replay_preset`, `rep
 `num_requested`, `topic_name`) are action options read from the data provider context in
 `observersReady()`.
 
-Note that `/pubsub` is a **dynamic** child of `SalesforceRestDataProvider` — it is in
-`dynamic_children`, not in `ChildMap` — so the checklist's "every action path must resolve through
-the root's `ChildMap`" does not literally apply. It resolves at runtime through
-`getChildProviderImpl()`, which handles dynamic children whenever the provider was built from a
-connection, which is the only case the action catalog uses.
+`/pubsub` is a **dynamic** child of `SalesforceRestDataProvider` — it is in `dynamic_children`, not
+in `ChildMap` — so the action path resolves at runtime through `getChildProviderImpl()`, which
+serves dynamic children whenever the provider was built from a connection. That is the only case the
+action catalog uses.
 
-### Channel enumeration uses the blocking REST client; token refresh uses the async one
+### Everything is async, channel enumeration included
 
 The Pub/Sub API has no list-topics RPC, so `getChildProviderNamesImpl()` comes from `describeGlobal`
-on the REST side.
+on the REST side. That call has to be made against the org's **instance URL** at the negotiated API
+version rather than against the org host, which is what the provider's own client targets — issuing
+`sobjects` against that client would address the org's web UI.
 
-That call needs the client retargeted at the org's **instance URL** and the negotiated API version.
-`RestClientIo` exposes neither: it has no `setURL()` (noted at `RestClient.qm:5134`) and
-`processApis()` / `setVerifyApi()` / `getApis()` are methods of the blocking class only. Making
-enumeration async therefore means changing `RestClientIo`, a released module, to gain nothing —
-`getChildProviderNamesImpl()` is a synchronous DataProvider API and its caller is blocked by the
-framework contract either way. So enumeration uses the parent provider's already-working blocking
-`SalesforceRestClient`.
+`SalesforceRestClientIo::getApiClient()` does that retargeting, negotiating the version from
+`GET /services/data` and caching the result, and `SalesforceRestDataProviderBase::doRestCommand()`
+runs every call on it. So enumeration is one `GET sobjects` on the async socket I/O controller: it
+still blocks its *caller*, as the synchronous `getChildProviderNamesImpl()` contract requires, but it
+occupies no thread for the duration of the request. Nothing in the module is blocking.
 
-Token refresh is different and does use the async client, and needs no retargeting at all:
-`getNewToken()` and `startOAuth2PollRefreshToken()` POST to `oauth2_token_url` /
-`oauth2_alt_token_url`, not to the client's base URL. `SalesforceRestClientIo` captures
-`instance_url` on every token acquisition (qore `52911582c`), so a refresh that moves the org to
-another instance is followed without losing the replay position. That is exactly what that
-prerequisite exists for.
+The consequence worth stating is that a provider built from a REST client rather than a connection
+can subscribe. The Pub/Sub call metadata is an access token and an instance URL; a
+`SalesforceRestClientIo` carries both, so `getPubSubClient()` falls back to the `rest` member and
+throws only when the provider has neither a connection nor a client.
 
-Note also that `RestClientIo` has no `setURL()` **by design** — the target URL is immutable and
-`copyWithUrl()` is the sanctioned retargeting API. Taking the blocking client for enumeration
-therefore also avoids the open `RestClientIo::copyWithUrl()` hazard: it ends in
-`return new RestClientIo(opts, mgr)`, a hardcoded class, so copying a `SalesforceRestClientIo`
-would yield a plain `RestClientIo` and silently lose the `gotOAuth2LoginInfo()` override — and with
-it the org identity on the next refresh.
+Token refresh needs no retargeting at all: `getNewToken()` and `startOAuth2PollRefreshToken()` POST
+to `oauth2_token_url` / `oauth2_alt_token_url`, not to the client's base URL. `SalesforceRestClientIo`
+captures `instance_url` on every token acquisition (qore `52911582c`) and discards the cached API
+client when the org moves, so a refresh that relocates the org is followed without losing the replay
+position.
 
 ### The reconnect runs on a transient thread; nothing else does
 
@@ -184,10 +160,7 @@ encodes `0` rather than raising an error. For `ReplayPreset` that turns `CUSTOM`
 loses the replay resume with no diagnostic at all. `SalesforcePubSubProto::getReplayPresetValue()`
 resolves each preset from the vendored schema's own `enumValues()`, so the mapping stays correct if
 upstream renumbers the enum, and `test/salesforce-pubsub.qtest` asserts the value that reaches the
-server.
-
-This silent coercion is a footgun in the `protobuf` module generally, not specific to this provider;
-it is worth an issue of its own.
+server. The coercion is a property of the `protobuf` module generally, not of this provider.
 
 ### The event envelope mirrors the CometD envelope
 
@@ -199,37 +172,26 @@ it is worth an issue of its own.
 }
 ```
 
-The CometD streaming API delivers `{"event": {"replayId": ...}, "payload": {...}}`, and mappers
-written against it — including the Qorus `crm-to-erp` demo's, which reads
-`payload.ChangeEventHeader.recordIds` and `event.replayId` — port with no change of shape. The one
-unavoidable difference is that the Pub/Sub replay ID is opaque `bytes` rather than a monotonic
-integer, so `event.replayId` is a base64 string and must be treated as an opaque token.
+The CometD streaming API delivers `{"event": {"replayId": ...}, "payload": {...}}`, so mappers
+written against it — reading `payload.ChangeEventHeader.recordIds` and `event.replayId` — port with
+no change of shape. The one unavoidable difference is that the Pub/Sub replay ID is opaque `bytes`
+rather than a monotonic integer, so `event.replayId` is a base64 string and must be treated as an
+opaque token.
 
 ### The vendored proto is a file, not a string constant
 
 `pubsub_api.proto` is vendored verbatim from `forcedotcom/pub-sub-api` under **CC0-1.0** and loaded
-from disk with `get_script_dir()`. This is the first `.proto` resource in either tree, so the
-`*.proto` resource globs added to `cmake/QoreMacros.cmake` in qore `4f3b67d80` were untested; a
-staged install (`DESTDIR=<tmp> cmake --install build`) confirms the file lands both next to the AOT
-`.qmod` in `lib64/qore-modules/SalesforcePubSubDataProvider/` and next to the source `.qm` in
-`share/qore-modules/SalesforcePubSubDataProvider/`, so `get_script_dir()` finds it either way.
+from disk with `get_script_dir()`. The `*.proto` resource globs in `cmake/QoreMacros.cmake` install
+it both next to the AOT `.qmod` in `lib64/qore-modules/SalesforcePubSubDataProvider/` and next to
+the source `.qm` in `share/qore-modules/SalesforcePubSubDataProvider/`, so `get_script_dir()` finds
+it whichever form is loaded.
 
-Embedding it as a string constant would have repeated the `FlightProto.qc` workaround this change
-exists to stop.
+### The Pub/Sub endpoint's certificate is verified
 
-## A TLS gap in `GrpcChannel`, fixed here
-
-`GrpcChannel` set `accept_all_certs` for any `https` target unless `opts.ssl.root_certs` was set —
-and it never passed `root_certs` to the connection manager, so that option only ever acted as a flag
-that turned on verification against the system CA store. Talking to `api.pubsub.salesforce.com` over
-that channel would have accepted any certificate.
-
-`GrpcSslOptions` therefore gained `verify_mode`, honoured by `GrpcChannel` and set to
-`SSL_VERIFY_PEER` by `SalesforcePubSubClient` for any `https` endpoint. The permissive default is
-unchanged for existing callers, which is what a local test server needs.
-
-That `root_certs` is accepted but never installed remains a separate `GrpcChannel` defect and is not
-addressed here.
+`GrpcSslOptions::verify_mode` is honoured by `GrpcChannel`, and `SalesforcePubSubClient` sets
+`SSL_VERIFY_PEER` for any `https` endpoint, so `api.pubsub.salesforce.com` is verified against the
+system CA store rather than accepted unconditionally. `GrpcChannel`'s permissive default is
+unchanged, which is what a local test server needs.
 
 ## Not implemented
 
@@ -237,7 +199,7 @@ addressed here.
   `GetTopic` is implemented because it yields a channel's schema ID without opening a subscription,
   which is what gives an introspected provider real field names.
 - **`ManagedSubscribe`** — an open beta API whose replay position is committed server-side. It is a
-  different state machine and the client-managed replay position is what this replaces.
+  different state machine, and the client-managed replay position is what this replaces.
 
 ## Testing
 
@@ -251,54 +213,6 @@ consumes a script of steps (`send`, `expect_request`, `throw`, `park`), which is
 because the client only ever writes a `FetchRequest` in response to something: the opening request,
 a replenishment triggered by a reported credit level, or the backstop deadline.
 
-Covered: the vendored proto and its resource file; channel-name mapping; the three metadata headers
-on the wire; the schema cache including its bound and a failed lookup; the Avro round trip including
-a `["null", T]` branch; the opening request's topic and replay position and their absence from later
-ones; every replay preset's wire value; a keepalive read as liveness with no event raised and the
-stream still open; delivery-driven replenishment topping up by the deficit; the backstop firing under
-manual flow control; replay resume after a mid-stream failure; recovery from a corrupt replay ID;
-token refresh on `UNAUTHENTICATED` and its absence on other failures; the idle bound detecting a
-dead stream; reconnection disabled and the attempt limit; `stop()` idempotence; option validation;
-channel enumeration and the summary info; the event types and example data; and the action
-registration.
-
-The REST round trip behind channel enumeration is substituted in the offline test (the
-`describeGlobal` response is scripted); everything below it — the channel filter, the child names,
-the summary info and the child providers — is the real implementation.
-
-### Verified against a live org
-
-Run manually against a Salesforce developer org, not part of the automated suite, which needs no org
-to talk to:
-
-| | Result |
-|---|---|
-| Org identity from the connection | `getInstanceUrl()` and `getOrgId()` both correct after login |
-| Channel enumeration | 91 channels from `describeGlobal`, all `*ChangeEvent`; the filter matches what the org actually exposes |
-| `GetTopic` | `can_subscribe: True`, real `schema_id`, `tenant_guid: "core/prod/<org id>"` |
-| `GetSchema` | the real `com.sforce.eventbus.AccountChangeEvent` schema, 44 fields, `ChangeEventHeader` first; parsed by the builtin `avro` module without adjustment |
-| Schema cache | a second lookup returns the same object with no round trip |
-| Subscription | stream established to `api.pubsub.salesforce.com:7443` with TLS peer verification |
-| Keepalive | a real empty `FetchResponse` arrived and was read as liveness plus a replay-ID update; the stream stayed open and no failure was reported |
-| Event delivery | a test Account created, updated and deleted produced `CREATE`, `UPDATE` and `DELETE` events in order, decoded from Avro, with `Name` matching what was written |
-| Flow control | 3 events consumed against a window of 100 left `outstanding` at 97 and sent **no** replenishment — above the low-water mark, exactly as designed; `fetch_requests` stayed at 1, the opening request |
-| Timers | `reconnects: 0`, `backstops: 0`, `backstop_armed: False` — a healthy subscription armed nothing |
-| **Replay resume** | resubscribing with the `CREATE` event's replay ID delivered exactly the `UPDATE` and `DELETE` that followed it and did **not** redeliver the `CREATE` |
-
-The replay resume result also confirms the enum wire-value fix on the real server: had the preset
-gone out as its name and been silently encoded as `0`, the resubscribe would have started at the tip
-and delivered nothing at all.
-
-Still unverified: a Salesforce-side replay-ID expiry (it needs an ID older than the 72 hour
-retention window), a token expiring mid-subscription, and a platform event channel — the org
-exposes only Change Data Capture channels.
-
-### The endpoint needs a working CA trust store
-
-TLS peer verification is only as good as the trust store OpenSSL finds. On a host whose OpenSSL was
-built with an `OPENSSLDIR` that holds no CA bundle, `SSL_CTX_set_default_verify_paths()` finds
-nothing and the connection fails with `unable to get local issuer certificate` for a perfectly valid
-Salesforce certificate. `openssl version -d` reports the directory, and `SSL_CERT_FILE` pointing at
-the system bundle (for example `/etc/pki/tls/certs/ca-bundle.crt`) is the override. This is not
-specific to this module — it affects any verified TLS connection in %Qore on such a host — but it is
-the first thing to check if the Pub/Sub endpoint will not connect.
+The REST round trip behind channel enumeration is substituted (the `describeGlobal` response is
+scripted); everything below it — the channel filter, the child names, the summary info and the child
+providers — is the real implementation.
