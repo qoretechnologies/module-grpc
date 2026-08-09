@@ -802,6 +802,7 @@ public class SalesforcePubSubSubscription {
         # repeat for every event on a channel, so this happens once per schema version
         AvroSchema schema = client.getSchema(pe.schema_id);
         auto payload = schema.decode(pe.payload);
+        payload = SalesforcePubSubSubscription::decodeHeaderFields(payload, schema);
 
         hash<auto> event = {
             "channel": topic_name,
@@ -825,6 +826,41 @@ public class SalesforcePubSubSubscription {
             last_replay_id = ev.replay_id;
         }
         cond.broadcast();
+    }
+
+    #! Replaces the Change Data Capture field bitmaps in a decoded payload with field names
+    /** The Pub/Sub API reports \c changedFields, \c nulledFields and \c diffFields as bitmaps over
+        the channel's schema rather than as the names the CometD API sent, so a consumer reading
+        them gets \c "0x401002" and matches nothing.  They are decoded here, where the schema that
+        gives them meaning is already in hand, so that every consumer does not have to.
+
+        Decoding must never cost an event: a payload that is not a change event, or a schema that
+        disagrees with the bitmap, leaves the header exactly as it arrived.
+
+        @param payload the decoded event payload
+        @param schema the channel's Avro schema
+
+        @return the payload with the header's bitmap fields replaced by field names
+    */
+    private static auto decodeHeaderFields(auto payload, AvroSchema schema) {
+        if (payload.typeCode() != NT_HASH || payload.ChangeEventHeader.typeCode() != NT_HASH) {
+            return payload;
+        }
+        try {
+            hash<auto> hdr = payload.ChangeEventHeader;
+            foreach string key in (ChangeEventBitmapFields) {
+                if (hdr{key}) {
+                    hdr{key} = decode_change_event_fields(schema, hdr{key});
+                }
+            }
+            payload.ChangeEventHeader = hdr;
+        } catch (hash<ExceptionInfo> ex) {
+            # an event delivered with raw bitmaps is worth more than no event at all.  This is not
+            # silent: the header is written back only after the whole loop succeeds, so a consumer
+            # sees the bitmaps exactly as the API sent them and can tell that the decode did not
+            # happen, which an emptied or half-decoded list would hide
+        }
+        return payload;
     }
 
     #! Replenishes flow-control credit and arms the backstop if credit has run out

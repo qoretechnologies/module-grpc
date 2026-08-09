@@ -298,4 +298,129 @@ public bool sub change_type_matches(*softlist<string> requested, *string change_
     return base.val() && inlist(base, requested);
 }
 
+#! The \c ChangeEventHeader keys whose values are field bitmaps rather than field names
+/** @see @ref decode_change_event_fields()
+*/
+public const ChangeEventBitmapFields = ("changedFields", "nulledFields", "diffFields");
+
+#! Decodes a Change Data Capture field bitmap list to the field names it selects
+/** The Pub/Sub API does not report changed field *names* the way the CometD API did.
+    \c ChangeEventHeader.changedFields, \c nulledFields and \c diffFields each carry a list of
+    bitmaps over the channel's Avro schema field order:
+
+    - a plain entry is a big-endian hex integer whose bit \a N selects top-level field \a N, so
+      \c "0x401002" on an \c Account channel means \c Name (1), \c AnnualRevenue (12) and
+      \c LastModifiedDate (22)
+    - a compound field adds an entry of the form <tt>"<parent index>-<child bitmap>"</tt>, whose
+      bits index the nested record's own fields; those are reported dotted, as
+      \c "BillingAddress.City"
+
+    An entry that cannot be decoded — an unknown form, or a bit with no field behind it — is passed
+    through unchanged rather than dropped, so a schema this does not understand costs fidelity but
+    never data.  An entry that is not a string cannot occur (the header declares these as arrays of
+    string) and is ignored.
+
+    @param schema the channel's Avro schema, as returned by
+    @ref SalesforcePubSubClient::getSchema() "getSchema()"
+    @param bitmaps the raw header value
+
+    @return the field names selected, in schema order
+
+    @par Example:
+    @code{.py}
+list<string> changed = decode_change_event_fields(schema, ("0x401002",));
+# ("Name", "AnnualRevenue", "LastModifiedDate")
+    @endcode
+*/
+public list<string> sub decode_change_event_fields(AvroSchema schema, *softlist<auto> bitmaps) {
+    list<string> rv = ();
+    foreach auto entry in (bitmaps) {
+        if (entry.typeCode() != NT_STRING) {
+            continue;
+        }
+        # a compound field names its parent by position and then indexes the nested record
+        *list<*string> compound = (entry =~ x/^([0-9]+)-(0x[0-9A-Fa-f]+)$/);
+        if (compound) {
+            int parent = compound[0].toInt();
+            *hash<auto> pf = Priv::get_schema_field(schema, parent);
+            *AvroSchema nested = pf ? Priv::get_record_schema(pf.type) : NOTHING;
+            if (!nested) {
+                rv += entry;
+                continue;
+            }
+            list<string> kids = decode_change_event_fields(nested, (compound[1],));
+            # an undecodable child bitmap comes back as itself; keep the original entry rather
+            # than reporting a parent-qualified bitmap that is neither one thing nor the other
+            rv += (kids == list(compound[1]))
+                ? entry
+                : (map sprintf("%s.%s", pf.name, $1), kids);
+            continue;
+        }
+
+        if (entry !~ /^0x[0-9A-Fa-f]+$/) {
+            rv += entry;
+            continue;
+        }
+        *list<string> names = Priv::decode_bitmap(schema, entry);
+        rv += exists names ? names : entry;
+    }
+    return rv;
+}
+
+#! Implementation details of the field bitmap decode
+namespace Priv {
+#! Returns the field at the given position in a record schema, or @ref nothing if there is none
+*hash<auto> sub get_schema_field(AvroSchema schema, int pos) {
+    list<auto> fields = schema.getFields();
+    return pos >= 0 && pos < fields.size() ? fields[pos] : NOTHING;
+}
+
+#! Returns the record schema for a field type, unwrapping a nullable union
+/** Every non-required Salesforce field is a <tt>["null", T]</tt> union, so a compound field's
+    record schema is one branch down rather than the field type itself.
+*/
+*AvroSchema sub get_record_schema(AvroSchema type) {
+    if (type.getType() == "record") {
+        return type;
+    }
+    if (type.getType() != "union") {
+        return;
+    }
+    foreach AvroSchema branch in (type.getBranches()) {
+        if (branch.getType() == "record") {
+            return branch;
+        }
+    }
+}
+
+#! Decodes one hex bitmap against a record schema's field order
+/** @return the field names selected, or @ref nothing if the bitmap selects a field the schema does
+    not have -- which means the bitmap and the schema disagree, so no part of the answer is trusted
+*/
+*list<string> sub decode_bitmap(AvroSchema schema, string bitmap) {
+    string hex = bitmap[2..];
+    if (hex.size() % 2) {
+        hex = "0" + hex;
+    }
+    binary b = parse_hex_string(hex);
+    list<auto> fields = schema.getFields();
+    list<string> rv = ();
+    # the value is big-endian, so the last byte carries the lowest field indexes
+    for (int i = 0; i < b.size(); ++i) {
+        int v = b[b.size() - 1 - i];
+        for (int bit = 0; bit < 8; ++bit) {
+            if (!(v & (1 << bit))) {
+                continue;
+            }
+            int fi = i * 8 + bit;
+            if (fi >= fields.size()) {
+                return;
+            }
+            rv += fields[fi].name;
+        }
+    }
+    return rv;
+}
+} # namespace Priv
+
 } # namespace SalesforcePubSubDataProvider

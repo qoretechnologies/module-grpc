@@ -436,6 +436,13 @@ subscr.start();
 
     @subsection salesforcepubsubdataprovider_v1_0 SalesforcePubSubDataProvider v1.0
     - initial release
+    - \c ChangeEventHeader.changedFields, \c nulledFields and \c diffFields are delivered as field
+      names.  The Pub/Sub API sends them as bitmaps over the channel's Avro schema field order --
+      an \c Account update arrives as \c "0x401002" -- so a mapper written against the older CometD
+      API, which sent names, would match nothing;
+      @ref SalesforcePubSubDataProvider::decode_change_event_fields() "decode_change_event_fields()"
+      resolves them against the schema the delivery path already holds, dotting nested fields as
+      \c "BillingAddress.City"
     - everything runs on the async socket I/O controller: the \c Subscribe stream, and the REST
       calls behind channel enumeration and Change Data Capture enablement, which are made on the
       \c SalesforceRestClientIo held by \c SalesforceRestDataProviderBase.  A provider built from a

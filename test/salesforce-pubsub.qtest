@@ -24,17 +24,32 @@
 
     Salesforce Pub/Sub API event source test suite
 
-    Everything here runs against a local gRPC server speaking eventbus.v1 from the
+    The offline suite runs against a local gRPC server speaking eventbus.v1 from the
     module's own vendored pubsub_api.proto, with Avro payloads produced by the
-    builtin avro module, so the suite needs no Salesforce org.  The implementation has
-    separately been exercised against a live org by hand -- channel enumeration, the
-    schema fetch, event delivery and replay resume; see design/salesforce-pubsub.md.
+    builtin avro module, so it needs no Salesforce org and is what CI runs.
 
-    The suite covers what the CometD building block this replaces provided and what a
+    It covers what the CometD building block this replaces provided and what a
     replacement must not lose: the replay position across a reconnect, delivery-driven
     flow-control replenishment, an empty FetchResponse read as liveness rather than
     end-of-stream, recovery from an expired replay ID, and a token refresh on a
     long-lived subscription.
+
+    The tests named "live ..." run against a real org instead, and are skipped unless
+    one is reachable.  They prove the things a scripted server cannot: that the org
+    answers GetTopic and GetSchema for a real channel, that a real Avro schema decodes,
+    and that a record written over REST comes back as a Change Data Capture event that
+    a replay ID can resume after.
+
+        qore test/salesforce-pubsub.qtest -c salesforce
+
+    The connection defaults to "salesforce" and may also be named in
+    SALESFORCE_CONNECTION; it must be a SalesforceRestConnection.  Given -c explicitly,
+    a connection that cannot be loaded is an error rather than a skip.
+
+    The live delivery tests create, update and delete one Account named with the
+    LiveAccountPrefix below, and delete it again on the way out even if they fail.
+    They change no org configuration: Change Data Capture has to be enabled for Account
+    already, and the tests skip with instructions if it is not.
 */
 
 %modern
@@ -45,7 +60,9 @@
 %requires avro
 %requires AvroUtil
 %requires DataProvider
+%requires ConnectionProvider
 %requires SalesforceRestClient
+%requires RestClientIo
 %requires GrpcUtil
 %requires SalesforcePubSubDataProvider
 
@@ -64,11 +81,30 @@ const TestSchemaJson = '{
                 {"name": "entityName", "type": "string"},
                 {"name": "recordIds", "type": {"type": "array", "items": "string"}},
                 {"name": "changeType", "type": "string"},
-                {"name": "commitNumber", "type": "long"}
+                {"name": "commitNumber", "type": "long"},
+                {"name": "changedFields", "type": {"type": "array", "items": "string"}}
             ]
         }},
         {"name": "Name", "type": ["null", "string"], "default": null},
         {"name": "AnnualRevenue", "type": ["null", "double"], "default": null}
+    ]
+}';
+
+#! A schema with a compound field, for the nested changed-field bitmap form
+const NestedSchemaJson = '{
+    "type": "record",
+    "name": "NestedChangeEvent",
+    "namespace": "com.sf.eventbus.test",
+    "fields": [
+        {"name": "Name", "type": ["null", "string"], "default": null},
+        {"name": "Billing", "type": ["null", {
+            "type": "record",
+            "name": "Address",
+            "fields": [
+                {"name": "Street", "type": ["null", "string"], "default": null},
+                {"name": "City", "type": ["null", "string"], "default": null}
+            ]
+        }], "default": null}
     ]
 }';
 
@@ -465,6 +501,40 @@ class EventSink {
         }
         return True;
     }
+
+    #! Returns the events whose ChangeEventHeader names the given record, in arrival order
+    /** A live org channel carries every change to the entity, not only the ones a test caused, so
+        a live assertion has to be made on the record it wrote rather than on the whole stream.
+    */
+    list<hash<auto>> getEventsForRecord(string record_id) {
+        AutoLock al(m);
+        return getEventsForRecordIntern(record_id);
+    }
+
+    #! Waits until at least \a count events naming the given record have been delivered
+    bool waitForRecordEvents(string record_id, int count, timeout to = 60s) {
+        AutoLock al(m);
+        date deadline = now_us() + milliseconds(to);
+        while (getEventsForRecordIntern(record_id).size() < count) {
+            int remaining_ms = (deadline - now_us()).durationMilliseconds();
+            if (remaining_ms <= 0) {
+                return False;
+            }
+            cond.wait(m, remaining_ms);
+        }
+        return True;
+    }
+
+    #! Returns the change types of the events naming the given record, in arrival order
+    list<auto> getRecordChangeTypes(string record_id) {
+        AutoLock al(m);
+        return map $1.payload.ChangeEventHeader.changeType, getEventsForRecordIntern(record_id);
+    }
+
+    #! Caller must hold @ref m
+    private list<hash<auto>> getEventsForRecordIntern(string record_id) {
+        return map $1, events, inlist(record_id, $1.payload.ChangeEventHeader.recordIds);
+    }
 }
 
 #! A Pub/Sub client that records token refreshes instead of performing them
@@ -588,10 +658,45 @@ public class SalesforcePubSubTest inherits QUnit::Test {
         const PresetLatest = 0;
         const PresetEarliest = 1;
         const PresetCustom = 2;
+
+        #! Command-line options
+        const MyOpts = Opts + {
+            "conn": "c,connection=s",
+        };
+
+        const OptionColumn = 25;
+
+        #! The connection used for the live tests unless one is named
+        const DefaultConnectionName = "salesforce";
+
+        #! The entity the live Change Data Capture tests write to and watch
+        /** Account is the entity most likely to be enabled in a developer org, and the one the
+            REST suite in the Qore repository also exercises.
+        */
+        const LiveEntity = "Account";
+        const LiveChannel = LiveEntity + "ChangeEvent";
+
+        #! Live test records are named so that anything left behind by a killed run is identifiable
+        const LiveAccountPrefix = "DEL_TEST_PUBSUB_";
+
+        #! How long a live subscription is given to deliver an event the test caused
+        /** Change Data Capture delivery is normally sub-second; this is a bound on a failure, not
+            an expected wait, and nothing is polled while it elapses.
+        */
+        const LiveEventTimeout = 120s;
     }
 
-    constructor() : Test("SalesforcePubSubTest", "1.0") {
+    private {
+        #! The live Salesforce connection, if one is available
+        *SalesforceRestClient::SalesforceRestConnection sfconn;
+
+        #! Why the live tests are being skipped, if they are
+        *string live_skip_reason;
+    }
+
+    constructor() : Test("SalesforcePubSubTest", "1.0", \ARGV, MyOpts) {
         addTestCase("vendored proto", \testVendoredProto());
+        addTestCase("changed field bitmap decode", \testChangeEventFieldDecode());
         addTestCase("channel name mapping", \testChannelNameMapping());
         addTestCase("call metadata", \testCallMetadata());
         addTestCase("schema cache", \testSchemaCache());
@@ -625,7 +730,55 @@ public class SalesforcePubSubTest inherits QUnit::Test {
         addTestCase("cdc entity naming", \testCdcEntityNaming());
         addTestCase("cdc enablement registration", \testCdcEnablementRegistration());
 
+        addTestCase("live org identity and call metadata", \testLiveOrgIdentity());
+        addTestCase("live channel enumeration", \testLiveChannelEnumeration());
+        addTestCase("live topic and Avro schema", \testLiveTopicAndSchema());
+        addTestCase("live subscription health", \testLiveSubscriptionHealth());
+        addTestCase("live event delivery and replay resume", \testLiveEventDelivery());
+
+        setupConnection();
+
         set_return_value(main());
+    }
+
+    private usageIntern() {
+        TestReporter::usageIntern(OptionColumn);
+        printOption("-c,--connection=ARG", sprintf("Salesforce connection to run the live tests "
+            "against (default: %y)", DefaultConnectionName), OptionColumn);
+    }
+
+    #! Resolves the connection for the live tests, or records why there is none
+    /** A connection named explicitly with -c is a request to run the live tests, so failing to
+        load it is an error.  Falling back to the default is not, so anything that goes wrong there
+        is recorded as a skip reason: the offline suite is what CI runs and it must not depend on
+        an org being reachable.
+    */
+    private setupConnection() {
+        bool explicit = m_options.conn.val() || ENV.SALESFORCE_CONNECTION.val();
+        string conn_name = m_options.conn ?? ENV.SALESFORCE_CONNECTION ?? DefaultConnectionName;
+
+        AbstractConnection conn;
+        try {
+            conn = get_connection(conn_name);
+        } catch (hash<ExceptionInfo> ex) {
+            if (explicit) {
+                rethrow;
+            }
+            live_skip_reason = sprintf("no connection %y (%s); name one with --connection to run "
+                "the live tests", conn_name, ex.err);
+            return;
+        }
+
+        if (!(conn instanceof SalesforceRestClient::SalesforceRestConnection)) {
+            string desc = sprintf("connection %y is a %s; the live tests need a "
+                "SalesforceRestConnection", conn_name, conn.className());
+            if (explicit) {
+                throw "OPTION-ERROR", desc;
+            }
+            live_skip_reason = desc;
+            return;
+        }
+        sfconn = cast<SalesforceRestClient::SalesforceRestConnection>(conn);
     }
 
     #! The vendored proto is loaded from disk and describes the whole service
@@ -656,6 +809,55 @@ public class SalesforcePubSubTest inherits QUnit::Test {
         # the flow-control cap is the API's, so it has to match what the module enforces
         assertEq(100, MaxNumRequested);
         assertLt(MaxNumRequested + 1, DefaultNumRequested, "the default window is within the cap");
+    }
+
+    #! Changed-field bitmaps decode to the field names they select
+    /** The Pub/Sub API reports changed, nulled and diff fields as bitmaps over the channel's Avro
+        schema field order, unlike the CometD API, which sent names.  Getting the bit order wrong
+        yields plausible names for the wrong fields, so the ordering is pinned here against the
+        value a real org sent for a known change.
+    */
+    testChangeEventFieldDecode() {
+        AvroSchema schema(TestSchemaJson);
+
+        # bit N selects top-level field N: 0 ChangeEventHeader, 1 Name, 2 AnnualRevenue
+        assertEq(("Name",), decode_change_event_fields(schema, ("0x2",)));
+        assertEq(("Name", "AnnualRevenue"), decode_change_event_fields(schema, ("0x6",)));
+        assertEq(("ChangeEventHeader",), decode_change_event_fields(schema, ("0x1",)));
+        assertEq((), decode_change_event_fields(schema, ("0x0",)), "an empty bitmap selects none");
+        assertEq((), decode_change_event_fields(schema, NOTHING), "no bitmaps select none");
+        assertEq(("Name",), decode_change_event_fields(schema, "0x2"), "a bare string is a list");
+
+        # a multi-byte bitmap is one big-endian integer, not a sequence of per-byte bitmaps: this
+        # is the value a live org sent for an Account whose Name, AnnualRevenue and
+        # LastModifiedDate changed, at field positions 1, 12 and 22
+        list<string> wide_fields = ();
+        for (int i = 0; i < 24; ++i) {
+            wide_fields += sprintf('{"name": "f%d", "type": ["null", "string"], "default": null}',
+                i);
+        }
+        AvroSchema wide(sprintf('{"type": "record", "name": "Wide", "fields": [%s]}',
+            join(", ", wide_fields)));
+        assertEq(("f1", "f12", "f22"), decode_change_event_fields(wide, ("0x401002",)));
+
+        # a compound field names its parent by position and indexes the nested record
+        AvroSchema nested(NestedSchemaJson);
+        assertEq(("Billing.City",), decode_change_event_fields(nested, ("1-0x2",)));
+        assertEq(("Name", "Billing.Street", "Billing.City"),
+            decode_change_event_fields(nested, ("0x1", "1-0x3")));
+
+        # nothing is dropped when a bitmap cannot be decoded: a header reporting "0x40000" is worth
+        # more than one that silently claims nothing changed
+        assertEq(("0x40000",), decode_change_event_fields(schema, ("0x40000",)),
+            "a bit with no field behind it passes the whole entry through");
+        assertEq(("not-a-bitmap",), decode_change_event_fields(schema, ("not-a-bitmap",)));
+        assertEq(("99-0x2",), decode_change_event_fields(nested, ("99-0x2",)),
+            "a compound entry naming a field position that does not exist passes through");
+        assertEq(("0-0x2",), decode_change_event_fields(nested, ("0-0x2",)),
+            "a compound entry naming a field that is not a record passes through");
+        assertEq(("1-0x40",), decode_change_event_fields(nested, ("1-0x40",)),
+            "a compound entry whose child bitmap overruns the nested record passes through");
+        assertEq((), decode_change_event_fields(schema, (42,)), "a non-string entry is ignored");
     }
 
     #! An event entity name maps to its topic name; anything else is rejected
@@ -761,6 +963,7 @@ public class SalesforcePubSubTest inherits QUnit::Test {
                 "recordIds": ("001xx000003DGb2AAG", "001xx000003DGb3AAG"),
                 "changeType": "UPDATE",
                 "commitNumber": 11223344556677,
+                "changedFields": ("0x2",),
             },
             "Name": "Acme Corporation",
             "AnnualRevenue": NOTHING,
@@ -797,6 +1000,10 @@ public class SalesforcePubSubTest inherits QUnit::Test {
         assertEq(11223344556677, event.payload.ChangeEventHeader.commitNumber);
         assertEq("Acme Corporation", event.payload.Name);
         assertNothing(event.payload.AnnualRevenue, "a null union branch decodes to NOTHING");
+
+        # the API sent "0x2", a bitmap over the schema's field order; a consumer must never see one
+        assertEq(("Name",), event.payload.ChangeEventHeader.changedFields,
+            "the changed-field bitmap was decoded to field names before delivery");
 
         # the replay position advances to the delivered event
         assertEq(make_base64_string(replay_id), subscr.getLastReplayId());
@@ -1799,6 +2006,9 @@ public class SalesforcePubSubTest inherits QUnit::Test {
                 "recordIds": ("001xx000003DGb2AAG",),
                 "changeType": "UPDATE",
                 "commitNumber": 42,
+                # as the API sends it: bits 1 and 2 of the schema's field order, so Name and
+                # AnnualRevenue.  Consumers see the decoded names
+                "changedFields": ("0x6",),
             },
             "Name": "Acme Corporation",
             "AnnualRevenue": 1234.5,
@@ -1828,5 +2038,244 @@ public class SalesforcePubSubTest inherits QUnit::Test {
                 binary(sprintf("replay-%04d", first + i)), sprintf("event-%d", first + i));
         }
         return rv;
+    }
+
+    #
+    # Live org tests; skipped unless a Salesforce connection is available
+    #
+
+    #! The org identity the whole Pub/Sub layer depends on comes from the connection
+    /** The endpoint is one global host for every org, so an org that is not correctly identified
+        by the call metadata does not fail to connect -- it connects and answers about the wrong
+        org, or about none.  Everything else here rests on these three values.
+    */
+    private testLiveOrgIdentity() {
+        requireLiveConnection();
+
+        hash<PingInfo> ping = sfconn.ping(True);
+        assertTrue(ping.ok, sprintf("the connection pings: %s", ping.info));
+
+        SalesforceRestClient::SalesforceRestClientIo rest =
+            cast<SalesforceRestClient::SalesforceRestClientIo>(sfconn.getAsync());
+        # forces the login if one has not happened yet; the org identity is captured from it
+        rest.getApiClient();
+
+        assertTrue(rest.getInstanceUrl().val(), "the org instance URL is known after login");
+        assertTrue(rest.getOrgId().val(), "the org ID is known after login");
+
+        SalesforcePubSubClient client(sfconn);
+        assertEq(PubSubUrl, client.getUrl(), "the client reaches the global Pub/Sub endpoint");
+
+        hash<string, string> md = client.getCallMetadata();
+        assertTrue(md{MetadataAccessToken}.val(), "the access token is in the call metadata");
+        assertEq(rest.getInstanceUrl(), md{MetadataInstanceUrl},
+            "the instance URL in the call metadata is the org's");
+        assertEq(rest.getOrgId(), md{MetadataTenantId},
+            "the tenant ID in the call metadata is the org's");
+    }
+
+    #! The org's real channel list reaches the provider tree through describeGlobal
+    private testLiveChannelEnumeration() {
+        requireLiveConnection();
+
+        AbstractDataProvider events = sfconn.getDataProvider().getChildProviderEx(PubSubChildName);
+        assertEq(PubSubChildName, events.getName());
+
+        *list<string> names = events.getChildProviderNames();
+        assertTrue(names.size() > 0, "the org exposes at least one Pub/Sub channel");
+        # describeGlobal lists every sobject; only the event entities may appear as children
+        assertEq((), (map $1, names, !is_pubsub_channel($1)),
+            "every child is a subscribable channel");
+
+        *list<hash<DataProviderSummaryInfo>> summary = events.getChildProviderSummaryInfo();
+        assertEq(names.size(), summary.size(), "the summary covers every channel");
+        assertEq(names, (map $1.name, summary), "the summary names match the child names");
+
+        AbstractDataProvider child = events.getChildProviderEx(names[0]);
+        assertTrue(child instanceof SalesforcePubSubEventDataProvider);
+        assertEq(get_topic_name(names[0]),
+            cast<SalesforcePubSubEventDataProvider>(child).getTopicName());
+
+        assertThrows("INVALID-CHILD-PROVIDER", \events.getChildProviderEx(),
+            "NotAChannel__nonexistent");
+    }
+
+    #! GetTopic and GetSchema answer for a real channel, and the schema decodes as Avro
+    private testLiveTopicAndSchema() {
+        requireLiveConnection();
+
+        SalesforcePubSubClient client(sfconn);
+        string topic = requireLiveCdcChannel(client);
+
+        hash<auto> info = client.getTopic(topic);
+        assertEq(topic, info.topic_name);
+        assertTrue(info.schema_id.val(), "the org reports a schema ID for the channel");
+        # the tenant GUID identifies the org to the Pub/Sub service and must name this org
+        assertTrue(info.tenant_guid.val(), "the org reports a tenant GUID");
+
+        AvroSchema schema = client.getSchema(info.schema_id);
+        assertEq(schema, client.getSchema(info.schema_id),
+            "a second lookup is served from the cache, not a second GetSchema");
+        assertEq(1, client.getSchemaCacheSize());
+
+        # a Change Data Capture payload always leads with ChangeEventHeader; this is the real
+        # schema from the org, so it is also the proof that the builtin avro module parses it
+        AbstractDataProviderType t = AvroUtil::AvroTypeHelper::schemaToDataType(schema);
+        *hash<string, AbstractDataField> fields = t.getFields();
+        assertTrue(fields.hasKey("ChangeEventHeader"),
+            "the derived type carries the change event header");
+        assertTrue(fields.size() > 1, "the derived type carries the entity's own fields");
+
+        # the provider derives its event type from that same schema, so a Qog bound to this
+        # channel shows the org's real field names rather than an untyped hash
+        AbstractDataProvider chan = sfconn.getDataProvider()
+            .getChildProviderEx(PubSubChildName).getChildProviderEx(LiveChannel);
+        hash<string, hash<DataProviderMessageInfo>> event_types = chan.getEventTypes();
+        *hash<string, AbstractDataField> payload_fields =
+            event_types{EVENT_SALESFORCE_PUBSUB_EVENT}.type.getFields().payload.getType().getFields();
+        assertTrue(payload_fields.hasKey("ChangeEventHeader"),
+            "the event type's payload came from the channel's Avro schema");
+    }
+
+    #! A subscription to a real channel establishes over TLS and arms nothing while healthy
+    private testLiveSubscriptionHealth() {
+        requireLiveConnection();
+
+        SalesforcePubSubClient client(sfconn);
+        string topic = requireLiveCdcChannel(client);
+
+        EventSink sink();
+        SalesforcePubSubSubscription subscr = client.subscribe(topic, sink.getOptions());
+        subscr.start();
+        on_exit subscr.stop();
+
+        assertTrue(subscr.waitForConnected(60s), "the subscription established a stream");
+        assertTrue(subscr.isActive());
+        assertEq(topic, subscr.getTopicName());
+        assertNothing(sink.getFailure(), "no failure was reported");
+
+        hash<auto> stats = subscr.getStats();
+        assertEq(1, stats.fetch_requests, "only the opening FetchRequest was sent");
+        assertEq(0, stats.reconnects, "a healthy subscription does not reconnect");
+        assertEq(0, stats.backstops, "the flow-control backstop did not fire");
+        assertFalse(stats.backstop_armed, "a healthy subscription arms no timer");
+        assertEq(DefaultNumRequested, stats.outstanding, "the opening request granted the window");
+
+        subscr.stop();
+        assertFalse(subscr.isActive(), "stop() is terminal");
+    }
+
+    #! A record written over REST arrives as a CDC event, and a replay ID resumes after it
+    /** This is the end-to-end path a scripted server cannot prove: the org's own Avro encoding,
+        its change types, and a replay ID that Salesforce -- not the test -- issued.
+    */
+    private testLiveEventDelivery() {
+        requireLiveConnection();
+
+        SalesforcePubSubClient client(sfconn);
+        string topic = requireLiveCdcChannel(client);
+        RestClientIo::RestClientIo api =
+            cast<SalesforceRestClient::SalesforceRestClientIo>(sfconn.getAsync()).getApiClient();
+
+        # subscribe at the tip before writing anything, so every event this test sees is one it
+        # caused; LATEST is the default preset
+        EventSink sink();
+        SalesforcePubSubSubscription subscr = client.subscribe(topic, sink.getOptions());
+        subscr.start();
+        on_exit subscr.stop();
+        assertTrue(subscr.waitForConnected(60s), "the subscription established a stream");
+
+        string name = LiveAccountPrefix + get_random_string(8);
+        string id = api.restPost("sobjects/" + LiveEntity, {"Name": name}).body.id;
+        # the delete below is the last step of the test, but it must also happen if an assertion
+        # above it throws, or the org keeps the record
+        on_exit deleteLiveRecordQuietly(api, id);
+
+        string updated_name = name + "_UPD";
+        api.restPatch(sprintf("sobjects/%s/%s", LiveEntity, id), {"Name": updated_name});
+        api.restDel(sprintf("sobjects/%s/%s", LiveEntity, id));
+
+        assertTrue(sink.waitForRecordEvents(id, 3, LiveEventTimeout),
+            sprintf("the create, update and delete of %y were all delivered", name));
+
+        list<hash<auto>> evs = sink.getEventsForRecord(id);
+        assertEq((ChangeTypeCreate, ChangeTypeUpdate, ChangeTypeDelete),
+            (map $1.payload.ChangeEventHeader.changeType, evs)[0..2],
+            "the change types arrived in the order the changes were made");
+        assertEq(topic, evs[0].channel);
+        # the value read back came out of the org's Avro encoding, so this is the round trip
+        assertEq(name, evs[0].payload.Name, "the created name survived the Avro decode");
+        assertEq(updated_name, evs[1].payload.Name, "the update carried the new name");
+
+        # the org sent a bitmap over its own schema's field order, not the field names the CometD
+        # API sent; the module decodes it against that schema before delivery, and this is the
+        # only place the two can be checked against each other on real data
+        *softlist<auto> changed = evs[1].payload.ChangeEventHeader.changedFields;
+        assertTrue(inlist("Name", changed),
+            sprintf("the update reports Name as a changed field; got %y", changed));
+        assertEq((), (map $1, changed, $1 =~ /^0x/),
+            "no raw bitmap reached the consumer");
+
+        # the Pub/Sub replay ID is opaque bytes reported base64, unlike the CometD API's
+        # monotonic integer; resuming from the create must deliver what followed it and no more
+        string create_replay_id = evs[0].event.replayId;
+        assertTrue(create_replay_id.val(), "the delivered event carries a replay ID");
+        subscr.stop();
+
+        EventSink resumed();
+        SalesforcePubSubSubscription resub = client.subscribe(topic, resumed.getOptions() + {
+            "replay_id": create_replay_id,
+        });
+        resub.start();
+        on_exit resub.stop();
+
+        assertTrue(resumed.waitForRecordEvents(id, 2, LiveEventTimeout),
+            "resuming after the create delivered the update and the delete");
+        assertEq((ChangeTypeUpdate, ChangeTypeDelete), resumed.getRecordChangeTypes(id)[0..1],
+            "the resumed subscription started after the create rather than at the tip");
+        assertFalse(inlist(ChangeTypeCreate, resumed.getRecordChangeTypes(id)),
+            "the event the replay ID names was not re-delivered");
+    }
+
+    #! Skips the calling test unless a live Salesforce connection is available
+    private requireLiveConnection() {
+        if (!sfconn) {
+            testSkip(live_skip_reason ?? "no Salesforce connection");
+        }
+    }
+
+    #! Returns the live CDC topic name, skipping the calling test if the org will not serve it
+    /** A Change Data Capture entity that was never selected in Setup produces no \c TopicInfo at
+        all -- \c GetTopic answers \c NOT_FOUND -- so that is what "not enabled" looks like here.
+        Enabling it is not done: it changes org configuration and starts a 72-hour retention
+        stream, which a test suite has no business doing on someone's org.
+    */
+    private string requireLiveCdcChannel(SalesforcePubSubClient client) {
+        string topic = get_topic_name(LiveChannel);
+        try {
+            hash<auto> info = client.getTopic(topic);
+            if (exists info.can_subscribe && !info.can_subscribe) {
+                testSkip(sprintf("the org reports that %y cannot be subscribed to; check that the "
+                    "connection's user has the \"View All Data\" or \"View All Records\" "
+                    "permission for %y", topic, LiveEntity));
+            }
+        } catch (hash<ExceptionInfo> ex) {
+            if (ex.arg.status_code != GRPC_STATUS_NOT_FOUND) {
+                rethrow;
+            }
+            testSkip(sprintf("Change Data Capture is not enabled for %y in this org, so %y carries "
+                "nothing; enable it in Setup -> Integrations -> Change Data Capture, or with the "
+                "\"enable-change-data-capture\" action, to run the live tests", LiveEntity, topic));
+        }
+        return topic;
+    }
+
+    #! Deletes a live test record, ignoring the failure if it is already gone
+    private deleteLiveRecordQuietly(RestClientIo::RestClientIo api, string id) {
+        try {
+            api.restDel(sprintf("sobjects/%s/%s", LiveEntity, id));
+        } catch (hash<ExceptionInfo> ex) {
+            # the test deletes the record itself on the happy path, so this is the expected case
+        }
     }
 }

@@ -178,6 +178,26 @@ no change of shape. The one unavoidable difference is that the Pub/Sub replay ID
 rather than a monotonic integer, so `event.replayId` is a base64 string and must be treated as an
 opaque token.
 
+### The changed-field bitmaps are decoded, not passed through
+
+One difference would otherwise have broken every ported mapper silently.
+`ChangeEventHeader.changedFields`, `nulledFields` and `diffFields` do not carry field *names* on the
+Pub/Sub API the way they did on CometD: each entry is a big-endian hex integer over the channel's
+Avro schema field order — bit N selects field N — so an `Account` update arrives as `"0x401002"`,
+meaning `Name` (1), `AnnualRevenue` (12) and `LastModifiedDate` (22). A compound field adds an entry
+of the form `"<parent index>-<child bitmap>"` indexing the nested record.
+
+`SalesforcePubSubSubscription` decodes them to names before delivery, dotting the nested ones
+(`BillingAddress.City`). The decode belongs there and nowhere else: it needs the channel's Avro
+schema, which the delivery path already holds to decode the payload at all, so doing it once here
+costs a bit scan and saves every consumer from fetching a schema to interpret a header. It is also
+what makes the `updated-record` action's promise — that the fields which changed are known without
+re-reading the record — true rather than aspirational.
+
+An entry that cannot be decoded is passed through unchanged rather than dropped: a bit with no field
+behind it means the bitmap and the schema disagree, and a consumer that sees `"0x40000"` can tell
+something is wrong, where an empty list would assert that nothing changed.
+
 ### The vendored proto is a file, not a string constant
 
 `pubsub_api.proto` is vendored verbatim from `forcedotcom/pub-sub-api` under **CC0-1.0** and loaded
@@ -216,3 +236,18 @@ a replenishment triggered by a reported credit level, or the backstop deadline.
 The REST round trip behind channel enumeration is substituted (the `describeGlobal` response is
 scripted); everything below it — the channel filter, the child names, the summary info and the child
 providers — is the real implementation.
+
+### The live mode
+
+`-c`/`--connection` (default `salesforce`, also read from `SALESFORCE_CONNECTION`) runs the
+`live ...` cases against a real org; without a reachable one they skip, so this is what CI runs and
+the offline suite above stands alone. Naming a connection explicitly makes a load failure an error
+rather than a skip, so a live run cannot silently degrade into an offline one.
+
+The live cases exist for what a scripted server cannot establish: that the org answers `GetTopic`
+and `GetSchema` for a real channel, that a real Avro schema parses and yields the entity's own field
+names, and that a record written over REST comes back as a Change Data Capture event whose
+Salesforce-issued replay ID resumes after it. They write one Account and delete it again on the way
+out, and change no org configuration — a channel whose entity has not been selected in Setup is a
+skip with instructions, never an implicit enable.
+
