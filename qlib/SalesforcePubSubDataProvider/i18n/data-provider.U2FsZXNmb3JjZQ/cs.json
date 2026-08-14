@@ -1,0 +1,633 @@
+{
+  "schema_version": 1,
+  "locales": {
+    "cs": {
+      "messages": {
+        "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.desc": {
+          "source": "Enables **Change Data Capture** for a Salesforce object, so that its creates, updates, deletes and undeletes can be subscribed to through the **Pub/Sub API**.\n\nChange Data Capture must be switched on per object before a subscription delivers anything, and a subscription to an object that was never enabled succeeds and then stays silent -- so this is usually run **once**, when an integration is set up, rather than as part of a flow.\n\nEnabling an object that is already enabled is not an error.\n\n**This changes org configuration.** It starts a 72-hour retention stream for the object, and the number of objects an org may select depends on its edition and add-ons. The connection's user needs permission to modify metadata.",
+          "message": "Povoluje **Change Data Capture** pro objekt Salesforce, takže k jeho vytvoření, aktualizaci, odstranění a obnovení lze přihlásit odběr prostřednictvím **Pub/Sub API**.\n\nFunkce Change Data Capture musí být zapnuta pro každý objekt zvlášť, než odběr začne cokoliv doručovat. Odběr objektu, který nebyl nikdy povolen, proběhne úspěšně a poté zůstane tichý – proto se toto obvykle spouští **jednou** při nastavení integrace, nikoli jako součást toku.\n\nPovolení objektu, který je již povolen, není chyba.\n\n**Tímto se změní konfigurace organizace.** Spustí se stream s uchováváním po dobu 72 hodin pro daný objekt a počet objektů, které může organizace vybrat, závisí na její edici a doplňcích. Uživatel připojení vyžaduje oprávnění k úpravě metadat."
+        },
+        "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.display_name": {
+          "source": "Enable Change Data Capture",
+          "message": "Povolit Change Data Capture"
+        },
+        "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.desc": {
+          "source": "The **change event** to enable Change Data Capture for, named after the object it reports on with a `ChangeEvent` suffix: `AccountChangeEvent` for `Account`, `CaseChangeEvent` for `Case`, and so on.  A custom object uses `__ChangeEvent`, for example `MyObject__ChangeEvent`.\n\nEnabling an object that is already enabled is **not** an error; the response reports it through `already_enabled`.\n\n**Enabling Change Data Capture is not free of side effects**: it starts a 72-hour retention stream for the object, and the number of objects an org may select depends on its edition and add-ons.",
+          "message": "**Událost změny**, pro kterou chcete povolit Change Data Capture, pojmenovaná podle objektu, o kterém podává zprávy, s příponou `ChangeEvent`: `AccountChangeEvent` pro `Account`, `CaseChangeEvent` pro `Case` a tak dále. Vlastní objekt používá `__ChangeEvent`, například `MyObject__ChangeEvent`.\n\nPovolení objektu, který je již povolen, **není** chyba; odpověď to hlásí prostřednictvím `already_enabled`.\n\n**Povolení Change Data Capture není bez vedlejších účinků**: spustí stream s uchováváním po dobu 72 hodin pro daný objekt a počet objektů, které může organizace vybrat, závisí na její edici a doplňcích."
+        },
+        "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.display_name": {
+          "source": "Change Event",
+          "message": "Událost změny"
+        },
+        "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.short_desc": {
+          "source": "The change event to enable",
+          "message": "Událost změny, kterou chcete povolit"
+        },
+        "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.short_desc": {
+          "source": "Enable Change Data Capture for a Salesforce object",
+          "message": "Povolit Change Data Capture pro objekt Salesforce"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.desc": {
+          "source": "Reacts when a Salesforce **contact** is created, using the **Pub/Sub API** Change Data Capture stream.\n\nThis is the `new-record` action fixed to the `Contact` object. Delivery is real time rather than polled, and the subscription resumes from its last replay position after a reconnect.\n\nChange Data Capture must be enabled for `Contact` in **Setup -> Integrations -> Change Data Capture**",
+          "message": "Reaguje na vytvoření **kontaktu** v Salesforce pomocí streamu Change Data Capture v **Pub/Sub API**.\n\nToto je akce `new-record` pevně spojená s objektem `Contact`. Doručování probíhá v reálném čase (nikoli dotazováním) a odběr po opětovném připojení pokračuje od své poslední pozice přehrávání.\n\nFunkce Change Data Capture musí být povolena pro `Contact` v **Setup -> Integrations -> Change Data Capture**"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.display_name": {
+          "source": "New Salesforce Contact",
+          "message": "Nový kontakt v Salesforce"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.desc": {
+          "source": "If `True`, and the org reports that this **Change Data Capture** channel cannot be subscribed to because the object was never selected, switch it on and continue, rather than failing.\n\nThis exists because a subscription to an object that is not enabled succeeds and then delivers nothing, which is indistinguishable from an idle org. The default is `False`: subscribing to events should not quietly change org configuration.\n\n**This changes org configuration.** It starts a 72-hour retention stream for the object, and the number of objects an org may select depends on its edition and add-ons. The connection's user needs permission to modify metadata. For a one-time, auditable step, use the `enable-change-data-capture` action instead.",
+          "message": "Pokud platí `True` a organizace hlásí, že k tomuto kanálu **Change Data Capture** nelze přihlásit odběr, protože objekt nebyl nikdy vybrán, zapněte jej a pokračujte, místo aby došlo k selhání.\n\nTato možnost existuje, protože odběr objektu, který není povolen, proběhne úspěšně a poté nic nedoručí, což je nerozeznatelné od neaktivní organizace. Výchozí hodnota je `False`: odběr událostí by neměl tichým způsobem měnit konfiguraci organizace.\n\n**Tímto se změní konfigurace organizace.** Spustí se stream s uchováváním po dobu 72 hodin pro daný objekt a počet objektů, které může organizace vybrat, závisí na její edici a doplňcích. Uživatel připojení vyžaduje oprávnění k úpravě metadat. Pro jednorázový, auditovatelný krok použijte místo toho akci `enable-change-data-capture`."
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.display_name": {
+          "source": "Enable Change Data Capture",
+          "message": "Povolit Change Data Capture"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.short_desc": {
+          "source": "Switch Change Data Capture on for the object if it is not already",
+          "message": "Zapnout Change Data Capture pro objekt, pokud ještě není zapnuto"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.bnVtX3JlcXVlc3RlZA.desc": {
+          "source": "How many events the client keeps requested from the server at a time; between 1 and 100, which is the maximum the Pub/Sub API accepts in a single `FetchRequest`",
+          "message": "Kolik událostí klient od serveru požaduje najednou; mezi 1 a 100, což je maximum, které Pub/Sub API akceptuje v jediném `FetchRequest`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.bnVtX3JlcXVlc3RlZA.display_name": {
+          "source": "Flow Control Window",
+          "message": "Okno řízení toku"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.bnVtX3JlcXVlc3RlZA.short_desc": {
+          "source": "How many events the client keeps requested",
+          "message": "Kolik událostí klient udržuje požadovaných"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X2lk.desc": {
+          "source": "The base64-encoded replay ID to resume after, as reported in the `event.replayId` field of a delivered event.  Implies the `CUSTOM` replay preset",
+          "message": "ID přehrávání v kódování base64, po kterém má odběr pokračovat, jak je uvedeno v poli `event.replayId` doručené události. Implikuje předvolbu přehrávání `CUSTOM`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X2lk.display_name": {
+          "source": "Replay ID",
+          "message": "ID přehrávání"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X2lk.short_desc": {
+          "source": "The base64 replay ID to resume after",
+          "message": "ID přehrávání v kódování base64, po kterém se má pokračovat"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkNVU1RPTQ.desc": {
+          "source": "Start immediately after the event identified by `replay_id`",
+          "message": "Začít ihned po události identifikované pomocí `replay_id`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkNVU1RPTQ.display_name": {
+          "source": "Custom",
+          "message": "Vlastní"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkVBUkxJRVNU.desc": {
+          "source": "Start at the oldest event still retained in the stream",
+          "message": "Začít od nejstarší události stále uchovávané ve streamu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkVBUkxJRVNU.display_name": {
+          "source": "Earliest",
+          "message": "Nejstarší"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkxBVEVTVA.desc": {
+          "source": "Start at the tip of the stream; only events published after the subscription starts are delivered",
+          "message": "Začít na konci streamu; doručeny budou pouze události publikované po spuštění odběru"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkxBVEVTVA.display_name": {
+          "source": "Latest",
+          "message": "Nejnovější"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.desc": {
+          "source": "Where the subscription starts: `LATEST` (the tip of the stream, the default), `EARLIEST` (the oldest retained event), or `CUSTOM` (after the event identified by `replay_id`).\n\nSalesforce retains replay IDs for **72 hours**",
+          "message": "Kde odběr začíná: `LATEST` (konec streamu, výchozí), `EARLIEST` (nejstarší uchovávaná událost) nebo `CUSTOM` (po události identifikované pomocí `replay_id`).\n\nSalesforce uchovává ID přehrávání po dobu **72 hodin**"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.display_name": {
+          "source": "Replay Preset",
+          "message": "Předvolba přehrávání"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.short_desc": {
+          "source": "Where in the event stream the subscription starts",
+          "message": "Kde ve streamu událostí odběr začíná"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.dG9waWNfbmFtZQ.desc": {
+          "source": "The Pub/Sub topic name, overriding the one derived from this provider's name.  Set this to subscribe to a **custom channel**, which `describeGlobal` does not list; for example `/event/MyChannel__chn`",
+          "message": "Název tématu Pub/Sub, který přepíše název odvozený od názvu tohoto poskytovatele. Nastavte toto pro odběr **vlastního kanálu**, který `describeGlobal` neuvádí; například `/event/MyChannel__chn`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.dG9waWNfbmFtZQ.display_name": {
+          "source": "Topic Name",
+          "message": "Název tématu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.dG9waWNfbmFtZQ.short_desc": {
+          "source": "The Pub/Sub topic name to subscribe to",
+          "message": "Název tématu Pub/Sub k odběru"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.short_desc": {
+          "source": "React when a contact is created",
+          "message": "Reagovat na vytvoření kontaktu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.desc": {
+          "source": "Reacts when a Salesforce **lead** is created, using the **Pub/Sub API** Change Data Capture stream.\n\nThis is the `new-record` action fixed to the `Lead` object. Delivery is real time rather than polled, and the subscription resumes from its last replay position after a reconnect.\n\nChange Data Capture must be enabled for `Lead` in **Setup -> Integrations -> Change Data Capture**",
+          "message": "Reaguje na vytvoření **zájemce (lead)** v Salesforce pomocí streamu Change Data Capture v **Pub/Sub API**.\n\nToto je akce `new-record` pevně spojená s objektem `Lead`. Doručování probíhá v reálném čase (nikoli dotazováním) a odběr po opětovném připojení pokračuje od své poslední pozice přehrávání.\n\nFunkce Change Data Capture musí být povolena pro `Lead` v **Setup -> Integrations -> Change Data Capture**"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.display_name": {
+          "source": "New Salesforce Lead",
+          "message": "Nový zájemce v Salesforce"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.desc": {
+          "source": "If `True`, and the org reports that this **Change Data Capture** channel cannot be subscribed to because the object was never selected, switch it on and continue, rather than failing.\n\nThis exists because a subscription to an object that is not enabled succeeds and then delivers nothing, which is indistinguishable from an idle org. The default is `False`: subscribing to events should not quietly change org configuration.\n\n**This changes org configuration.** It starts a 72-hour retention stream for the object, and the number of objects an org may select depends on its edition and add-ons. The connection's user needs permission to modify metadata. For a one-time, auditable step, use the `enable-change-data-capture` action instead.",
+          "message": "Pokud platí `True` a organizace hlásí, že k tomuto kanálu **Change Data Capture** nelze přihlásit odběr, protože objekt nebyl nikdy vybrán, zapněte jej a pokračujte, místo aby došlo k selhání.\n\nTato možnost existuje, protože odběr objektu, který není povolen, proběhne úspěšně a poté nic nedoručí, což je nerozeznatelné od neaktivní organizace. Výchozí hodnota je `False`: odběr událostí by neměl tichým způsobem měnit konfiguraci organizace.\n\n**Tímto se změní konfigurace organizace.** Spustí se stream s uchováváním po dobu 72 hodin pro daný objekt a počet objektů, které může organizace vybrat, závisí na její edici a doplňcích. Uživatel připojení vyžaduje oprávnění k úpravě metadat. Pro jednorázový, auditovatelný krok použijte místo toho akci `enable-change-data-capture`."
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.display_name": {
+          "source": "Enable Change Data Capture",
+          "message": "Povolit Change Data Capture"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.short_desc": {
+          "source": "Switch Change Data Capture on for the object if it is not already",
+          "message": "Zapnout Change Data Capture pro objekt, pokud ještě není zapnuto"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.bnVtX3JlcXVlc3RlZA.desc": {
+          "source": "How many events the client keeps requested from the server at a time; between 1 and 100, which is the maximum the Pub/Sub API accepts in a single `FetchRequest`",
+          "message": "Kolik událostí klient od serveru požaduje najednou; mezi 1 a 100, což je maximum, které Pub/Sub API akceptuje v jediném `FetchRequest`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.bnVtX3JlcXVlc3RlZA.display_name": {
+          "source": "Flow Control Window",
+          "message": "Okno řízení toku"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.bnVtX3JlcXVlc3RlZA.short_desc": {
+          "source": "How many events the client keeps requested",
+          "message": "Kolik událostí klient udržuje požadovaných"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X2lk.desc": {
+          "source": "The base64-encoded replay ID to resume after, as reported in the `event.replayId` field of a delivered event.  Implies the `CUSTOM` replay preset",
+          "message": "ID přehrávání v kódování base64, po kterém má odběr pokračovat, jak je uvedeno v poli `event.replayId` doručené události. Implikuje předvolbu přehrávání `CUSTOM`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X2lk.display_name": {
+          "source": "Replay ID",
+          "message": "ID přehrávání"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X2lk.short_desc": {
+          "source": "The base64 replay ID to resume after",
+          "message": "ID přehrávání v kódování base64, po kterém se má pokračovat"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkNVU1RPTQ.desc": {
+          "source": "Start immediately after the event identified by `replay_id`",
+          "message": "Začít ihned po události identifikované pomocí `replay_id`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkNVU1RPTQ.display_name": {
+          "source": "Custom",
+          "message": "Vlastní"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkVBUkxJRVNU.desc": {
+          "source": "Start at the oldest event still retained in the stream",
+          "message": "Začít od nejstarší události stále uchovávané ve streamu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkVBUkxJRVNU.display_name": {
+          "source": "Earliest",
+          "message": "Nejstarší"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkxBVEVTVA.desc": {
+          "source": "Start at the tip of the stream; only events published after the subscription starts are delivered",
+          "message": "Začít na konci streamu; doručeny budou pouze události publikované po spuštění odběru"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkxBVEVTVA.display_name": {
+          "source": "Latest",
+          "message": "Nejnovější"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.desc": {
+          "source": "Where the subscription starts: `LATEST` (the tip of the stream, the default), `EARLIEST` (the oldest retained event), or `CUSTOM` (after the event identified by `replay_id`).\n\nSalesforce retains replay IDs for **72 hours**",
+          "message": "Kde odběr začíná: `LATEST` (konec streamu, výchozí), `EARLIEST` (nejstarší uchovávaná událost) nebo `CUSTOM` (po události identifikované pomocí `replay_id`).\n\nSalesforce uchovává ID přehrávání po dobu **72 hodin**"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.display_name": {
+          "source": "Replay Preset",
+          "message": "Předvolba přehrávání"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.short_desc": {
+          "source": "Where in the event stream the subscription starts",
+          "message": "Kde ve streamu událostí odběr začíná"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.dG9waWNfbmFtZQ.desc": {
+          "source": "The Pub/Sub topic name, overriding the one derived from this provider's name.  Set this to subscribe to a **custom channel**, which `describeGlobal` does not list; for example `/event/MyChannel__chn`",
+          "message": "Název tématu Pub/Sub, který přepíše název odvozený od názvu tohoto poskytovatele. Nastavte toto pro odběr **vlastního kanálu**, který `describeGlobal` neuvádí; například `/event/MyChannel__chn`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.dG9waWNfbmFtZQ.display_name": {
+          "source": "Topic Name",
+          "message": "Název tématu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.dG9waWNfbmFtZQ.short_desc": {
+          "source": "The Pub/Sub topic name to subscribe to",
+          "message": "Název tématu Pub/Sub k odběru"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.short_desc": {
+          "source": "React when a lead is created",
+          "message": "Reagovat na vytvoření zájemce"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.desc": {
+          "source": "Reacts when a record of the given Salesforce object is **created**, using the **Pub/Sub API** Change Data Capture stream.\n\nDelivery is real time rather than polled, and the subscription tracks its replay position, so a connection lost and re-established resumes after the last event delivered rather than skipping the records created while it was down. Salesforce retains replay IDs for **72 hours**.\n\nA `GAP_CREATE` event, which reports a create that Salesforce could not deliver in full, is delivered by this action as well, so a create is never silently lost.\n\nChange Data Capture must be enabled for the object in **Setup -> Integrations -> Change Data Capture**",
+          "message": "Reaguje na **vytvoření** záznamu daného objektu Salesforce pomocí streamu Change Data Capture v **Pub/Sub API**.\n\nDoručování probíhá v reálném čase (nikoli dotazováním) a odběr sleduje svou pozici přehrávání, takže po ztrátě a opětovném navázání spojení pokračuje od poslední doručené události, místo aby přeskočil záznamy vytvořené během výpadku. Salesforce uchovává ID přehrávání po dobu **72 hodin**.\n\nUdálost `GAP_CREATE`, která hlásí vytvoření, které Salesforce nemohl doručit v plném rozsahu, je touto akcí doručena také, takže vytvoření se nikdy ticho neztratí.\n\nFunkce Change Data Capture musí být pro daný objekt povolena v **Setup -> Integrations -> Change Data Capture**"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.display_name": {
+          "source": "New Salesforce Record",
+          "message": "Nový záznam v Salesforce"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.Y2hhbm5lbA.desc": {
+          "source": "The Change Data Capture channel to subscribe to, named after the object it reports on: `AccountChangeEvent` for `Account`, `OpportunityChangeEvent` for `Opportunity`, and so on.\n\nChange Data Capture must be enabled for the object in **Setup -> Integrations -> Change Data Capture**",
+          "message": "Kanál Change Data Capture k odběru, pojmenovaný podle objektu, o kterém podává zprávy: `AccountChangeEvent` pro `Account`, `OpportunityChangeEvent` pro `Opportunity` a tak dále.\n\nFunkce Change Data Capture musí být pro daný objekt povolena v **Setup -> Integrations -> Change Data Capture**"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.Y2hhbm5lbA.display_name": {
+          "source": "Object",
+          "message": "Objekt"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.Y2hhbm5lbA.short_desc": {
+          "source": "The Salesforce object to watch",
+          "message": "Objekt Salesforce ke sledování"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.desc": {
+          "source": "If `True`, and the org reports that this **Change Data Capture** channel cannot be subscribed to because the object was never selected, switch it on and continue, rather than failing.\n\nThis exists because a subscription to an object that is not enabled succeeds and then delivers nothing, which is indistinguishable from an idle org. The default is `False`: subscribing to events should not quietly change org configuration.\n\n**This changes org configuration.** It starts a 72-hour retention stream for the object, and the number of objects an org may select depends on its edition and add-ons. The connection's user needs permission to modify metadata. For a one-time, auditable step, use the `enable-change-data-capture` action instead.",
+          "message": "Pokud platí `True` a organizace hlásí, že k tomuto kanálu **Change Data Capture** nelze přihlásit odběr, protože objekt nebyl nikdy vybrán, zapněte jej a pokračujte, místo aby došlo k selhání.\n\nTato možnost existuje, protože odběr objektu, který není povolen, proběhne úspěšně a poté nic nedoručí, což je nerozeznatelné od neaktivní organizace. Výchozí hodnota je `False`: odběr událostí by neměl tichým způsobem měnit konfiguraci organizace.\n\n**Tímto se změní konfigurace organizace.** Spustí se stream s uchováváním po dobu 72 hodin pro daný objekt a počet objektů, které může organizace vybrat, závisí na její edici a doplňcích. Uživatel připojení vyžaduje oprávnění k úpravě metadat. Pro jednorázový, auditovatelný krok použijte místo toho akci `enable-change-data-capture`."
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.display_name": {
+          "source": "Enable Change Data Capture",
+          "message": "Povolit Change Data Capture"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.short_desc": {
+          "source": "Switch Change Data Capture on for the object if it is not already",
+          "message": "Zapnout Change Data Capture pro objekt, pokud ještě není zapnuto"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.bnVtX3JlcXVlc3RlZA.desc": {
+          "source": "How many events the client keeps requested from the server at a time; between 1 and 100, which is the maximum the Pub/Sub API accepts in a single `FetchRequest`",
+          "message": "Kolik událostí klient od serveru požaduje najednou; mezi 1 a 100, což je maximum, které Pub/Sub API akceptuje v jediném `FetchRequest`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.bnVtX3JlcXVlc3RlZA.display_name": {
+          "source": "Flow Control Window",
+          "message": "Okno řízení toku"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.bnVtX3JlcXVlc3RlZA.short_desc": {
+          "source": "How many events the client keeps requested",
+          "message": "Kolik událostí klient udržuje požadovaných"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X2lk.desc": {
+          "source": "The base64-encoded replay ID to resume after, as reported in the `event.replayId` field of a delivered event.  Implies the `CUSTOM` replay preset",
+          "message": "ID přehrávání v kódování base64, po kterém má odběr pokračovat, jak je uvedeno v poli `event.replayId` doručené události. Implikuje předvolbu přehrávání `CUSTOM`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X2lk.display_name": {
+          "source": "Replay ID",
+          "message": "ID přehrávání"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X2lk.short_desc": {
+          "source": "The base64 replay ID to resume after",
+          "message": "ID přehrávání v kódování base64, po kterém se má pokračovat"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkNVU1RPTQ.desc": {
+          "source": "Start immediately after the event identified by `replay_id`",
+          "message": "Začít ihned po události identifikované pomocí `replay_id`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkNVU1RPTQ.display_name": {
+          "source": "Custom",
+          "message": "Vlastní"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkVBUkxJRVNU.desc": {
+          "source": "Start at the oldest event still retained in the stream",
+          "message": "Začít od nejstarší události stále uchovávané ve streamu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkVBUkxJRVNU.display_name": {
+          "source": "Earliest",
+          "message": "Nejstarší"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkxBVEVTVA.desc": {
+          "source": "Start at the tip of the stream; only events published after the subscription starts are delivered",
+          "message": "Začít na konci streamu; doručeny budou pouze události publikované po spuštění odběru"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkxBVEVTVA.display_name": {
+          "source": "Latest",
+          "message": "Nejnovější"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.desc": {
+          "source": "Where the subscription starts: `LATEST` (the tip of the stream, the default), `EARLIEST` (the oldest retained event), or `CUSTOM` (after the event identified by `replay_id`).\n\nSalesforce retains replay IDs for **72 hours**",
+          "message": "Kde odběr začíná: `LATEST` (konec streamu, výchozí), `EARLIEST` (nejstarší uchovávaná událost) nebo `CUSTOM` (po události identifikované pomocí `replay_id`).\n\nSalesforce uchovává ID přehrávání po dobu **72 hodin**"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.display_name": {
+          "source": "Replay Preset",
+          "message": "Předvolba přehrávání"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.short_desc": {
+          "source": "Where in the event stream the subscription starts",
+          "message": "Kde ve streamu událostí odběr začíná"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.dG9waWNfbmFtZQ.desc": {
+          "source": "The Pub/Sub topic name, overriding the one derived from this provider's name.  Set this to subscribe to a **custom channel**, which `describeGlobal` does not list; for example `/event/MyChannel__chn`",
+          "message": "Název tématu Pub/Sub, který přepíše název odvozený od názvu tohoto poskytovatele. Nastavte toto pro odběr **vlastního kanálu**, který `describeGlobal` neuvádí; například `/event/MyChannel__chn`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.dG9waWNfbmFtZQ.display_name": {
+          "source": "Topic Name",
+          "message": "Název tématu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.dG9waWNfbmFtZQ.short_desc": {
+          "source": "The Pub/Sub topic name to subscribe to",
+          "message": "Název tématu Pub/Sub k odběru"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.short_desc": {
+          "source": "React when a record of the given object is created",
+          "message": "Reagovat na vytvoření záznamu daného objektu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.desc": {
+          "source": "Reacts to events published on a Salesforce **Pub/Sub API** channel: platform events, Change Data Capture events and custom channels all arrive through the same subscription.\n\nThe subscription tracks its replay position, so a connection lost and re-established resumes after the last event delivered rather than skipping ahead. Salesforce retains replay IDs for **72 hours**.",
+          "message": "Reaguje na události publikované na kanálu Salesforce **Pub/Sub API**: události platformy, události Change Data Capture i vlastní kanály přicházejí přes stejný odběr.\n\nOdběr sleduje svou pozici přehrávání, takže po ztrátě a opětovném navázání spojení pokračuje od poslední doručené události, místo aby přeskočil dopředu. Salesforce uchovává ID přehrávání po dobu **72 hodin**."
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.display_name": {
+          "source": "Salesforce Event",
+          "message": "Událost Salesforce"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbm5lbA.desc": {
+          "source": "The Salesforce event channel to subscribe to: a Change Data Capture entity such as `AccountChangeEvent` or a platform event such as `Order_Shipped__e`",
+          "message": "Kanál událostí Salesforce k odběru: entita Change Data Capture jako `AccountChangeEvent` nebo událost platformy jako `Order_Shipped__e`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbm5lbA.display_name": {
+          "source": "Channel",
+          "message": "Kanál"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbm5lbA.short_desc": {
+          "source": "The Salesforce event channel",
+          "message": "Kanál událostí Salesforce"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkNSRUFURQ.desc": {
+          "source": "A record was created",
+          "message": "Záznam byl vytvořen"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkNSRUFURQ.display_name": {
+          "source": "Create",
+          "message": "Vytvořit"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkRFTEVURQ.desc": {
+          "source": "A record was deleted",
+          "message": "Záznam byl odstraněn"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkRFTEVURQ.display_name": {
+          "source": "Delete",
+          "message": "Odstranit"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9DUkVBVEU.desc": {
+          "source": "A record was created, but the change could not be delivered; implied by `CREATE`",
+          "message": "Záznam byl vytvořen, ale změnu se nepodařilo doručit; implikováno pomocí `CREATE`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9DUkVBVEU.display_name": {
+          "source": "Gap: Create",
+          "message": "Mezera: Vytvoření"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9ERUxFVEU.desc": {
+          "source": "A record was deleted, but the change could not be delivered; implied by `DELETE`",
+          "message": "Záznam byl odstraněn, ale změnu se nepodařilo doručit; implikováno pomocí `DELETE`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9ERUxFVEU.display_name": {
+          "source": "Gap: Delete",
+          "message": "Mezera: Odstranění"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9PVkVSRkxPVw.desc": {
+          "source": "An unknown number of changes were lost; always delivered",
+          "message": "Neznámý počet změn byl ztracen; doručuje se vždy"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9PVkVSRkxPVw.display_name": {
+          "source": "Gap: Overflow",
+          "message": "Mezera: Přetečení"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VTkRFTEVURQ.desc": {
+          "source": "A record was restored, but the change could not be delivered; implied by `UNDELETE`",
+          "message": "Záznam byl obnoven, ale změnu se nepodařilo doručit; implikováno pomocí `UNDELETE`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VTkRFTEVURQ.display_name": {
+          "source": "Gap: Undelete",
+          "message": "Mezera: Obnovení"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VUERBVEU.desc": {
+          "source": "A record was updated, but the change could not be delivered; implied by `UPDATE`",
+          "message": "Záznam byl aktualizován, ale změnu se nepodařilo doručit; implikováno pomocí `UPDATE`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VUERBVEU.display_name": {
+          "source": "Gap: Update",
+          "message": "Mezera: Aktualizace"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOlVOREVMRVRF.desc": {
+          "source": "A record was restored from the recycle bin",
+          "message": "Záznam byl obnoven z koše"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOlVOREVMRVRF.display_name": {
+          "source": "Undelete",
+          "message": "Obnovit"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOlVQREFURQ.desc": {
+          "source": "A record was updated",
+          "message": "Záznam byl aktualizován"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOlVQREFURQ.display_name": {
+          "source": "Update",
+          "message": "Aktualizovat"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.desc": {
+          "source": "Restricts delivery to the given **Change Data Capture** change types; leave empty to receive every change on the channel.\n\nA **gap event** reports a change that Salesforce could not deliver in full. Gap types satisfy the type they stand in for, so selecting `CREATE` also delivers `GAP_CREATE` rather than dropping the create silently. `GAP_OVERFLOW` is always delivered, whatever the filter, because it reports that an unknown number of changes were lost.\n\nThis option applies to Change Data Capture channels only; platform events carry no `ChangeEventHeader` and setting it on a platform event channel is an error.",
+          "message": "Omezuje doručování na dané typy změn **Change Data Capture**; ponechte prázdné pro příjem všech změn v kanálu.\n\n**Událost mezery** (gap event) hlásí změnu, kterou Salesforce nemohl doručit v plném rozsahu. Typy mezer zastupují typ, který nahrazují, takže výběr `CREATE` doručí také `GAP_CREATE`, místo aby se vytvoření ticho zahodilo. `GAP_OVERFLOW` se doručuje vždy bez ohledu na filtr, protože hlásí, že neznámý počet změn byl ztracen.\n\nTato možnost se vztahuje pouze na kanály Change Data Capture; události platformy neobsahují žádné `ChangeEventHeader` a jeho nastavení na kanálu událostí platformy je chyba."
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.display_name": {
+          "source": "Change Types",
+          "message": "Typy změn"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.short_desc": {
+          "source": "Which Change Data Capture change types to deliver",
+          "message": "Které typy změn Change Data Capture doručovat"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.desc": {
+          "source": "If `True`, and the org reports that this **Change Data Capture** channel cannot be subscribed to because the object was never selected, switch it on and continue, rather than failing.\n\nThis exists because a subscription to an object that is not enabled succeeds and then delivers nothing, which is indistinguishable from an idle org. The default is `False`: subscribing to events should not quietly change org configuration.\n\n**This changes org configuration.** It starts a 72-hour retention stream for the object, and the number of objects an org may select depends on its edition and add-ons. The connection's user needs permission to modify metadata. For a one-time, auditable step, use the `enable-change-data-capture` action instead.",
+          "message": "Pokud platí `True` a organizace hlásí, že k tomuto kanálu **Change Data Capture** nelze přihlásit odběr, protože objekt nebyl nikdy vybrán, zapněte jej a pokračujte, místo aby došlo k selhání.\n\nTato možnost existuje, protože odběr objektu, který není povolen, proběhne úspěšně a poté nic nedoručí, což je nerozeznatelné od neaktivní organizace. Výchozí hodnota je `False`: odběr událostí by neměl tichým způsobem měnit konfiguraci organizace.\n\n**Tímto se změní konfigurace organizace.** Spustí se stream s uchováváním po dobu 72 hodin pro daný objekt a počet objektů, které může organizace vybrat, závisí na její edici a doplňcích. Uživatel připojení vyžaduje oprávnění k úpravě metadat. Pro jednorázový, auditovatelný krok použijte místo toho akci `enable-change-data-capture`."
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.display_name": {
+          "source": "Enable Change Data Capture",
+          "message": "Povolit Change Data Capture"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.short_desc": {
+          "source": "Switch Change Data Capture on for the object if it is not already",
+          "message": "Zapnout Change Data Capture pro objekt, pokud ještě není zapnuto"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.bnVtX3JlcXVlc3RlZA.desc": {
+          "source": "How many events the client keeps requested from the server at a time; between 1 and 100, which is the maximum the Pub/Sub API accepts in a single `FetchRequest`",
+          "message": "Kolik událostí klient od serveru požaduje najednou; mezi 1 a 100, což je maximum, které Pub/Sub API akceptuje v jediném `FetchRequest`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.bnVtX3JlcXVlc3RlZA.display_name": {
+          "source": "Flow Control Window",
+          "message": "Okno řízení toku"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.bnVtX3JlcXVlc3RlZA.short_desc": {
+          "source": "How many events the client keeps requested",
+          "message": "Kolik událostí klient udržuje požadovaných"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X2lk.desc": {
+          "source": "The base64-encoded replay ID to resume after, as reported in the `event.replayId` field of a delivered event.  Implies the `CUSTOM` replay preset",
+          "message": "ID přehrávání v kódování base64, po kterém má odběr pokračovat, jak je uvedeno v poli `event.replayId` doručené události. Implikuje předvolbu přehrávání `CUSTOM`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X2lk.display_name": {
+          "source": "Replay ID",
+          "message": "ID přehrávání"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X2lk.short_desc": {
+          "source": "The base64 replay ID to resume after",
+          "message": "ID přehrávání v kódování base64, po kterém se má pokračovat"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkNVU1RPTQ.desc": {
+          "source": "Start immediately after the event identified by `replay_id`",
+          "message": "Začít ihned po události identifikované pomocí `replay_id`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkNVU1RPTQ.display_name": {
+          "source": "Custom",
+          "message": "Vlastní"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkVBUkxJRVNU.desc": {
+          "source": "Start at the oldest event still retained in the stream",
+          "message": "Začít od nejstarší události stále uchovávané ve streamu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkVBUkxJRVNU.display_name": {
+          "source": "Earliest",
+          "message": "Nejstarší"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkxBVEVTVA.desc": {
+          "source": "Start at the tip of the stream; only events published after the subscription starts are delivered",
+          "message": "Začít na konci streamu; doručeny budou pouze události publikované po spuštění odběru"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkxBVEVTVA.display_name": {
+          "source": "Latest",
+          "message": "Nejnovější"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.desc": {
+          "source": "Where the subscription starts: `LATEST` (the tip of the stream, the default), `EARLIEST` (the oldest retained event), or `CUSTOM` (after the event identified by `replay_id`).\n\nSalesforce retains replay IDs for **72 hours**",
+          "message": "Kde odběr začíná: `LATEST` (konec streamu, výchozí), `EARLIEST` (nejstarší uchovávaná událost) nebo `CUSTOM` (po události identifikované pomocí `replay_id`).\n\nSalesforce uchovává ID přehrávání po dobu **72 hodin**"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.display_name": {
+          "source": "Replay Preset",
+          "message": "Předvolba přehrávání"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.short_desc": {
+          "source": "Where in the event stream the subscription starts",
+          "message": "Kde ve streamu událostí odběr začíná"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.dG9waWNfbmFtZQ.desc": {
+          "source": "The Pub/Sub topic name, overriding the one derived from this provider's name.  Set this to subscribe to a **custom channel**, which `describeGlobal` does not list; for example `/event/MyChannel__chn`",
+          "message": "Název tématu Pub/Sub, který přepíše název odvozený od názvu tohoto poskytovatele. Nastavte toto pro odběr **vlastního kanálu**, který `describeGlobal` neuvádí; například `/event/MyChannel__chn`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.dG9waWNfbmFtZQ.display_name": {
+          "source": "Topic Name",
+          "message": "Název tématu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.dG9waWNfbmFtZQ.short_desc": {
+          "source": "The Pub/Sub topic name to subscribe to",
+          "message": "Název tématu Pub/Sub k odběru"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.short_desc": {
+          "source": "React to a Salesforce platform or change data capture event",
+          "message": "Reagovat na událost platformy Salesforce nebo událost Change Data Capture"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.desc": {
+          "source": "Reacts when a record of the given Salesforce object is **updated**, using the **Pub/Sub API** Change Data Capture stream.\n\nThe event payload carries the `ChangeEventHeader.changedFields` list, so the fields that actually changed are known without re-reading the record.\n\nDelivery is real time rather than polled, and the subscription resumes from its last replay position after a reconnect; Salesforce retains replay IDs for **72 hours**.\n\nA `GAP_UPDATE` event, which reports an update that Salesforce could not deliver in full, is delivered by this action as well.\n\nChange Data Capture must be enabled for the object in **Setup -> Integrations -> Change Data Capture**",
+          "message": "Reaguje na **aktualizaci** záznamu daného objektu Salesforce pomocí streamu Change Data Capture rozhraní **Pub/Sub API**.\n\nDatové pole události obsahuje seznam `ChangeEventHeader.changedFields`, takže pole, která se skutečně změnila, jsou známa bez nutnosti opětovného načítání záznamu.\n\nDoručování probíhá v reálném čase (nikoli dotazováním) a odběr po opětovném připojení pokračuje od poslední pozice přehrávání; Salesforce uchovává ID přehrávání po dobu **72 hodin**.\n\nTato akce doručuje také událost `GAP_UPDATE`, která hlásí aktualizaci, kterou Salesforce nemohl doručit v plném rozsahu.\n\nChange Data Capture musí být pro daný objekt povolen v nabídce **Setup -> Integrations -> Change Data Capture**"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.display_name": {
+          "source": "Updated Salesforce Record",
+          "message": "Aktualizovaný záznam Salesforce"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.Y2hhbm5lbA.desc": {
+          "source": "The Change Data Capture channel to subscribe to, named after the object it reports on: `AccountChangeEvent` for `Account`, `OpportunityChangeEvent` for `Opportunity`, and so on.\n\nChange Data Capture must be enabled for the object in **Setup -> Integrations -> Change Data Capture**",
+          "message": "Kanál Change Data Capture k odběru, pojmenovaný podle objektu, o kterém podává zprávy: `AccountChangeEvent` pro `Account`, `OpportunityChangeEvent` pro `Opportunity` a tak dále.\n\nFunkce Change Data Capture musí být pro daný objekt povolena v **Setup -> Integrations -> Change Data Capture**"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.Y2hhbm5lbA.display_name": {
+          "source": "Object",
+          "message": "Objekt"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.Y2hhbm5lbA.short_desc": {
+          "source": "The Salesforce object to watch",
+          "message": "Objekt Salesforce ke sledování"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.desc": {
+          "source": "If `True`, and the org reports that this **Change Data Capture** channel cannot be subscribed to because the object was never selected, switch it on and continue, rather than failing.\n\nThis exists because a subscription to an object that is not enabled succeeds and then delivers nothing, which is indistinguishable from an idle org. The default is `False`: subscribing to events should not quietly change org configuration.\n\n**This changes org configuration.** It starts a 72-hour retention stream for the object, and the number of objects an org may select depends on its edition and add-ons. The connection's user needs permission to modify metadata. For a one-time, auditable step, use the `enable-change-data-capture` action instead.",
+          "message": "Pokud platí `True` a organizace hlásí, že k tomuto kanálu **Change Data Capture** nelze přihlásit odběr, protože objekt nebyl nikdy vybrán, zapněte jej a pokračujte, místo aby došlo k selhání.\n\nTato možnost existuje, protože odběr objektu, který není povolen, proběhne úspěšně a poté nic nedoručí, což je nerozeznatelné od neaktivní organizace. Výchozí hodnota je `False`: odběr událostí by neměl tichým způsobem měnit konfiguraci organizace.\n\n**Tímto se změní konfigurace organizace.** Spustí se stream s uchováváním po dobu 72 hodin pro daný objekt a počet objektů, které může organizace vybrat, závisí na její edici a doplňcích. Uživatel připojení vyžaduje oprávnění k úpravě metadat. Pro jednorázový, auditovatelný krok použijte místo toho akci `enable-change-data-capture`."
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.display_name": {
+          "source": "Enable Change Data Capture",
+          "message": "Povolit Change Data Capture"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.short_desc": {
+          "source": "Switch Change Data Capture on for the object if it is not already",
+          "message": "Zapnout Change Data Capture pro objekt, pokud ještě není zapnuto"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.bnVtX3JlcXVlc3RlZA.desc": {
+          "source": "How many events the client keeps requested from the server at a time; between 1 and 100, which is the maximum the Pub/Sub API accepts in a single `FetchRequest`",
+          "message": "Kolik událostí klient od serveru požaduje najednou; mezi 1 a 100, což je maximum, které Pub/Sub API akceptuje v jediném `FetchRequest`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.bnVtX3JlcXVlc3RlZA.display_name": {
+          "source": "Flow Control Window",
+          "message": "Okno řízení toku"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.bnVtX3JlcXVlc3RlZA.short_desc": {
+          "source": "How many events the client keeps requested",
+          "message": "Kolik událostí klient udržuje požadovaných"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X2lk.desc": {
+          "source": "The base64-encoded replay ID to resume after, as reported in the `event.replayId` field of a delivered event.  Implies the `CUSTOM` replay preset",
+          "message": "ID přehrávání v kódování base64, po kterém má odběr pokračovat, jak je uvedeno v poli `event.replayId` doručené události. Implikuje předvolbu přehrávání `CUSTOM`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X2lk.display_name": {
+          "source": "Replay ID",
+          "message": "ID přehrávání"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X2lk.short_desc": {
+          "source": "The base64 replay ID to resume after",
+          "message": "ID přehrávání v kódování base64, po kterém se má pokračovat"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkNVU1RPTQ.desc": {
+          "source": "Start immediately after the event identified by `replay_id`",
+          "message": "Začít ihned po události identifikované pomocí `replay_id`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkNVU1RPTQ.display_name": {
+          "source": "Custom",
+          "message": "Vlastní"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkVBUkxJRVNU.desc": {
+          "source": "Start at the oldest event still retained in the stream",
+          "message": "Začít od nejstarší události stále uchovávané ve streamu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkVBUkxJRVNU.display_name": {
+          "source": "Earliest",
+          "message": "Nejstarší"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkxBVEVTVA.desc": {
+          "source": "Start at the tip of the stream; only events published after the subscription starts are delivered",
+          "message": "Začít na konci streamu; doručeny budou pouze události publikované po spuštění odběru"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkxBVEVTVA.display_name": {
+          "source": "Latest",
+          "message": "Nejnovější"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.desc": {
+          "source": "Where the subscription starts: `LATEST` (the tip of the stream, the default), `EARLIEST` (the oldest retained event), or `CUSTOM` (after the event identified by `replay_id`).\n\nSalesforce retains replay IDs for **72 hours**",
+          "message": "Kde odběr začíná: `LATEST` (konec streamu, výchozí), `EARLIEST` (nejstarší uchovávaná událost) nebo `CUSTOM` (po události identifikované pomocí `replay_id`).\n\nSalesforce uchovává ID přehrávání po dobu **72 hodin**"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.display_name": {
+          "source": "Replay Preset",
+          "message": "Předvolba přehrávání"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.short_desc": {
+          "source": "Where in the event stream the subscription starts",
+          "message": "Kde ve streamu událostí odběr začíná"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.dG9waWNfbmFtZQ.desc": {
+          "source": "The Pub/Sub topic name, overriding the one derived from this provider's name.  Set this to subscribe to a **custom channel**, which `describeGlobal` does not list; for example `/event/MyChannel__chn`",
+          "message": "Název tématu Pub/Sub, který přepíše název odvozený od názvu tohoto poskytovatele. Nastavte toto pro odběr **vlastního kanálu**, který `describeGlobal` neuvádí; například `/event/MyChannel__chn`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.dG9waWNfbmFtZQ.display_name": {
+          "source": "Topic Name",
+          "message": "Název tématu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.dG9waWNfbmFtZQ.short_desc": {
+          "source": "The Pub/Sub topic name to subscribe to",
+          "message": "Název tématu Pub/Sub k odběru"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.short_desc": {
+          "source": "React when a record of the given object is updated",
+          "message": "Reagovat na aktualizaci záznamu daného objektu"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,633 @@
+{
+  "schema_version": 1,
+  "locales": {
+    "pl": {
+      "messages": {
+        "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.desc": {
+          "source": "Enables **Change Data Capture** for a Salesforce object, so that its creates, updates, deletes and undeletes can be subscribed to through the **Pub/Sub API**.\n\nChange Data Capture must be switched on per object before a subscription delivers anything, and a subscription to an object that was never enabled succeeds and then stays silent -- so this is usually run **once**, when an integration is set up, rather than as part of a flow.\n\nEnabling an object that is already enabled is not an error.\n\n**This changes org configuration.** It starts a 72-hour retention stream for the object, and the number of objects an org may select depends on its edition and add-ons. The connection's user needs permission to modify metadata.",
+          "message": "Włącza funkcję **Change Data Capture** dla obiektu Salesforce, dzięki czemu jego utworzenia, aktualizacje, usunięcia i przywrócenia mogą być subskrybowane za pośrednictwem **Pub/Sub API**.\n\nFunkcja Change Data Capture musi być włączona osobno dla każdego obiektu, zanim subskrypcja zacznie cokolwiek dostarczać, a subskrypcja obiektu, który nigdy nie został włączony, kończy się sukcesem, a następnie milczy – dlatego zazwyczaj uruchamia się to **raz**, podczas konfiguracji integracji, a nie jako część przepływu.\n\nWłączenie obiektu, który jest już włączony, nie jest błędem.\n\n**To zmienia konfigurację organizacji.** Uruchamia 72-godzinny strumień retencji dla obiektu, a liczba obiektów, które organizacja może wybrać, zależy od jej edycji i dodatków. Użytkownik połączenia wymaga uprawnień do modyfikowania metadanych."
+        },
+        "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.display_name": {
+          "source": "Enable Change Data Capture",
+          "message": "Włącz Change Data Capture"
+        },
+        "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.desc": {
+          "source": "The **change event** to enable Change Data Capture for, named after the object it reports on with a `ChangeEvent` suffix: `AccountChangeEvent` for `Account`, `CaseChangeEvent` for `Case`, and so on.  A custom object uses `__ChangeEvent`, for example `MyObject__ChangeEvent`.\n\nEnabling an object that is already enabled is **not** an error; the response reports it through `already_enabled`.\n\n**Enabling Change Data Capture is not free of side effects**: it starts a 72-hour retention stream for the object, and the number of objects an org may select depends on its edition and add-ons.",
+          "message": "Zdarzenie zmiany (**change event**), dla którego ma zostać włączona funkcja Change Data Capture, nazwane od obiektu, który raportuje, z sufiksem `ChangeEvent`: `AccountChangeEvent` dla `Account`, `CaseChangeEvent` dla `Case` i tak dalej. Obiekt niestandardowy używa `__ChangeEvent`, na przykład `MyObject__ChangeEvent`.\n\nWłączenie obiektu, który jest już włączony, **nie** jest błędem; odpowiedź zgłasza to poprzez `already_enabled`.\n\n**Włączenie Change Data Capture wiąże się ze skutkami ubocznymi**: uruchamia 72-godzinny strumień retencji dla obiektu, a liczba obiektów, które organizacja może wybrać, zależy od jej edycji i dodatków."
+        },
+        "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.display_name": {
+          "source": "Change Event",
+          "message": "Zdarzenie zmiany"
+        },
+        "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.short_desc": {
+          "source": "The change event to enable",
+          "message": "Zdarzenie zmiany do włączenia"
+        },
+        "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.short_desc": {
+          "source": "Enable Change Data Capture for a Salesforce object",
+          "message": "Włącz Change Data Capture dla obiektu Salesforce"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.desc": {
+          "source": "Reacts when a Salesforce **contact** is created, using the **Pub/Sub API** Change Data Capture stream.\n\nThis is the `new-record` action fixed to the `Contact` object. Delivery is real time rather than polled, and the subscription resumes from its last replay position after a reconnect.\n\nChange Data Capture must be enabled for `Contact` in **Setup -> Integrations -> Change Data Capture**",
+          "message": "Reaguje po utworzeniu **kontaktu** Salesforce, używając strumienia Change Data Capture z **Pub/Sub API**.\n\nTo jest akcja `new-record` przypisana do obiektu `Contact`. Dostarczanie odbywa się w czasie rzeczywistym, a nie poprzez odpytywanie, a subskrypcja wznawia działanie od ostatniej pozycji odtwarzania po ponownym połączeniu.\n\nFunkcja Change Data Capture musi być włączona dla `Contact` w **Setup -> Integrations -> Change Data Capture**"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.display_name": {
+          "source": "New Salesforce Contact",
+          "message": "Nowy kontakt Salesforce"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.desc": {
+          "source": "If `True`, and the org reports that this **Change Data Capture** channel cannot be subscribed to because the object was never selected, switch it on and continue, rather than failing.\n\nThis exists because a subscription to an object that is not enabled succeeds and then delivers nothing, which is indistinguishable from an idle org. The default is `False`: subscribing to events should not quietly change org configuration.\n\n**This changes org configuration.** It starts a 72-hour retention stream for the object, and the number of objects an org may select depends on its edition and add-ons. The connection's user needs permission to modify metadata. For a one-time, auditable step, use the `enable-change-data-capture` action instead.",
+          "message": "Jeśli `True`, a organizacja zgłasza, że tego kanału **Change Data Capture** nie można subskrybować, ponieważ obiekt nigdy nie został wybrany, włącz go i kontynuuj zamiast zgłaszać błąd.\n\nIstnieje to dlatego, że subskrypcja obiektu, który nie jest włączony, kończy się sukcesem, a następnie nic nie dostarcza, co jest nie do odróżnienia od bezczynnej organizacji. Domyślna wartość to `False`: subskrybowanie zdarzeń nie powinno po cichu zmieniać konfiguracji organizacji.\n\n**To zmienia konfigurację organizacji.** Uruchamia 72-godzinny strumień retencji dla obiektu, a liczba obiektów, które organizacja może wybrać, zależy od jej edycji i dodatków. Użytkownik połączenia wymaga uprawnień do modyfikowania metadanych. W przypadku jednorazowego, audytowalnego kroku użyj zamiast tego akcji `enable-change-data-capture`."
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.display_name": {
+          "source": "Enable Change Data Capture",
+          "message": "Włącz Change Data Capture"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.short_desc": {
+          "source": "Switch Change Data Capture on for the object if it is not already",
+          "message": "Włącz Change Data Capture dla obiektu, jeśli nie jest jeszcze włączone"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.bnVtX3JlcXVlc3RlZA.desc": {
+          "source": "How many events the client keeps requested from the server at a time; between 1 and 100, which is the maximum the Pub/Sub API accepts in a single `FetchRequest`",
+          "message": "Ile zdarzeń klient żąda od serwera jednocześnie; od 1 do 100, co jest maksymalną wartością akceptowaną przez Pub/Sub API w pojedynczym `FetchRequest`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.bnVtX3JlcXVlc3RlZA.display_name": {
+          "source": "Flow Control Window",
+          "message": "Okno kontroli przepływu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.bnVtX3JlcXVlc3RlZA.short_desc": {
+          "source": "How many events the client keeps requested",
+          "message": "Liczba zdarzeń, o które wnioskuje klient"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X2lk.desc": {
+          "source": "The base64-encoded replay ID to resume after, as reported in the `event.replayId` field of a delivered event.  Implies the `CUSTOM` replay preset",
+          "message": "Zakodowane w base64 ID odtwarzania, po którym należy wznowić, zgłoszone w polu `event.replayId` dostarczonego zdarzenia. Implikuje ustawienie wstępne odtwarzania `CUSTOM`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X2lk.display_name": {
+          "source": "Replay ID",
+          "message": "ID odtwarzania"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X2lk.short_desc": {
+          "source": "The base64 replay ID to resume after",
+          "message": "ID odtwarzania w formacie base64, po którym należy wznowić"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkNVU1RPTQ.desc": {
+          "source": "Start immediately after the event identified by `replay_id`",
+          "message": "Rozpocznij bezpośrednio po zdarzeniu zidentyfikowanym przez `replay_id`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkNVU1RPTQ.display_name": {
+          "source": "Custom",
+          "message": "Niestandardowy"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkVBUkxJRVNU.desc": {
+          "source": "Start at the oldest event still retained in the stream",
+          "message": "Rozpocznij od najstarszego zdarzenia zachowanego w strumieniu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkVBUkxJRVNU.display_name": {
+          "source": "Earliest",
+          "message": "Najstarsze"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkxBVEVTVA.desc": {
+          "source": "Start at the tip of the stream; only events published after the subscription starts are delivered",
+          "message": "Rozpocznij od końca strumienia; dostarczane są tylko zdarzenia opublikowane po rozpoczęciu subskrypcji"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkxBVEVTVA.display_name": {
+          "source": "Latest",
+          "message": "Najnowsze"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.desc": {
+          "source": "Where the subscription starts: `LATEST` (the tip of the stream, the default), `EARLIEST` (the oldest retained event), or `CUSTOM` (after the event identified by `replay_id`).\n\nSalesforce retains replay IDs for **72 hours**",
+          "message": "Miejsce rozpoczęcia subskrypcji: `LATEST` (koniec strumienia, domyślnie), `EARLIEST` (najstarsze zachowane zdarzenie) lub `CUSTOM` (po zdarzeniu zidentyfikowanym przez `replay_id`).\n\nSalesforce przechowuje ID odtwarzania przez **72 godziny**"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.display_name": {
+          "source": "Replay Preset",
+          "message": "Ustawienie wstępne odtwarzania"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.short_desc": {
+          "source": "Where in the event stream the subscription starts",
+          "message": "Miejsce w strumieniu zdarzeń, w którym rozpoczyna się subskrypcja"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.dG9waWNfbmFtZQ.desc": {
+          "source": "The Pub/Sub topic name, overriding the one derived from this provider's name.  Set this to subscribe to a **custom channel**, which `describeGlobal` does not list; for example `/event/MyChannel__chn`",
+          "message": "Nazwa tematu Pub/Sub, zastępująca nazwę pochodzącą od tego dostawcy. Ustaw to, aby zasubskrybować **kanał niestandardowy**, którego `describeGlobal` nie wymienia; na przykład `/event/MyChannel__chn`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.dG9waWNfbmFtZQ.display_name": {
+          "source": "Topic Name",
+          "message": "Nazwa tematu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.dG9waWNfbmFtZQ.short_desc": {
+          "source": "The Pub/Sub topic name to subscribe to",
+          "message": "Nazwa tematu Pub/Sub do zasubskrybowania"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.short_desc": {
+          "source": "React when a contact is created",
+          "message": "Reaguj po utworzeniu kontaktu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.desc": {
+          "source": "Reacts when a Salesforce **lead** is created, using the **Pub/Sub API** Change Data Capture stream.\n\nThis is the `new-record` action fixed to the `Lead` object. Delivery is real time rather than polled, and the subscription resumes from its last replay position after a reconnect.\n\nChange Data Capture must be enabled for `Lead` in **Setup -> Integrations -> Change Data Capture**",
+          "message": "Reaguje po utworzeniu **leada** Salesforce, używając strumienia Change Data Capture z **Pub/Sub API**.\n\nTo jest akcja `new-record` przypisana do obiektu `Lead`. Dostarczanie odbywa się w czasie rzeczywistym, a nie poprzez odpytywanie, a subskrypcja wznawia działanie od ostatniej pozycji odtwarzania po ponownym połączeniu.\n\nFunkcja Change Data Capture musi być włączona dla `Lead` w **Setup -> Integrations -> Change Data Capture**"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.display_name": {
+          "source": "New Salesforce Lead",
+          "message": "Nowy lead Salesforce"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.desc": {
+          "source": "If `True`, and the org reports that this **Change Data Capture** channel cannot be subscribed to because the object was never selected, switch it on and continue, rather than failing.\n\nThis exists because a subscription to an object that is not enabled succeeds and then delivers nothing, which is indistinguishable from an idle org. The default is `False`: subscribing to events should not quietly change org configuration.\n\n**This changes org configuration.** It starts a 72-hour retention stream for the object, and the number of objects an org may select depends on its edition and add-ons. The connection's user needs permission to modify metadata. For a one-time, auditable step, use the `enable-change-data-capture` action instead.",
+          "message": "Jeśli `True`, a organizacja zgłasza, że tego kanału **Change Data Capture** nie można subskrybować, ponieważ obiekt nigdy nie został wybrany, włącz go i kontynuuj zamiast zgłaszać błąd.\n\nIstnieje to dlatego, że subskrypcja obiektu, który nie jest włączony, kończy się sukcesem, a następnie nic nie dostarcza, co jest nie do odróżnienia od bezczynnej organizacji. Domyślna wartość to `False`: subskrybowanie zdarzeń nie powinno po cichu zmieniać konfiguracji organizacji.\n\n**To zmienia konfigurację organizacji.** Uruchamia 72-godzinny strumień retencji dla obiektu, a liczba obiektów, które organizacja może wybrać, zależy od jej edycji i dodatków. Użytkownik połączenia wymaga uprawnień do modyfikowania metadanych. W przypadku jednorazowego, audytowalnego kroku użyj zamiast tego akcji `enable-change-data-capture`."
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.display_name": {
+          "source": "Enable Change Data Capture",
+          "message": "Włącz Change Data Capture"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.short_desc": {
+          "source": "Switch Change Data Capture on for the object if it is not already",
+          "message": "Włącz Change Data Capture dla obiektu, jeśli nie jest jeszcze włączone"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.bnVtX3JlcXVlc3RlZA.desc": {
+          "source": "How many events the client keeps requested from the server at a time; between 1 and 100, which is the maximum the Pub/Sub API accepts in a single `FetchRequest`",
+          "message": "Ile zdarzeń klient żąda od serwera jednocześnie; od 1 do 100, co jest maksymalną wartością akceptowaną przez Pub/Sub API w pojedynczym `FetchRequest`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.bnVtX3JlcXVlc3RlZA.display_name": {
+          "source": "Flow Control Window",
+          "message": "Okno kontroli przepływu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.bnVtX3JlcXVlc3RlZA.short_desc": {
+          "source": "How many events the client keeps requested",
+          "message": "Liczba zdarzeń, o które wnioskuje klient"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X2lk.desc": {
+          "source": "The base64-encoded replay ID to resume after, as reported in the `event.replayId` field of a delivered event.  Implies the `CUSTOM` replay preset",
+          "message": "Zakodowane w base64 ID odtwarzania, po którym należy wznowić, zgłoszone w polu `event.replayId` dostarczonego zdarzenia. Implikuje ustawienie wstępne odtwarzania `CUSTOM`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X2lk.display_name": {
+          "source": "Replay ID",
+          "message": "ID odtwarzania"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X2lk.short_desc": {
+          "source": "The base64 replay ID to resume after",
+          "message": "ID odtwarzania w formacie base64, po którym należy wznowić"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkNVU1RPTQ.desc": {
+          "source": "Start immediately after the event identified by `replay_id`",
+          "message": "Rozpocznij bezpośrednio po zdarzeniu zidentyfikowanym przez `replay_id`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkNVU1RPTQ.display_name": {
+          "source": "Custom",
+          "message": "Niestandardowy"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkVBUkxJRVNU.desc": {
+          "source": "Start at the oldest event still retained in the stream",
+          "message": "Rozpocznij od najstarszego zdarzenia zachowanego w strumieniu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkVBUkxJRVNU.display_name": {
+          "source": "Earliest",
+          "message": "Najstarsze"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkxBVEVTVA.desc": {
+          "source": "Start at the tip of the stream; only events published after the subscription starts are delivered",
+          "message": "Rozpocznij od końca strumienia; dostarczane są tylko zdarzenia opublikowane po rozpoczęciu subskrypcji"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkxBVEVTVA.display_name": {
+          "source": "Latest",
+          "message": "Najnowsze"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.desc": {
+          "source": "Where the subscription starts: `LATEST` (the tip of the stream, the default), `EARLIEST` (the oldest retained event), or `CUSTOM` (after the event identified by `replay_id`).\n\nSalesforce retains replay IDs for **72 hours**",
+          "message": "Miejsce rozpoczęcia subskrypcji: `LATEST` (koniec strumienia, domyślnie), `EARLIEST` (najstarsze zachowane zdarzenie) lub `CUSTOM` (po zdarzeniu zidentyfikowanym przez `replay_id`).\n\nSalesforce przechowuje ID odtwarzania przez **72 godziny**"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.display_name": {
+          "source": "Replay Preset",
+          "message": "Ustawienie wstępne odtwarzania"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.short_desc": {
+          "source": "Where in the event stream the subscription starts",
+          "message": "Miejsce w strumieniu zdarzeń, w którym rozpoczyna się subskrypcja"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.dG9waWNfbmFtZQ.desc": {
+          "source": "The Pub/Sub topic name, overriding the one derived from this provider's name.  Set this to subscribe to a **custom channel**, which `describeGlobal` does not list; for example `/event/MyChannel__chn`",
+          "message": "Nazwa tematu Pub/Sub, zastępująca nazwę pochodzącą od tego dostawcy. Ustaw to, aby zasubskrybować **kanał niestandardowy**, którego `describeGlobal` nie wymienia; na przykład `/event/MyChannel__chn`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.dG9waWNfbmFtZQ.display_name": {
+          "source": "Topic Name",
+          "message": "Nazwa tematu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.dG9waWNfbmFtZQ.short_desc": {
+          "source": "The Pub/Sub topic name to subscribe to",
+          "message": "Nazwa tematu Pub/Sub do zasubskrybowania"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.short_desc": {
+          "source": "React when a lead is created",
+          "message": "Reaguj po utworzeniu leada"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.desc": {
+          "source": "Reacts when a record of the given Salesforce object is **created**, using the **Pub/Sub API** Change Data Capture stream.\n\nDelivery is real time rather than polled, and the subscription tracks its replay position, so a connection lost and re-established resumes after the last event delivered rather than skipping the records created while it was down. Salesforce retains replay IDs for **72 hours**.\n\nA `GAP_CREATE` event, which reports a create that Salesforce could not deliver in full, is delivered by this action as well, so a create is never silently lost.\n\nChange Data Capture must be enabled for the object in **Setup -> Integrations -> Change Data Capture**",
+          "message": "Reaguje, gdy rekord danego obiektu Salesforce zostanie **utworzony**, używając strumienia Change Data Capture z **Pub/Sub API**.\n\nDostarczanie odbywa się w czasie rzeczywistym, a nie poprzez odpytywanie, a subskrypcja śledzi swoją pozycję odtwarzania, więc po utracie i ponownym nawiązaniu połączenia wznawia działanie po ostatnim dostarczonym zdarzeniu, zamiast pomijać rekordy utworzone podczas awarii. Salesforce przechowuje ID odtwarzania przez **72 godziny**.\n\nZdarzenie `GAP_CREATE`, które zgłasza utworzenie, którego Salesforce nie mógł dostarczyć w całości, jest również dostarczane przez tę akcję, dzięki czemu utworzenie nigdy nie zostanie po cichu utracone.\n\nFunkcja Change Data Capture musi być włączona dla obiektu w **Setup -> Integrations -> Change Data Capture**"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.display_name": {
+          "source": "New Salesforce Record",
+          "message": "Nowy rekord Salesforce"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.Y2hhbm5lbA.desc": {
+          "source": "The Change Data Capture channel to subscribe to, named after the object it reports on: `AccountChangeEvent` for `Account`, `OpportunityChangeEvent` for `Opportunity`, and so on.\n\nChange Data Capture must be enabled for the object in **Setup -> Integrations -> Change Data Capture**",
+          "message": "Kanał Change Data Capture do zasubskrybowania, nazwany od obiektu, który raportuje: `AccountChangeEvent` dla `Account`, `OpportunityChangeEvent` dla `Opportunity` i tak dalej.\n\nFunkcja Change Data Capture musi być włączona dla obiektu w **Setup -> Integrations -> Change Data Capture**"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.Y2hhbm5lbA.display_name": {
+          "source": "Object",
+          "message": "Obiekt"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.Y2hhbm5lbA.short_desc": {
+          "source": "The Salesforce object to watch",
+          "message": "Obiekt Salesforce do obserwowania"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.desc": {
+          "source": "If `True`, and the org reports that this **Change Data Capture** channel cannot be subscribed to because the object was never selected, switch it on and continue, rather than failing.\n\nThis exists because a subscription to an object that is not enabled succeeds and then delivers nothing, which is indistinguishable from an idle org. The default is `False`: subscribing to events should not quietly change org configuration.\n\n**This changes org configuration.** It starts a 72-hour retention stream for the object, and the number of objects an org may select depends on its edition and add-ons. The connection's user needs permission to modify metadata. For a one-time, auditable step, use the `enable-change-data-capture` action instead.",
+          "message": "Jeśli `True`, a organizacja zgłasza, że tego kanału **Change Data Capture** nie można subskrybować, ponieważ obiekt nigdy nie został wybrany, włącz go i kontynuuj zamiast zgłaszać błąd.\n\nIstnieje to dlatego, że subskrypcja obiektu, który nie jest włączony, kończy się sukcesem, a następnie nic nie dostarcza, co jest nie do odróżnienia od bezczynnej organizacji. Domyślna wartość to `False`: subskrybowanie zdarzeń nie powinno po cichu zmieniać konfiguracji organizacji.\n\n**To zmienia konfigurację organizacji.** Uruchamia 72-godzinny strumień retencji dla obiektu, a liczba obiektów, które organizacja może wybrać, zależy od jej edycji i dodatków. Użytkownik połączenia wymaga uprawnień do modyfikowania metadanych. W przypadku jednorazowego, audytowalnego kroku użyj zamiast tego akcji `enable-change-data-capture`."
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.display_name": {
+          "source": "Enable Change Data Capture",
+          "message": "Włącz Change Data Capture"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.short_desc": {
+          "source": "Switch Change Data Capture on for the object if it is not already",
+          "message": "Włącz Change Data Capture dla obiektu, jeśli nie jest jeszcze włączone"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.bnVtX3JlcXVlc3RlZA.desc": {
+          "source": "How many events the client keeps requested from the server at a time; between 1 and 100, which is the maximum the Pub/Sub API accepts in a single `FetchRequest`",
+          "message": "Ile zdarzeń klient żąda od serwera jednocześnie; od 1 do 100, co jest maksymalną wartością akceptowaną przez Pub/Sub API w pojedynczym `FetchRequest`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.bnVtX3JlcXVlc3RlZA.display_name": {
+          "source": "Flow Control Window",
+          "message": "Okno kontroli przepływu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.bnVtX3JlcXVlc3RlZA.short_desc": {
+          "source": "How many events the client keeps requested",
+          "message": "Liczba zdarzeń, o które wnioskuje klient"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X2lk.desc": {
+          "source": "The base64-encoded replay ID to resume after, as reported in the `event.replayId` field of a delivered event.  Implies the `CUSTOM` replay preset",
+          "message": "Zakodowane w base64 ID odtwarzania, po którym należy wznowić, zgłoszone w polu `event.replayId` dostarczonego zdarzenia. Implikuje ustawienie wstępne odtwarzania `CUSTOM`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X2lk.display_name": {
+          "source": "Replay ID",
+          "message": "ID odtwarzania"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X2lk.short_desc": {
+          "source": "The base64 replay ID to resume after",
+          "message": "ID odtwarzania w formacie base64, po którym należy wznowić"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkNVU1RPTQ.desc": {
+          "source": "Start immediately after the event identified by `replay_id`",
+          "message": "Rozpocznij bezpośrednio po zdarzeniu zidentyfikowanym przez `replay_id`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkNVU1RPTQ.display_name": {
+          "source": "Custom",
+          "message": "Niestandardowy"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkVBUkxJRVNU.desc": {
+          "source": "Start at the oldest event still retained in the stream",
+          "message": "Rozpocznij od najstarszego zdarzenia zachowanego w strumieniu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkVBUkxJRVNU.display_name": {
+          "source": "Earliest",
+          "message": "Najstarsze"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkxBVEVTVA.desc": {
+          "source": "Start at the tip of the stream; only events published after the subscription starts are delivered",
+          "message": "Rozpocznij od końca strumienia; dostarczane są tylko zdarzenia opublikowane po rozpoczęciu subskrypcji"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkxBVEVTVA.display_name": {
+          "source": "Latest",
+          "message": "Najnowsze"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.desc": {
+          "source": "Where the subscription starts: `LATEST` (the tip of the stream, the default), `EARLIEST` (the oldest retained event), or `CUSTOM` (after the event identified by `replay_id`).\n\nSalesforce retains replay IDs for **72 hours**",
+          "message": "Miejsce rozpoczęcia subskrypcji: `LATEST` (koniec strumienia, domyślnie), `EARLIEST` (najstarsze zachowane zdarzenie) lub `CUSTOM` (po zdarzeniu zidentyfikowanym przez `replay_id`).\n\nSalesforce przechowuje ID odtwarzania przez **72 godziny**"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.display_name": {
+          "source": "Replay Preset",
+          "message": "Ustawienie wstępne odtwarzania"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.short_desc": {
+          "source": "Where in the event stream the subscription starts",
+          "message": "Miejsce w strumieniu zdarzeń, w którym rozpoczyna się subskrypcja"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.dG9waWNfbmFtZQ.desc": {
+          "source": "The Pub/Sub topic name, overriding the one derived from this provider's name.  Set this to subscribe to a **custom channel**, which `describeGlobal` does not list; for example `/event/MyChannel__chn`",
+          "message": "Nazwa tematu Pub/Sub, zastępująca nazwę pochodzącą od tego dostawcy. Ustaw to, aby zasubskrybować **kanał niestandardowy**, którego `describeGlobal` nie wymienia; na przykład `/event/MyChannel__chn`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.dG9waWNfbmFtZQ.display_name": {
+          "source": "Topic Name",
+          "message": "Nazwa tematu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.dG9waWNfbmFtZQ.short_desc": {
+          "source": "The Pub/Sub topic name to subscribe to",
+          "message": "Nazwa tematu Pub/Sub do zasubskrybowania"
+        },
+        "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.short_desc": {
+          "source": "React when a record of the given object is created",
+          "message": "Reaguj po utworzeniu rekordu danego obiektu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.desc": {
+          "source": "Reacts to events published on a Salesforce **Pub/Sub API** channel: platform events, Change Data Capture events and custom channels all arrive through the same subscription.\n\nThe subscription tracks its replay position, so a connection lost and re-established resumes after the last event delivered rather than skipping ahead. Salesforce retains replay IDs for **72 hours**.",
+          "message": "Reaguje na zdarzenia opublikowane na kanale Salesforce **Pub/Sub API**: zdarzenia platformy, zdarzenia Change Data Capture i kanały niestandardowe docierają przez tę samą subskrypcję.\n\nSubskrypcja śledzi swoją pozycję odtwarzania, więc po utracie i ponownym nawiązaniu połączenia wznawia działanie po ostatnim dostarczonym zdarzeniu, zamiast przeskakiwać do przodu. Salesforce przechowuje ID odtwarzania przez **72 godziny**."
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.display_name": {
+          "source": "Salesforce Event",
+          "message": "Zdarzenie Salesforce"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbm5lbA.desc": {
+          "source": "The Salesforce event channel to subscribe to: a Change Data Capture entity such as `AccountChangeEvent` or a platform event such as `Order_Shipped__e`",
+          "message": "Kanał zdarzeń Salesforce do zasubskrybowania: encja Change Data Capture, taka jak `AccountChangeEvent`, lub zdarzenie platformy, takie jak `Order_Shipped__e`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbm5lbA.display_name": {
+          "source": "Channel",
+          "message": "Kanał"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbm5lbA.short_desc": {
+          "source": "The Salesforce event channel",
+          "message": "Kanał zdarzeń Salesforce"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkNSRUFURQ.desc": {
+          "source": "A record was created",
+          "message": "Rekord został utworzony"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkNSRUFURQ.display_name": {
+          "source": "Create",
+          "message": "Utwórz"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkRFTEVURQ.desc": {
+          "source": "A record was deleted",
+          "message": "Rekord został usunięty"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkRFTEVURQ.display_name": {
+          "source": "Delete",
+          "message": "Usuń"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9DUkVBVEU.desc": {
+          "source": "A record was created, but the change could not be delivered; implied by `CREATE`",
+          "message": "Rekord został utworzony, ale zmiana nie mogła zostać dostarczona; implikowane przez `CREATE`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9DUkVBVEU.display_name": {
+          "source": "Gap: Create",
+          "message": "Luka: Utworzenie"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9ERUxFVEU.desc": {
+          "source": "A record was deleted, but the change could not be delivered; implied by `DELETE`",
+          "message": "Rekord został usunięty, ale zmiana nie mogła zostać dostarczona; implikowane przez `DELETE`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9ERUxFVEU.display_name": {
+          "source": "Gap: Delete",
+          "message": "Luka: Usunięcie"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9PVkVSRkxPVw.desc": {
+          "source": "An unknown number of changes were lost; always delivered",
+          "message": "Nieznana liczba zmian została utracona; zawsze dostarczane"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9PVkVSRkxPVw.display_name": {
+          "source": "Gap: Overflow",
+          "message": "Luka: Przepełnienie"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VTkRFTEVURQ.desc": {
+          "source": "A record was restored, but the change could not be delivered; implied by `UNDELETE`",
+          "message": "Rekord został przywrócony, ale zmiana nie mogła zostać dostarczona; implikowane przez `UNDELETE`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VTkRFTEVURQ.display_name": {
+          "source": "Gap: Undelete",
+          "message": "Luka: Przywrócenie"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VUERBVEU.desc": {
+          "source": "A record was updated, but the change could not be delivered; implied by `UPDATE`",
+          "message": "Rekord został zaktualizowany, ale zmiana nie mogła zostać dostarczona; implikowane przez `UPDATE`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VUERBVEU.display_name": {
+          "source": "Gap: Update",
+          "message": "Luka: Aktualizacja"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOlVOREVMRVRF.desc": {
+          "source": "A record was restored from the recycle bin",
+          "message": "Rekord został przywrócony z kosza"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOlVOREVMRVRF.display_name": {
+          "source": "Undelete",
+          "message": "Przywróć"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOlVQREFURQ.desc": {
+          "source": "A record was updated",
+          "message": "Rekord został zaktualizowany"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOlVQREFURQ.display_name": {
+          "source": "Update",
+          "message": "Aktualizuj"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.desc": {
+          "source": "Restricts delivery to the given **Change Data Capture** change types; leave empty to receive every change on the channel.\n\nA **gap event** reports a change that Salesforce could not deliver in full. Gap types satisfy the type they stand in for, so selecting `CREATE` also delivers `GAP_CREATE` rather than dropping the create silently. `GAP_OVERFLOW` is always delivered, whatever the filter, because it reports that an unknown number of changes were lost.\n\nThis option applies to Change Data Capture channels only; platform events carry no `ChangeEventHeader` and setting it on a platform event channel is an error.",
+          "message": "Ogranicza dostarczanie do podanych typów zmian **Change Data Capture**; pozostaw puste, aby otrzymywać każdą zmianę w kanale.\n\n**Zdarzenie luki** zgłasza zmianę, której Salesforce nie mógł dostarczyć w całości. Typy luk zastępują odpowiednie typy, więc wybranie `CREATE` dostarcza również `GAP_CREATE`, zamiast po cichu odrzucać utworzenie. `GAP_OVERFLOW` jest dostarczane zawsze, niezależnie od filtra, ponieważ zgłasza, że nieznana liczba zmian została utracona.\n\nTa opcja dotyczy tylko kanałów Change Data Capture; zdarzenia platformy nie zawierają `ChangeEventHeader` i ustawienie tej opcji dla kanału zdarzeń platformy powoduje błąd."
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.display_name": {
+          "source": "Change Types",
+          "message": "Typy zmian"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.short_desc": {
+          "source": "Which Change Data Capture change types to deliver",
+          "message": "Które typy zmian Change Data Capture dostarczać"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.desc": {
+          "source": "If `True`, and the org reports that this **Change Data Capture** channel cannot be subscribed to because the object was never selected, switch it on and continue, rather than failing.\n\nThis exists because a subscription to an object that is not enabled succeeds and then delivers nothing, which is indistinguishable from an idle org. The default is `False`: subscribing to events should not quietly change org configuration.\n\n**This changes org configuration.** It starts a 72-hour retention stream for the object, and the number of objects an org may select depends on its edition and add-ons. The connection's user needs permission to modify metadata. For a one-time, auditable step, use the `enable-change-data-capture` action instead.",
+          "message": "Jeśli `True`, a organizacja zgłasza, że tego kanału **Change Data Capture** nie można subskrybować, ponieważ obiekt nigdy nie został wybrany, włącz go i kontynuuj zamiast zgłaszać błąd.\n\nIstnieje to dlatego, że subskrypcja obiektu, który nie jest włączony, kończy się sukcesem, a następnie nic nie dostarcza, co jest nie do odróżnienia od bezczynnej organizacji. Domyślna wartość to `False`: subskrybowanie zdarzeń nie powinno po cichu zmieniać konfiguracji organizacji.\n\n**To zmienia konfigurację organizacji.** Uruchamia 72-godzinny strumień retencji dla obiektu, a liczba obiektów, które organizacja może wybrać, zależy od jej edycji i dodatków. Użytkownik połączenia wymaga uprawnień do modyfikowania metadanych. W przypadku jednorazowego, audytowalnego kroku użyj zamiast tego akcji `enable-change-data-capture`."
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.display_name": {
+          "source": "Enable Change Data Capture",
+          "message": "Włącz Change Data Capture"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.short_desc": {
+          "source": "Switch Change Data Capture on for the object if it is not already",
+          "message": "Włącz Change Data Capture dla obiektu, jeśli nie jest jeszcze włączone"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.bnVtX3JlcXVlc3RlZA.desc": {
+          "source": "How many events the client keeps requested from the server at a time; between 1 and 100, which is the maximum the Pub/Sub API accepts in a single `FetchRequest`",
+          "message": "Ile zdarzeń klient żąda od serwera jednocześnie; od 1 do 100, co jest maksymalną wartością akceptowaną przez Pub/Sub API w pojedynczym `FetchRequest`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.bnVtX3JlcXVlc3RlZA.display_name": {
+          "source": "Flow Control Window",
+          "message": "Okno kontroli przepływu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.bnVtX3JlcXVlc3RlZA.short_desc": {
+          "source": "How many events the client keeps requested",
+          "message": "Liczba zdarzeń, o które wnioskuje klient"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X2lk.desc": {
+          "source": "The base64-encoded replay ID to resume after, as reported in the `event.replayId` field of a delivered event.  Implies the `CUSTOM` replay preset",
+          "message": "Zakodowane w base64 ID odtwarzania, po którym należy wznowić, zgłoszone w polu `event.replayId` dostarczonego zdarzenia. Implikuje ustawienie wstępne odtwarzania `CUSTOM`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X2lk.display_name": {
+          "source": "Replay ID",
+          "message": "ID odtwarzania"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X2lk.short_desc": {
+          "source": "The base64 replay ID to resume after",
+          "message": "ID odtwarzania w formacie base64, po którym należy wznowić"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkNVU1RPTQ.desc": {
+          "source": "Start immediately after the event identified by `replay_id`",
+          "message": "Rozpocznij bezpośrednio po zdarzeniu zidentyfikowanym przez `replay_id`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkNVU1RPTQ.display_name": {
+          "source": "Custom",
+          "message": "Niestandardowy"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkVBUkxJRVNU.desc": {
+          "source": "Start at the oldest event still retained in the stream",
+          "message": "Rozpocznij od najstarszego zdarzenia zachowanego w strumieniu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkVBUkxJRVNU.display_name": {
+          "source": "Earliest",
+          "message": "Najstarsze"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkxBVEVTVA.desc": {
+          "source": "Start at the tip of the stream; only events published after the subscription starts are delivered",
+          "message": "Rozpocznij od końca strumienia; dostarczane są tylko zdarzenia opublikowane po rozpoczęciu subskrypcji"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkxBVEVTVA.display_name": {
+          "source": "Latest",
+          "message": "Najnowsze"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.desc": {
+          "source": "Where the subscription starts: `LATEST` (the tip of the stream, the default), `EARLIEST` (the oldest retained event), or `CUSTOM` (after the event identified by `replay_id`).\n\nSalesforce retains replay IDs for **72 hours**",
+          "message": "Miejsce rozpoczęcia subskrypcji: `LATEST` (koniec strumienia, domyślnie), `EARLIEST` (najstarsze zachowane zdarzenie) lub `CUSTOM` (po zdarzeniu zidentyfikowanym przez `replay_id`).\n\nSalesforce przechowuje ID odtwarzania przez **72 godziny**"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.display_name": {
+          "source": "Replay Preset",
+          "message": "Ustawienie wstępne odtwarzania"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.short_desc": {
+          "source": "Where in the event stream the subscription starts",
+          "message": "Miejsce w strumieniu zdarzeń, w którym rozpoczyna się subskrypcja"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.dG9waWNfbmFtZQ.desc": {
+          "source": "The Pub/Sub topic name, overriding the one derived from this provider's name.  Set this to subscribe to a **custom channel**, which `describeGlobal` does not list; for example `/event/MyChannel__chn`",
+          "message": "Nazwa tematu Pub/Sub, zastępująca nazwę pochodzącą od tego dostawcy. Ustaw to, aby zasubskrybować **kanał niestandardowy**, którego `describeGlobal` nie wymienia; na przykład `/event/MyChannel__chn`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.dG9waWNfbmFtZQ.display_name": {
+          "source": "Topic Name",
+          "message": "Nazwa tematu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.dG9waWNfbmFtZQ.short_desc": {
+          "source": "The Pub/Sub topic name to subscribe to",
+          "message": "Nazwa tematu Pub/Sub do zasubskrybowania"
+        },
+        "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.short_desc": {
+          "source": "React to a Salesforce platform or change data capture event",
+          "message": "Reaguj na zdarzenie platformy Salesforce lub zdarzenie Change Data Capture"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.desc": {
+          "source": "Reacts when a record of the given Salesforce object is **updated**, using the **Pub/Sub API** Change Data Capture stream.\n\nThe event payload carries the `ChangeEventHeader.changedFields` list, so the fields that actually changed are known without re-reading the record.\n\nDelivery is real time rather than polled, and the subscription resumes from its last replay position after a reconnect; Salesforce retains replay IDs for **72 hours**.\n\nA `GAP_UPDATE` event, which reports an update that Salesforce could not deliver in full, is delivered by this action as well.\n\nChange Data Capture must be enabled for the object in **Setup -> Integrations -> Change Data Capture**",
+          "message": "Reaguje, gdy rekord danego obiektu Salesforce zostanie **zaktualizowany**, używając strumienia Change Data Capture **Pub/Sub API**.\n\nŁadunek zdarzenia zawiera listę `ChangeEventHeader.changedFields`, dzięki czemu pola, które rzeczywiście się zmieniły, są znane bez ponownego odczytywania rekordu.\n\nDostarczanie odbywa się w czasie rzeczywistym, a nie poprzez odpytywanie, a subskrypcja jest wznawiana od ostatniej pozycji odtwarzania po ponownym połączeniu; Salesforce przechowuje identyfikatory odtwarzania przez **72 godziny**.\n\nZdarzenie `GAP_UPDATE`, które zgłasza aktualizację, której Salesforce nie mógł dostarczyć w całości, jest również dostarczane przez tę akcję.\n\nUsługa Change Data Capture musi być włączona dla obiektu w sekcji **Setup -> Integrations -> Change Data Capture**"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.display_name": {
+          "source": "Updated Salesforce Record",
+          "message": "Zaktualizowany rekord Salesforce"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.Y2hhbm5lbA.desc": {
+          "source": "The Change Data Capture channel to subscribe to, named after the object it reports on: `AccountChangeEvent` for `Account`, `OpportunityChangeEvent` for `Opportunity`, and so on.\n\nChange Data Capture must be enabled for the object in **Setup -> Integrations -> Change Data Capture**",
+          "message": "Kanał Change Data Capture do zasubskrybowania, nazwany od obiektu, który raportuje: `AccountChangeEvent` dla `Account`, `OpportunityChangeEvent` dla `Opportunity` i tak dalej.\n\nFunkcja Change Data Capture musi być włączona dla obiektu w **Setup -> Integrations -> Change Data Capture**"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.Y2hhbm5lbA.display_name": {
+          "source": "Object",
+          "message": "Obiekt"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.Y2hhbm5lbA.short_desc": {
+          "source": "The Salesforce object to watch",
+          "message": "Obiekt Salesforce do obserwowania"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.desc": {
+          "source": "If `True`, and the org reports that this **Change Data Capture** channel cannot be subscribed to because the object was never selected, switch it on and continue, rather than failing.\n\nThis exists because a subscription to an object that is not enabled succeeds and then delivers nothing, which is indistinguishable from an idle org. The default is `False`: subscribing to events should not quietly change org configuration.\n\n**This changes org configuration.** It starts a 72-hour retention stream for the object, and the number of objects an org may select depends on its edition and add-ons. The connection's user needs permission to modify metadata. For a one-time, auditable step, use the `enable-change-data-capture` action instead.",
+          "message": "Jeśli `True`, a organizacja zgłasza, że tego kanału **Change Data Capture** nie można subskrybować, ponieważ obiekt nigdy nie został wybrany, włącz go i kontynuuj zamiast zgłaszać błąd.\n\nIstnieje to dlatego, że subskrypcja obiektu, który nie jest włączony, kończy się sukcesem, a następnie nic nie dostarcza, co jest nie do odróżnienia od bezczynnej organizacji. Domyślna wartość to `False`: subskrybowanie zdarzeń nie powinno po cichu zmieniać konfiguracji organizacji.\n\n**To zmienia konfigurację organizacji.** Uruchamia 72-godzinny strumień retencji dla obiektu, a liczba obiektów, które organizacja może wybrać, zależy od jej edycji i dodatków. Użytkownik połączenia wymaga uprawnień do modyfikowania metadanych. W przypadku jednorazowego, audytowalnego kroku użyj zamiast tego akcji `enable-change-data-capture`."
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.display_name": {
+          "source": "Enable Change Data Capture",
+          "message": "Włącz Change Data Capture"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.short_desc": {
+          "source": "Switch Change Data Capture on for the object if it is not already",
+          "message": "Włącz Change Data Capture dla obiektu, jeśli nie jest jeszcze włączone"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.bnVtX3JlcXVlc3RlZA.desc": {
+          "source": "How many events the client keeps requested from the server at a time; between 1 and 100, which is the maximum the Pub/Sub API accepts in a single `FetchRequest`",
+          "message": "Ile zdarzeń klient żąda od serwera jednocześnie; od 1 do 100, co jest maksymalną wartością akceptowaną przez Pub/Sub API w pojedynczym `FetchRequest`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.bnVtX3JlcXVlc3RlZA.display_name": {
+          "source": "Flow Control Window",
+          "message": "Okno kontroli przepływu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.bnVtX3JlcXVlc3RlZA.short_desc": {
+          "source": "How many events the client keeps requested",
+          "message": "Liczba zdarzeń, o które wnioskuje klient"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X2lk.desc": {
+          "source": "The base64-encoded replay ID to resume after, as reported in the `event.replayId` field of a delivered event.  Implies the `CUSTOM` replay preset",
+          "message": "Zakodowane w base64 ID odtwarzania, po którym należy wznowić, zgłoszone w polu `event.replayId` dostarczonego zdarzenia. Implikuje ustawienie wstępne odtwarzania `CUSTOM`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X2lk.display_name": {
+          "source": "Replay ID",
+          "message": "ID odtwarzania"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X2lk.short_desc": {
+          "source": "The base64 replay ID to resume after",
+          "message": "ID odtwarzania w formacie base64, po którym należy wznowić"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkNVU1RPTQ.desc": {
+          "source": "Start immediately after the event identified by `replay_id`",
+          "message": "Rozpocznij bezpośrednio po zdarzeniu zidentyfikowanym przez `replay_id`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkNVU1RPTQ.display_name": {
+          "source": "Custom",
+          "message": "Niestandardowy"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkVBUkxJRVNU.desc": {
+          "source": "Start at the oldest event still retained in the stream",
+          "message": "Rozpocznij od najstarszego zdarzenia zachowanego w strumieniu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkVBUkxJRVNU.display_name": {
+          "source": "Earliest",
+          "message": "Najstarsze"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkxBVEVTVA.desc": {
+          "source": "Start at the tip of the stream; only events published after the subscription starts are delivered",
+          "message": "Rozpocznij od końca strumienia; dostarczane są tylko zdarzenia opublikowane po rozpoczęciu subskrypcji"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.allowed-value.c3RyaW5nOkxBVEVTVA.display_name": {
+          "source": "Latest",
+          "message": "Najnowsze"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.desc": {
+          "source": "Where the subscription starts: `LATEST` (the tip of the stream, the default), `EARLIEST` (the oldest retained event), or `CUSTOM` (after the event identified by `replay_id`).\n\nSalesforce retains replay IDs for **72 hours**",
+          "message": "Miejsce rozpoczęcia subskrypcji: `LATEST` (koniec strumienia, domyślnie), `EARLIEST` (najstarsze zachowane zdarzenie) lub `CUSTOM` (po zdarzeniu zidentyfikowanym przez `replay_id`).\n\nSalesforce przechowuje ID odtwarzania przez **72 godziny**"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.display_name": {
+          "source": "Replay Preset",
+          "message": "Ustawienie wstępne odtwarzania"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.short_desc": {
+          "source": "Where in the event stream the subscription starts",
+          "message": "Miejsce w strumieniu zdarzeń, w którym rozpoczyna się subskrypcja"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.dG9waWNfbmFtZQ.desc": {
+          "source": "The Pub/Sub topic name, overriding the one derived from this provider's name.  Set this to subscribe to a **custom channel**, which `describeGlobal` does not list; for example `/event/MyChannel__chn`",
+          "message": "Nazwa tematu Pub/Sub, zastępująca nazwę pochodzącą od tego dostawcy. Ustaw to, aby zasubskrybować **kanał niestandardowy**, którego `describeGlobal` nie wymienia; na przykład `/event/MyChannel__chn`"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.dG9waWNfbmFtZQ.display_name": {
+          "source": "Topic Name",
+          "message": "Nazwa tematu"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.dG9waWNfbmFtZQ.short_desc": {
+          "source": "The Pub/Sub topic name to subscribe to",
+          "message": "Nazwa tematu Pub/Sub do zasubskrybowania"
+        },
+        "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.short_desc": {
+          "source": "React when a record of the given object is updated",
+          "message": "Reaguj, gdy rekord danego obiektu zostanie zaktualizowany"
+        }
+      }
+    }
+  }
+}

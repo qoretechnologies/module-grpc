@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "locales": {
+    "fr": {
+      "messages": {
+        "app.Z1JQQw.action.Y2FsbA.desc": {
+          "source": "Makes a gRPC call to the specified service method",
+          "message": "Effectue un appel gRPC à la méthode de service spécifiée"
+        },
+        "app.Z1JQQw.action.Y2FsbA.display_name": {
+          "source": "Call gRPC Method",
+          "message": "Appeler la méthode gRPC"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.bWV0aG9k.desc": {
+          "source": "The gRPC method name as defined in the service",
+          "message": "Le nom de la méthode gRPC tel que défini dans le service"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.bWV0aG9k.display_name": {
+          "source": "Method",
+          "message": "Méthode"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.bWV0aG9k.short_desc": {
+          "source": "The gRPC method name",
+          "message": "Le nom de la méthode gRPC"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.c2VydmljZQ.desc": {
+          "source": "The gRPC service name as defined in the protobuf schema",
+          "message": "Le nom du service gRPC tel que défini dans le schéma protobuf"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.c2VydmljZQ.display_name": {
+          "source": "Service",
+          "message": "Service"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.c2VydmljZQ.short_desc": {
+          "source": "The gRPC service name",
+          "message": "Le nom du service gRPC"
+        },
+        "app.Z1JQQw.action.Y2FsbA.short_desc": {
+          "source": "Call a gRPC service method",
+          "message": "Appeler une méthode de service gRPC"
+        },
+        "app.Z1JQQw.desc": {
+          "source": "Connect to gRPC services using protobuf schemas for request/response serialization, supporting all four RPC patterns: unary, server streaming, client streaming, and bidirectional streaming",
+          "message": "Connectez-vous aux services gRPC en utilisant des schémas protobuf pour la sérialisation des requêtes/réponses, avec prise en charge des quatre modèles RPC : unaire, streaming serveur, streaming client et streaming bidirectionnel"
+        },
+        "app.Z1JQQw.display_name": {
+          "source": "gRPC Server",
+          "message": "Serveur gRPC"
+        },
+        "app.Z1JQQw.short_desc": {
+          "source": "gRPC remote procedure call server",
+          "message": "Serveur d'appel de procédure distante gRPC"
+        }
+      }
+    }
+  }
+}

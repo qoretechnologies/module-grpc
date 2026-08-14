@@ -1,0 +1,253 @@
+{
+  "schema_version": 1,
+  "locales": {
+    "uk": {
+      "messages": {
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.desc": {
+          "source": "Retrieves columnar data from an Arrow Flight service via the DoGet streaming RPC; returns all record batches as row hashes by default, or ColumnarResult batches when `output_shape` is `columnar`",
+          "message": "Отримує стовпчасті дані із сервісу Arrow Flight за допомогою потокового RPC DoGet; за замовчуванням повертає всі пакети записів як хеші рядків або пакети ColumnarResult, коли `output_shape` має значення `columnar`"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.display_name": {
+          "source": "Get Flight Data",
+          "message": "Отримати дані Flight"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.desc": {
+          "source": "The Arrow Flight dataset name as registered on the server",
+          "message": "Назва набору даних Arrow Flight, зареєстрована на сервері"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.display_name": {
+          "source": "Dataset",
+          "message": "Набір даних"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.short_desc": {
+          "source": "The Flight dataset name",
+          "message": "Назва набору даних Flight"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.allowed-value.c3RyaW5nOmNvbHVtbmFy.display_name": {
+          "source": "Columnar",
+          "message": "Стовпчастий"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.allowed-value.c3RyaW5nOnJvd3M.display_name": {
+          "source": "Rows",
+          "message": "Рядки"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.desc": {
+          "source": "Optional output shape: `rows` returns a list of row hashes; `columnar` returns a list of ColumnarResult record batches",
+          "message": "Необов'язкова форма виводу: `rows` повертає список хешів рядків; `columnar` повертає список пакетів записів ColumnarResult"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.display_name": {
+          "source": "Output Shape",
+          "message": "Форма виводу"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.short_desc": {
+          "source": "rows or columnar",
+          "message": "rows або columnar"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.dGlja2V0.desc": {
+          "source": "Optional flight ticket; defaults to the dataset path if not provided",
+          "message": "Необов'язковий квиток Flight; за замовчуванням використовується шлях до набору даних, якщо його не вказано"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.dGlja2V0.display_name": {
+          "source": "Ticket",
+          "message": "Квиток"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.dGlja2V0.short_desc": {
+          "source": "Flight ticket as binary data",
+          "message": "Квиток Flight як бінарні дані"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.short_desc": {
+          "source": "Retrieve data from an Arrow Flight dataset",
+          "message": "Отримати дані з набору даних Arrow Flight"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.desc": {
+          "source": "Retrieves metadata for a specific dataset via the GetFlightInfo RPC, including schema, record count, and endpoint information",
+          "message": "Отримує метадані для певного набору даних через RPC GetFlightInfo, включаючи схему, кількість записів та інформацію про кінцеві точки"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.display_name": {
+          "source": "Get Flight Info",
+          "message": "Отримати інформацію Flight"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.option.ZGF0YXNldA.desc": {
+          "source": "The Arrow Flight dataset name as registered on the server",
+          "message": "Назва набору даних Arrow Flight, зареєстрована на сервері"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.option.ZGF0YXNldA.display_name": {
+          "source": "Dataset",
+          "message": "Набір даних"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.option.ZGF0YXNldA.short_desc": {
+          "source": "The dataset name to get info for",
+          "message": "Назва набору даних для отримання інформації"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.short_desc": {
+          "source": "Get metadata for an Arrow Flight dataset",
+          "message": "Отримати метадані для набору даних Arrow Flight"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.desc": {
+          "source": "Executes a custom server-side action via the DoAction RPC; the action type and optional binary body are sent to the server, which returns a list of binary results",
+          "message": "Виконує користувацьку дію на стороні сервера за допомогою RPC DoAction; тип дії та необов'язкове бінарне тіло надсилаються на сервер, який повертає список бінарних результатів"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.display_name": {
+          "source": "Execute Flight Action",
+          "message": "Виконати дію Flight"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.desc": {
+          "source": "The action type string identifying the server-side action to execute",
+          "message": "Рядок типу дії, що ідентифікує дію на стороні сервера для виконання"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.display_name": {
+          "source": "Action Type",
+          "message": "Тип дії"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.short_desc": {
+          "source": "The action type to execute",
+          "message": "Тип дії для виконання"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.Ym9keQ.desc": {
+          "source": "Optional binary payload to send with the action request",
+          "message": "Необов'язкове бінарне корисне навантаження для надсилання із запитом дії"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.Ym9keQ.display_name": {
+          "source": "Body",
+          "message": "Тіло"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.Ym9keQ.short_desc": {
+          "source": "Optional binary body for the action",
+          "message": "Необов'язкове бінарне тіло для дії"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.short_desc": {
+          "source": "Execute a custom action on the Arrow Flight server",
+          "message": "Виконати користувацьку дію на сервері Arrow Flight"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.desc": {
+          "source": "Performs a bidirectional data exchange via the DoExchange streaming RPC; sends input rows or columnar batches and receives transformed output rows by default, or ColumnarResult batches when `output_shape` is `columnar`",
+          "message": "Виконує двонаправлений обмін даними за допомогою потокового RPC DoExchange; надсилає вхідні рядки або стовпчасті пакети та за замовчуванням отримує перетворені вихідні рядки або пакети ColumnarResult, коли `output_shape` має значення `columnar`"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.display_name": {
+          "source": "Exchange Flight Data",
+          "message": "Обмінятися даними Flight"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.ZGF0YXNldA.desc": {
+          "source": "The Arrow Flight dataset name as registered on the server",
+          "message": "Назва набору даних Arrow Flight, зареєстрована на сервері"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.ZGF0YXNldA.display_name": {
+          "source": "Dataset",
+          "message": "Набір даних"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.ZGF0YXNldA.short_desc": {
+          "source": "The Flight dataset name",
+          "message": "Назва набору даних Flight"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.allowed-value.c3RyaW5nOmNvbHVtbmFy.display_name": {
+          "source": "Columnar",
+          "message": "Стовпчастий"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.allowed-value.c3RyaW5nOnJvd3M.display_name": {
+          "source": "Rows",
+          "message": "Рядки"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.desc": {
+          "source": "Optional response shape: `rows` returns a list of row hashes; `columnar` returns a list of ColumnarResult record batches",
+          "message": "Необов'язкова форма відповіді: `rows` повертає список хешів рядків; `columnar` повертає список пакетів записів ColumnarResult"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.display_name": {
+          "source": "Output Shape",
+          "message": "Форма виводу"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.short_desc": {
+          "source": "rows or columnar",
+          "message": "rows або columnar"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.cm93cw.desc": {
+          "source": "A row list, hash-of-lists block, ColumnarResult, DataFrame, or ArrowRecordBatch to send for bidirectional exchange",
+          "message": "Список рядків, блок хешів списків, ColumnarResult, DataFrame або ArrowRecordBatch для надсилання в межах двонаправленого обміну"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.cm93cw.display_name": {
+          "source": "Rows",
+          "message": "Рядки"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.cm93cw.short_desc": {
+          "source": "Rows or columnar input data to send",
+          "message": "Вхідні дані у вигляді рядків або стовпчасті дані для надсилання"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.short_desc": {
+          "source": "Bidirectional data exchange on an Arrow Flight dataset",
+          "message": "Двонаправлений обмін даними у наборі даних Arrow Flight"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1hY3Rpb25z.desc": {
+          "source": "Lists custom actions available on the Arrow Flight server via the ListActions RPC; each action has a type identifier and description",
+          "message": "Виводить список користувацьких дій, доступних на сервері Arrow Flight за допомогою RPC ListActions; кожна дія має ідентифікатор типу та опис"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1hY3Rpb25z.display_name": {
+          "source": "List Flight Actions",
+          "message": "Перелічити дії Flight"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1hY3Rpb25z.short_desc": {
+          "source": "List available actions on the Arrow Flight server",
+          "message": "Перелічити доступні дії на сервері Arrow Flight"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1mbGlnaHRz.desc": {
+          "source": "Discovers available datasets on the Arrow Flight server via the ListFlights RPC; returns a list of FlightInfo hashes with dataset metadata",
+          "message": "Виявляє доступні набори даних на сервері Arrow Flight за допомогою RPC ListFlights; повертає список хешів FlightInfo з метаданими наборів даних"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1mbGlnaHRz.display_name": {
+          "source": "List Flights",
+          "message": "Перелічити набори даних Flight"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1mbGlnaHRz.short_desc": {
+          "source": "List available Arrow Flight datasets",
+          "message": "Перелічити доступні набори даних Arrow Flight"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.desc": {
+          "source": "Sends columnar data to an Arrow Flight service via the DoPut streaming RPC; the data is sent as one or more Arrow record batches from row lists, hash-of-lists blocks, ColumnarResult objects, DataFrames, or ArrowRecordBatch objects",
+          "message": "Надсилає стовпчасті дані до сервісу Arrow Flight за допомогою потокового RPC DoPut; дані надсилаються як один або кілька пакетів записів Arrow зі списків рядків, блоків хешів списків, об'єктів ColumnarResult, DataFrame або ArrowRecordBatch"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.display_name": {
+          "source": "Put Flight Data",
+          "message": "Надіслати дані Flight"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.desc": {
+          "source": "The Arrow Flight dataset name as registered on the server",
+          "message": "Назва набору даних Arrow Flight, зареєстрована на сервері"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.display_name": {
+          "source": "Dataset",
+          "message": "Набір даних"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.short_desc": {
+          "source": "The Flight dataset name",
+          "message": "Назва набору даних Flight"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.cm93cw.desc": {
+          "source": "A row list, hash-of-lists block, ColumnarResult, DataFrame, or ArrowRecordBatch to send as Arrow record batches",
+          "message": "Список рядків, блок хешів списків, ColumnarResult, DataFrame або ArrowRecordBatch для надсилання як пакети записів Arrow"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.cm93cw.display_name": {
+          "source": "Rows",
+          "message": "Рядки"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.cm93cw.short_desc": {
+          "source": "Rows or columnar data to send",
+          "message": "Рядки або стовпчасті дані для надсилання"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.short_desc": {
+          "source": "Send data to an Arrow Flight dataset",
+          "message": "Надіслати дані до набору даних Arrow Flight"
+        },
+        "app.QXJyb3dGbGlnaHQ.desc": {
+          "source": "Connect to [Apache Arrow Flight](https://arrow.apache.org/docs/format/Flight.html) services for high-performance columnar data exchange using Apache Arrow IPC format.\n\n**Supported operations**:\n- **DoGet**: streaming read of columnar data\n- **DoPut**: streaming write of columnar data\n- **DoExchange**: bidirectional streaming data transformation\n- **DoAction**: execute custom server actions\n- **ListFlights / GetFlightInfo**: dataset discovery and metadata",
+          "message": "Підключення до сервісів [Apache Arrow Flight](https://arrow.apache.org/docs/format/Flight.html) для високопродуктивного обміну стовпчастими даними у форматі Apache Arrow IPC.\n\n**Підтримувані операції**:\n- **DoGet**: потокове читання стовпчастих даних\n- **DoPut**: потоковий запис стовпчастих даних\n- **DoExchange**: двонаправлена потокова трансформація даних\n- **DoAction**: виконання користувацьких дій на сервері\n- **ListFlights / GetFlightInfo**: виявлення наборів даних та метадані"
+        },
+        "app.QXJyb3dGbGlnaHQ.display_name": {
+          "source": "Arrow Flight",
+          "message": "Arrow Flight"
+        },
+        "app.QXJyb3dGbGlnaHQ.short_desc": {
+          "source": "Arrow Flight columnar data service",
+          "message": "Сервіс стовпчастих даних Arrow Flight"
+        }
+      }
+    }
+  }
+}

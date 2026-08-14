@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "locales": {
+    "cs": {
+      "messages": {
+        "app.Z1JQQw.action.Y2FsbA.desc": {
+          "source": "Makes a gRPC call to the specified service method",
+          "message": "Provádí volání gRPC na zadanou metodu služby"
+        },
+        "app.Z1JQQw.action.Y2FsbA.display_name": {
+          "source": "Call gRPC Method",
+          "message": "Zavolat metodu gRPC"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.bWV0aG9k.desc": {
+          "source": "The gRPC method name as defined in the service",
+          "message": "Název metody gRPC definovaný ve službě"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.bWV0aG9k.display_name": {
+          "source": "Method",
+          "message": "Metoda"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.bWV0aG9k.short_desc": {
+          "source": "The gRPC method name",
+          "message": "Název metody gRPC"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.c2VydmljZQ.desc": {
+          "source": "The gRPC service name as defined in the protobuf schema",
+          "message": "Název služby gRPC definovaný v schématu protobuf"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.c2VydmljZQ.display_name": {
+          "source": "Service",
+          "message": "Služba"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.c2VydmljZQ.short_desc": {
+          "source": "The gRPC service name",
+          "message": "Název služby gRPC"
+        },
+        "app.Z1JQQw.action.Y2FsbA.short_desc": {
+          "source": "Call a gRPC service method",
+          "message": "Zavolat metodu služby gRPC"
+        },
+        "app.Z1JQQw.desc": {
+          "source": "Connect to gRPC services using protobuf schemas for request/response serialization, supporting all four RPC patterns: unary, server streaming, client streaming, and bidirectional streaming",
+          "message": "Připojení ke službám gRPC s využitím schémat protobuf pro serializaci požadavků/odpovědí, s podporou všech čtyř vzorů RPC: unární, streamování ze serveru, streamování z klienta a obousměrné streamování"
+        },
+        "app.Z1JQQw.display_name": {
+          "source": "gRPC Server",
+          "message": "Server gRPC"
+        },
+        "app.Z1JQQw.short_desc": {
+          "source": "gRPC remote procedure call server",
+          "message": "Server vzdáleného volání procedur gRPC"
+        }
+      }
+    }
+  }
+}

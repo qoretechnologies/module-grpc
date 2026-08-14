@@ -1,0 +1,253 @@
+{
+  "schema_version": 1,
+  "locales": {
+    "zh-TW": {
+      "messages": {
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.desc": {
+          "source": "Retrieves columnar data from an Arrow Flight service via the DoGet streaming RPC; returns all record batches as row hashes by default, or ColumnarResult batches when `output_shape` is `columnar`",
+          "message": "透過 DoGet 串流 RPC 從 Arrow Flight 服務檢索欄位式資料；預設將所有記錄批次作為列雜湊傳回，或者當 `output_shape` 為 `columnar` 時傳回 ColumnarResult 批次"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.display_name": {
+          "source": "Get Flight Data",
+          "message": "取得 Flight 資料"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.desc": {
+          "source": "The Arrow Flight dataset name as registered on the server",
+          "message": "在伺服器上註冊的 Arrow Flight 資料集名稱"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.display_name": {
+          "source": "Dataset",
+          "message": "資料集"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.short_desc": {
+          "source": "The Flight dataset name",
+          "message": "Flight 資料集名稱"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.allowed-value.c3RyaW5nOmNvbHVtbmFy.display_name": {
+          "source": "Columnar",
+          "message": "欄位式"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.allowed-value.c3RyaW5nOnJvd3M.display_name": {
+          "source": "Rows",
+          "message": "列"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.desc": {
+          "source": "Optional output shape: `rows` returns a list of row hashes; `columnar` returns a list of ColumnarResult record batches",
+          "message": "選填的輸出形狀：`rows` 會傳回列雜湊清單；`columnar` 會傳回 ColumnarResult 記錄批次清單"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.display_name": {
+          "source": "Output Shape",
+          "message": "輸出形狀"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.short_desc": {
+          "source": "rows or columnar",
+          "message": "列或欄位式"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.dGlja2V0.desc": {
+          "source": "Optional flight ticket; defaults to the dataset path if not provided",
+          "message": "選填的 Flight 票證；若未提供，預設為資料集路徑"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.dGlja2V0.display_name": {
+          "source": "Ticket",
+          "message": "票證"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.dGlja2V0.short_desc": {
+          "source": "Flight ticket as binary data",
+          "message": "作為二進位資料的 Flight 票證"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.short_desc": {
+          "source": "Retrieve data from an Arrow Flight dataset",
+          "message": "從 Arrow Flight 資料集檢索資料"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.desc": {
+          "source": "Retrieves metadata for a specific dataset via the GetFlightInfo RPC, including schema, record count, and endpoint information",
+          "message": "透過 GetFlightInfo RPC 檢索特定資料集的元資料，包括結構描述 (schema)、記錄數和端點資訊"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.display_name": {
+          "source": "Get Flight Info",
+          "message": "取得 Flight 資訊"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.option.ZGF0YXNldA.desc": {
+          "source": "The Arrow Flight dataset name as registered on the server",
+          "message": "在伺服器上註冊的 Arrow Flight 資料集名稱"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.option.ZGF0YXNldA.display_name": {
+          "source": "Dataset",
+          "message": "資料集"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.option.ZGF0YXNldA.short_desc": {
+          "source": "The dataset name to get info for",
+          "message": "要取得資訊的資料集名稱"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.short_desc": {
+          "source": "Get metadata for an Arrow Flight dataset",
+          "message": "取得 Arrow Flight 資料集的元資料"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.desc": {
+          "source": "Executes a custom server-side action via the DoAction RPC; the action type and optional binary body are sent to the server, which returns a list of binary results",
+          "message": "透過 DoAction RPC 執行自訂伺服器端動作；動作類型和選填的二進位內文會傳送到伺服器，伺服器會傳回二進位結果清單"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.display_name": {
+          "source": "Execute Flight Action",
+          "message": "執行 Flight 動作"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.desc": {
+          "source": "The action type string identifying the server-side action to execute",
+          "message": "識別要執行的伺服器端動作的動作類型字串"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.display_name": {
+          "source": "Action Type",
+          "message": "動作類型"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.short_desc": {
+          "source": "The action type to execute",
+          "message": "要執行的動作類型"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.Ym9keQ.desc": {
+          "source": "Optional binary payload to send with the action request",
+          "message": "隨動作請求傳送的選填二進位有效負載"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.Ym9keQ.display_name": {
+          "source": "Body",
+          "message": "內文"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.Ym9keQ.short_desc": {
+          "source": "Optional binary body for the action",
+          "message": "動作的選填二進位內文"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.short_desc": {
+          "source": "Execute a custom action on the Arrow Flight server",
+          "message": "在 Arrow Flight 伺服器上執行自訂動作"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.desc": {
+          "source": "Performs a bidirectional data exchange via the DoExchange streaming RPC; sends input rows or columnar batches and receives transformed output rows by default, or ColumnarResult batches when `output_shape` is `columnar`",
+          "message": "透過 DoExchange 串流 RPC 進行雙向資料交換；傳送輸入列或欄位式批次，並預設接收轉換後的輸出列，或者當 `output_shape` 為 `columnar` 時接收 ColumnarResult 批次"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.display_name": {
+          "source": "Exchange Flight Data",
+          "message": "交換 Flight 資料"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.ZGF0YXNldA.desc": {
+          "source": "The Arrow Flight dataset name as registered on the server",
+          "message": "在伺服器上註冊的 Arrow Flight 資料集名稱"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.ZGF0YXNldA.display_name": {
+          "source": "Dataset",
+          "message": "資料集"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.ZGF0YXNldA.short_desc": {
+          "source": "The Flight dataset name",
+          "message": "Flight 資料集名稱"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.allowed-value.c3RyaW5nOmNvbHVtbmFy.display_name": {
+          "source": "Columnar",
+          "message": "欄位式"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.allowed-value.c3RyaW5nOnJvd3M.display_name": {
+          "source": "Rows",
+          "message": "列"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.desc": {
+          "source": "Optional response shape: `rows` returns a list of row hashes; `columnar` returns a list of ColumnarResult record batches",
+          "message": "選填的回應形狀：`rows` 會傳回列雜湊清單；`columnar` 會傳回 ColumnarResult 記錄批次清單"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.display_name": {
+          "source": "Output Shape",
+          "message": "輸出形狀"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.short_desc": {
+          "source": "rows or columnar",
+          "message": "列或欄位式"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.cm93cw.desc": {
+          "source": "A row list, hash-of-lists block, ColumnarResult, DataFrame, or ArrowRecordBatch to send for bidirectional exchange",
+          "message": "要傳送以進行雙向交換的列清單、雜湊列表區塊 (hash-of-lists block)、ColumnarResult、DataFrame 或 ArrowRecordBatch"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.cm93cw.display_name": {
+          "source": "Rows",
+          "message": "列"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.cm93cw.short_desc": {
+          "source": "Rows or columnar input data to send",
+          "message": "要傳送的列或欄位式輸入資料"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.short_desc": {
+          "source": "Bidirectional data exchange on an Arrow Flight dataset",
+          "message": "在 Arrow Flight 資料集上進行雙向資料交換"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1hY3Rpb25z.desc": {
+          "source": "Lists custom actions available on the Arrow Flight server via the ListActions RPC; each action has a type identifier and description",
+          "message": "透過 ListActions RPC 列出 Arrow Flight 伺服器上可用的自訂動作；每個動作皆有類型識別碼和描述"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1hY3Rpb25z.display_name": {
+          "source": "List Flight Actions",
+          "message": "列出 Flight 動作"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1hY3Rpb25z.short_desc": {
+          "source": "List available actions on the Arrow Flight server",
+          "message": "列出 Arrow Flight 伺服器上的可用動作"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1mbGlnaHRz.desc": {
+          "source": "Discovers available datasets on the Arrow Flight server via the ListFlights RPC; returns a list of FlightInfo hashes with dataset metadata",
+          "message": "透過 ListFlights RPC 探索 Arrow Flight 伺服器上的可用資料集；傳回包含資料集元資料的 FlightInfo 雜湊清單"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1mbGlnaHRz.display_name": {
+          "source": "List Flights",
+          "message": "列出 Flight"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1mbGlnaHRz.short_desc": {
+          "source": "List available Arrow Flight datasets",
+          "message": "列出可用的 Arrow Flight 資料集"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.desc": {
+          "source": "Sends columnar data to an Arrow Flight service via the DoPut streaming RPC; the data is sent as one or more Arrow record batches from row lists, hash-of-lists blocks, ColumnarResult objects, DataFrames, or ArrowRecordBatch objects",
+          "message": "透過 DoPut 串流 RPC 傳送欄位式資料至 Arrow Flight 服務；資料會作為一個或多個 Arrow 記錄批次傳送，來源可為列清單、雜湊列表區塊、ColumnarResult 物件、DataFrame 物件或 ArrowRecordBatch 物件"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.display_name": {
+          "source": "Put Flight Data",
+          "message": "放置 Flight 資料"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.desc": {
+          "source": "The Arrow Flight dataset name as registered on the server",
+          "message": "在伺服器上註冊的 Arrow Flight 資料集名稱"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.display_name": {
+          "source": "Dataset",
+          "message": "資料集"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.short_desc": {
+          "source": "The Flight dataset name",
+          "message": "Flight 資料集名稱"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.cm93cw.desc": {
+          "source": "A row list, hash-of-lists block, ColumnarResult, DataFrame, or ArrowRecordBatch to send as Arrow record batches",
+          "message": "要作為 Arrow 記錄批次傳送的列清單、雜湊列表區塊、ColumnarResult、DataFrame 或 ArrowRecordBatch"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.cm93cw.display_name": {
+          "source": "Rows",
+          "message": "列"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.cm93cw.short_desc": {
+          "source": "Rows or columnar data to send",
+          "message": "要傳送的列或欄位式資料"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.short_desc": {
+          "source": "Send data to an Arrow Flight dataset",
+          "message": "傳送資料至 Arrow Flight 資料集"
+        },
+        "app.QXJyb3dGbGlnaHQ.desc": {
+          "source": "Connect to [Apache Arrow Flight](https://arrow.apache.org/docs/format/Flight.html) services for high-performance columnar data exchange using Apache Arrow IPC format.\n\n**Supported operations**:\n- **DoGet**: streaming read of columnar data\n- **DoPut**: streaming write of columnar data\n- **DoExchange**: bidirectional streaming data transformation\n- **DoAction**: execute custom server actions\n- **ListFlights / GetFlightInfo**: dataset discovery and metadata",
+          "message": "連線至 [Apache Arrow Flight](https://arrow.apache.org/docs/format/Flight.html) 服務，使用 Apache Arrow IPC 格式進行高效能的欄位式資料交換。\n\n**支援的操作**：\n- **DoGet**：欄位式資料的串流讀取\n- **DoPut**：欄位式資料的串流寫入\n- **DoExchange**：雙向串流資料轉換\n- **DoAction**：執行自訂伺服器動作\n- **ListFlights / GetFlightInfo**：資料集探索與元資料"
+        },
+        "app.QXJyb3dGbGlnaHQ.display_name": {
+          "source": "Arrow Flight",
+          "message": "Arrow Flight"
+        },
+        "app.QXJyb3dGbGlnaHQ.short_desc": {
+          "source": "Arrow Flight columnar data service",
+          "message": "Arrow Flight 欄位式資料服務"
+        }
+      }
+    }
+  }
+}

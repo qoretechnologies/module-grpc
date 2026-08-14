@@ -1,0 +1,253 @@
+{
+  "schema_version": 1,
+  "locales": {
+    "de": {
+      "messages": {
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.desc": {
+          "source": "Retrieves columnar data from an Arrow Flight service via the DoGet streaming RPC; returns all record batches as row hashes by default, or ColumnarResult batches when `output_shape` is `columnar`",
+          "message": "Ruft spaltenbasierte Daten von einem Arrow Flight-Dienst über den DoGet-Streaming-RPC ab; gibt standardmäßig alle Record-Batches als Zeilen-Hashes zurück oder ColumnarResult-Batches, wenn `output_shape` `columnar` ist"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.display_name": {
+          "source": "Get Flight Data",
+          "message": "Flight-Daten abrufen"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.desc": {
+          "source": "The Arrow Flight dataset name as registered on the server",
+          "message": "Der Name des Arrow Flight-Datensatzes, wie auf dem Server registriert"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.display_name": {
+          "source": "Dataset",
+          "message": "Datensatz"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.short_desc": {
+          "source": "The Flight dataset name",
+          "message": "Der Name des Flight-Datensatzes"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.allowed-value.c3RyaW5nOmNvbHVtbmFy.display_name": {
+          "source": "Columnar",
+          "message": "Spaltenbasiert"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.allowed-value.c3RyaW5nOnJvd3M.display_name": {
+          "source": "Rows",
+          "message": "Zeilen"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.desc": {
+          "source": "Optional output shape: `rows` returns a list of row hashes; `columnar` returns a list of ColumnarResult record batches",
+          "message": "Optionale Ausgabeform: `rows` gibt eine Liste von Zeilen-Hashes zurück; `columnar` gibt eine Liste von ColumnarResult-Record-Batches zurück"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.display_name": {
+          "source": "Output Shape",
+          "message": "Ausgabeform"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.short_desc": {
+          "source": "rows or columnar",
+          "message": "rows oder columnar"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.dGlja2V0.desc": {
+          "source": "Optional flight ticket; defaults to the dataset path if not provided",
+          "message": "Optionales Flight-Ticket; ist standardmäßig der Datensatzpfad, wenn nicht angegeben"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.dGlja2V0.display_name": {
+          "source": "Ticket",
+          "message": "Ticket"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.dGlja2V0.short_desc": {
+          "source": "Flight ticket as binary data",
+          "message": "Flight-Ticket als Binärdaten"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.short_desc": {
+          "source": "Retrieve data from an Arrow Flight dataset",
+          "message": "Daten aus einem Arrow Flight-Datensatz abrufen"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.desc": {
+          "source": "Retrieves metadata for a specific dataset via the GetFlightInfo RPC, including schema, record count, and endpoint information",
+          "message": "Ruft Metadaten für einen bestimmten Datensatz über den GetFlightInfo-RPC ab, einschließlich Schema, Datensatzanzahl und Endpunktinformationen"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.display_name": {
+          "source": "Get Flight Info",
+          "message": "Flight-Info abrufen"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.option.ZGF0YXNldA.desc": {
+          "source": "The Arrow Flight dataset name as registered on the server",
+          "message": "Der Name des Arrow Flight-Datensatzes, wie auf dem Server registriert"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.option.ZGF0YXNldA.display_name": {
+          "source": "Dataset",
+          "message": "Datensatz"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.option.ZGF0YXNldA.short_desc": {
+          "source": "The dataset name to get info for",
+          "message": "Der Name des Datensatzes, für den Informationen abgerufen werden sollen"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.short_desc": {
+          "source": "Get metadata for an Arrow Flight dataset",
+          "message": "Metadaten für einen Arrow Flight-Datensatz abrufen"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.desc": {
+          "source": "Executes a custom server-side action via the DoAction RPC; the action type and optional binary body are sent to the server, which returns a list of binary results",
+          "message": "Führt eine benutzerdefinierte serverseitige Aktion über den DoAction-RPC aus; der Aktionstyp und der optionale binäre Body werden an den Server gesendet, der eine Liste binärer Ergebnisse zurückgibt"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.display_name": {
+          "source": "Execute Flight Action",
+          "message": "Flight-Aktion ausführen"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.desc": {
+          "source": "The action type string identifying the server-side action to execute",
+          "message": "Der Aktionstyp-String, der die auszuführende serverseitige Aktion identifiziert"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.display_name": {
+          "source": "Action Type",
+          "message": "Aktionstyp"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.short_desc": {
+          "source": "The action type to execute",
+          "message": "Der auszuführende Aktionstyp"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.Ym9keQ.desc": {
+          "source": "Optional binary payload to send with the action request",
+          "message": "Optionale binäre Nutzlast, die mit der Aktionsanfrage gesendet werden soll"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.Ym9keQ.display_name": {
+          "source": "Body",
+          "message": "Body"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.Ym9keQ.short_desc": {
+          "source": "Optional binary body for the action",
+          "message": "Optionaler binärer Body für die Aktion"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.short_desc": {
+          "source": "Execute a custom action on the Arrow Flight server",
+          "message": "Eine benutzerdefinierte Aktion auf dem Arrow Flight-Server ausführen"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.desc": {
+          "source": "Performs a bidirectional data exchange via the DoExchange streaming RPC; sends input rows or columnar batches and receives transformed output rows by default, or ColumnarResult batches when `output_shape` is `columnar`",
+          "message": "Führt einen bidirektionalen Datenaustausch über den DoExchange-Streaming-RPC durch; sendet Eingabezeilen oder spaltenbasierte Batches und empfängt standardmäßig transformierte Ausgabezeilen oder ColumnarResult-Batches, wenn `output_shape` `columnar` ist"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.display_name": {
+          "source": "Exchange Flight Data",
+          "message": "Flight-Daten austauschen"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.ZGF0YXNldA.desc": {
+          "source": "The Arrow Flight dataset name as registered on the server",
+          "message": "Der Name des Arrow Flight-Datensatzes, wie auf dem Server registriert"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.ZGF0YXNldA.display_name": {
+          "source": "Dataset",
+          "message": "Datensatz"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.ZGF0YXNldA.short_desc": {
+          "source": "The Flight dataset name",
+          "message": "Der Name des Flight-Datensatzes"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.allowed-value.c3RyaW5nOmNvbHVtbmFy.display_name": {
+          "source": "Columnar",
+          "message": "Spaltenbasiert"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.allowed-value.c3RyaW5nOnJvd3M.display_name": {
+          "source": "Rows",
+          "message": "Zeilen"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.desc": {
+          "source": "Optional response shape: `rows` returns a list of row hashes; `columnar` returns a list of ColumnarResult record batches",
+          "message": "Optionale Antwortform: `rows` gibt eine Liste von Zeilen-Hashes zurück; `columnar` gibt eine Liste von ColumnarResult-Record-Batches zurück"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.display_name": {
+          "source": "Output Shape",
+          "message": "Ausgabeform"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.short_desc": {
+          "source": "rows or columnar",
+          "message": "rows oder columnar"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.cm93cw.desc": {
+          "source": "A row list, hash-of-lists block, ColumnarResult, DataFrame, or ArrowRecordBatch to send for bidirectional exchange",
+          "message": "Eine Zeilenliste, ein Hash-of-Lists-Block, ColumnarResult, DataFrame oder ArrowRecordBatch, der für den bidirektionalen Austausch gesendet werden soll"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.cm93cw.display_name": {
+          "source": "Rows",
+          "message": "Zeilen"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.cm93cw.short_desc": {
+          "source": "Rows or columnar input data to send",
+          "message": "Zu sendende Zeilen oder spaltenbasierte Eingabedaten"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.short_desc": {
+          "source": "Bidirectional data exchange on an Arrow Flight dataset",
+          "message": "Bidirektionaler Datenaustausch für einen Arrow Flight-Datensatz"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1hY3Rpb25z.desc": {
+          "source": "Lists custom actions available on the Arrow Flight server via the ListActions RPC; each action has a type identifier and description",
+          "message": "Listet benutzerdefinierte Aktionen auf, die auf dem Arrow Flight-Server über den ListActions-RPC verfügbar sind; jede Aktion verfügt über eine Typkennung und eine Beschreibung"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1hY3Rpb25z.display_name": {
+          "source": "List Flight Actions",
+          "message": "Flight-Aktionen auflisten"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1hY3Rpb25z.short_desc": {
+          "source": "List available actions on the Arrow Flight server",
+          "message": "Verfügbare Aktionen auf dem Arrow Flight-Server auflisten"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1mbGlnaHRz.desc": {
+          "source": "Discovers available datasets on the Arrow Flight server via the ListFlights RPC; returns a list of FlightInfo hashes with dataset metadata",
+          "message": "Ermittelt verfügbare Datensätze auf dem Arrow Flight-Server über den ListFlights-RPC; gibt eine Liste von FlightInfo-Hashes mit Datensatz-Metadaten zurück"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1mbGlnaHRz.display_name": {
+          "source": "List Flights",
+          "message": "Flights auflisten"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1mbGlnaHRz.short_desc": {
+          "source": "List available Arrow Flight datasets",
+          "message": "Verfügbare Arrow Flight-Datensätze auflisten"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.desc": {
+          "source": "Sends columnar data to an Arrow Flight service via the DoPut streaming RPC; the data is sent as one or more Arrow record batches from row lists, hash-of-lists blocks, ColumnarResult objects, DataFrames, or ArrowRecordBatch objects",
+          "message": "Sendet spaltenbasierte Daten über den DoPut-Streaming-RPC an einen Arrow Flight-Dienst; die Daten werden als ein oder mehrere Arrow-Record-Batches aus Zeilenlisten, Hash-of-Lists-Blöcken, ColumnarResult-Objekten, DataFrames oder ArrowRecordBatch-Objekten gesendet"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.display_name": {
+          "source": "Put Flight Data",
+          "message": "Flight-Daten senden"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.desc": {
+          "source": "The Arrow Flight dataset name as registered on the server",
+          "message": "Der Name des Arrow Flight-Datensatzes, wie auf dem Server registriert"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.display_name": {
+          "source": "Dataset",
+          "message": "Datensatz"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.short_desc": {
+          "source": "The Flight dataset name",
+          "message": "Der Name des Flight-Datensatzes"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.cm93cw.desc": {
+          "source": "A row list, hash-of-lists block, ColumnarResult, DataFrame, or ArrowRecordBatch to send as Arrow record batches",
+          "message": "Eine Zeilenliste, ein Hash-of-Lists-Block, ColumnarResult, DataFrame oder ArrowRecordBatch, die als Arrow-Record-Batches gesendet werden sollen"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.cm93cw.display_name": {
+          "source": "Rows",
+          "message": "Zeilen"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.cm93cw.short_desc": {
+          "source": "Rows or columnar data to send",
+          "message": "Zu sendende Zeilen oder spaltenbasierte Daten"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.short_desc": {
+          "source": "Send data to an Arrow Flight dataset",
+          "message": "Daten an einen Arrow Flight-Datensatz senden"
+        },
+        "app.QXJyb3dGbGlnaHQ.desc": {
+          "source": "Connect to [Apache Arrow Flight](https://arrow.apache.org/docs/format/Flight.html) services for high-performance columnar data exchange using Apache Arrow IPC format.\n\n**Supported operations**:\n- **DoGet**: streaming read of columnar data\n- **DoPut**: streaming write of columnar data\n- **DoExchange**: bidirectional streaming data transformation\n- **DoAction**: execute custom server actions\n- **ListFlights / GetFlightInfo**: dataset discovery and metadata",
+          "message": "Verbinden Sie sich mit [Apache Arrow Flight](https://arrow.apache.org/docs/format/Flight.html)-Diensten für den hochperformanten spaltenbasierten Datenaustausch unter Verwendung des Apache Arrow IPC-Formats.\n\n**Unterstützte Operationen**:\n- **DoGet**: Streaming-Lesen spaltenbasierter Daten\n- **DoPut**: Streaming-Schreiben spaltenbasierter Daten\n- **DoExchange**: Bidirektionale Streaming-Datentransformation\n- **DoAction**: Ausführen benutzerdefinierter Serveraktionen\n- **ListFlights / GetFlightInfo**: Datensatzermittlung und Metadaten"
+        },
+        "app.QXJyb3dGbGlnaHQ.display_name": {
+          "source": "Arrow Flight",
+          "message": "Arrow Flight"
+        },
+        "app.QXJyb3dGbGlnaHQ.short_desc": {
+          "source": "Arrow Flight columnar data service",
+          "message": "Arrow Flight spaltenbasierter Datendienst"
+        }
+      }
+    }
+  }
+}

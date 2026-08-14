@@ -1,0 +1,253 @@
+{
+  "schema_version": 1,
+  "locales": {
+    "ko": {
+      "messages": {
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.desc": {
+          "source": "Retrieves columnar data from an Arrow Flight service via the DoGet streaming RPC; returns all record batches as row hashes by default, or ColumnarResult batches when `output_shape` is `columnar`",
+          "message": "DoGet 스트리밍 RPC를 통해 Arrow Flight 서비스에서 컬럼너 데이터를 조회합니다. 기본적으로 모든 레코드 배치를 행 해시로 반환하거나, `output_shape`이(가) `columnar`(일) 때 ColumnarResult 배치를 반환합니다."
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.display_name": {
+          "source": "Get Flight Data",
+          "message": "Flight 데이터 가져오기"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.desc": {
+          "source": "The Arrow Flight dataset name as registered on the server",
+          "message": "서버에 등록된 Arrow Flight 데이터셋 이름"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.display_name": {
+          "source": "Dataset",
+          "message": "데이터셋"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.short_desc": {
+          "source": "The Flight dataset name",
+          "message": "Flight 데이터셋 이름"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.allowed-value.c3RyaW5nOmNvbHVtbmFy.display_name": {
+          "source": "Columnar",
+          "message": "Columnar"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.allowed-value.c3RyaW5nOnJvd3M.display_name": {
+          "source": "Rows",
+          "message": "행"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.desc": {
+          "source": "Optional output shape: `rows` returns a list of row hashes; `columnar` returns a list of ColumnarResult record batches",
+          "message": "선택적 출력 형식: `rows`은(는) 행 해시 목록을 반환하고, `columnar`은(는) ColumnarResult 레코드 배치 목록을 반환합니다."
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.display_name": {
+          "source": "Output Shape",
+          "message": "출력 형식"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.short_desc": {
+          "source": "rows or columnar",
+          "message": "rows 또는 columnar"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.dGlja2V0.desc": {
+          "source": "Optional flight ticket; defaults to the dataset path if not provided",
+          "message": "선택적 Flight 티켓입니다. 제공되지 않은 경우 데이터셋 경로로 기본 설정됩니다."
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.dGlja2V0.display_name": {
+          "source": "Ticket",
+          "message": "티켓"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.dGlja2V0.short_desc": {
+          "source": "Flight ticket as binary data",
+          "message": "바이너리 데이터 형태의 Flight 티켓"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.short_desc": {
+          "source": "Retrieve data from an Arrow Flight dataset",
+          "message": "Arrow Flight 데이터셋에서 데이터 조회"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.desc": {
+          "source": "Retrieves metadata for a specific dataset via the GetFlightInfo RPC, including schema, record count, and endpoint information",
+          "message": "GetFlightInfo RPC를 통해 스키마, 레코드 수 및 엔드포인트 정보를 포함한 특정 데이터셋의 메타데이터를 조회합니다."
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.display_name": {
+          "source": "Get Flight Info",
+          "message": "Flight 정보 가져오기"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.option.ZGF0YXNldA.desc": {
+          "source": "The Arrow Flight dataset name as registered on the server",
+          "message": "서버에 등록된 Arrow Flight 데이터셋 이름"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.option.ZGF0YXNldA.display_name": {
+          "source": "Dataset",
+          "message": "데이터셋"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.option.ZGF0YXNldA.short_desc": {
+          "source": "The dataset name to get info for",
+          "message": "정보를 가져올 데이터셋 이름"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.short_desc": {
+          "source": "Get metadata for an Arrow Flight dataset",
+          "message": "Arrow Flight 데이터셋의 메타데이터 가져오기"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.desc": {
+          "source": "Executes a custom server-side action via the DoAction RPC; the action type and optional binary body are sent to the server, which returns a list of binary results",
+          "message": "DoAction RPC를 통해 사용자 지정 서버 측 작업을 실행합니다. 작업 유형과 선택적 바이너리 본문이 서버로 전송되고, 서버는 바이너리 결과 목록을 반환합니다."
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.display_name": {
+          "source": "Execute Flight Action",
+          "message": "Flight 작업 실행"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.desc": {
+          "source": "The action type string identifying the server-side action to execute",
+          "message": "실행할 서버 측 작업을 식별하는 작업 유형 문자열"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.display_name": {
+          "source": "Action Type",
+          "message": "작업 유형"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.short_desc": {
+          "source": "The action type to execute",
+          "message": "실행할 작업 유형"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.Ym9keQ.desc": {
+          "source": "Optional binary payload to send with the action request",
+          "message": "작업 요청과 함께 보낼 선택적 바이너리 페이로드"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.Ym9keQ.display_name": {
+          "source": "Body",
+          "message": "본문"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.Ym9keQ.short_desc": {
+          "source": "Optional binary body for the action",
+          "message": "작업에 대한 선택적 바이너리 본문"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.short_desc": {
+          "source": "Execute a custom action on the Arrow Flight server",
+          "message": "Arrow Flight 서버에서 사용자 지정 작업 실행"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.desc": {
+          "source": "Performs a bidirectional data exchange via the DoExchange streaming RPC; sends input rows or columnar batches and receives transformed output rows by default, or ColumnarResult batches when `output_shape` is `columnar`",
+          "message": "DoExchange 스트리밍 RPC를 통해 양방향 데이터 교환을 수행합니다. 입력 행 또는 컬럼너 배치를 전송하고, 기본적으로 변환된 출력 행을 수신하거나 `output_shape`이(가) `columnar`(일) 때 ColumnarResult 배치를 수신합니다."
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.display_name": {
+          "source": "Exchange Flight Data",
+          "message": "Flight 데이터 교환"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.ZGF0YXNldA.desc": {
+          "source": "The Arrow Flight dataset name as registered on the server",
+          "message": "서버에 등록된 Arrow Flight 데이터셋 이름"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.ZGF0YXNldA.display_name": {
+          "source": "Dataset",
+          "message": "데이터셋"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.ZGF0YXNldA.short_desc": {
+          "source": "The Flight dataset name",
+          "message": "Flight 데이터셋 이름"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.allowed-value.c3RyaW5nOmNvbHVtbmFy.display_name": {
+          "source": "Columnar",
+          "message": "Columnar"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.allowed-value.c3RyaW5nOnJvd3M.display_name": {
+          "source": "Rows",
+          "message": "행"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.desc": {
+          "source": "Optional response shape: `rows` returns a list of row hashes; `columnar` returns a list of ColumnarResult record batches",
+          "message": "선택적 응답 형식: `rows`은(는) 행 해시 목록을 반환하고, `columnar`은(는) ColumnarResult 레코드 배치 목록을 반환합니다."
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.display_name": {
+          "source": "Output Shape",
+          "message": "출력 형식"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.short_desc": {
+          "source": "rows or columnar",
+          "message": "rows 또는 columnar"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.cm93cw.desc": {
+          "source": "A row list, hash-of-lists block, ColumnarResult, DataFrame, or ArrowRecordBatch to send for bidirectional exchange",
+          "message": "양방향 교환을 위해 전송할 행 목록, 해시-오브-리스트 블록, ColumnarResult, DataFrame 또는 ArrowRecordBatch"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.cm93cw.display_name": {
+          "source": "Rows",
+          "message": "행"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.cm93cw.short_desc": {
+          "source": "Rows or columnar input data to send",
+          "message": "전송할 행 또는 컬럼너 입력 데이터"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.short_desc": {
+          "source": "Bidirectional data exchange on an Arrow Flight dataset",
+          "message": "Arrow Flight 데이터셋에서 양방향 데이터 교환"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1hY3Rpb25z.desc": {
+          "source": "Lists custom actions available on the Arrow Flight server via the ListActions RPC; each action has a type identifier and description",
+          "message": "ListActions RPC를 통해 Arrow Flight 서버에서 사용할 수 있는 사용자 지정 작업을 나열합니다. 각 작업에는 유형 식별자와 설명이 있습니다."
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1hY3Rpb25z.display_name": {
+          "source": "List Flight Actions",
+          "message": "Flight 작업 목록 조회"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1hY3Rpb25z.short_desc": {
+          "source": "List available actions on the Arrow Flight server",
+          "message": "Arrow Flight 서버에서 사용 가능한 작업 목록 조회"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1mbGlnaHRz.desc": {
+          "source": "Discovers available datasets on the Arrow Flight server via the ListFlights RPC; returns a list of FlightInfo hashes with dataset metadata",
+          "message": "ListFlights RPC를 통해 Arrow Flight 서버에서 사용 가능한 데이터셋을 탐색합니다. 데이터셋 메타데이터가 포함된 FlightInfo 해시 목록을 반환합니다."
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1mbGlnaHRz.display_name": {
+          "source": "List Flights",
+          "message": "Flight 목록 조회"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.bGlzdC1mbGlnaHRz.short_desc": {
+          "source": "List available Arrow Flight datasets",
+          "message": "사용 가능한 Arrow Flight 데이터셋 목록 조회"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.desc": {
+          "source": "Sends columnar data to an Arrow Flight service via the DoPut streaming RPC; the data is sent as one or more Arrow record batches from row lists, hash-of-lists blocks, ColumnarResult objects, DataFrames, or ArrowRecordBatch objects",
+          "message": "DoPut 스트리밍 RPC를 통해 Arrow Flight 서비스로 컬럼너 데이터를 전송합니다. 데이터는 행 목록, 해시-오브-리스트 블록, ColumnarResult 객체, DataFrame 또는 ArrowRecordBatch 객체로부터 하나 이상의 Arrow 레코드 배치 형태로 전송됩니다."
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.display_name": {
+          "source": "Put Flight Data",
+          "message": "Put Flight Data"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.desc": {
+          "source": "The Arrow Flight dataset name as registered on the server",
+          "message": "서버에 등록된 Arrow Flight 데이터셋 이름"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.display_name": {
+          "source": "Dataset",
+          "message": "데이터셋"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.short_desc": {
+          "source": "The Flight dataset name",
+          "message": "Flight 데이터셋 이름"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.cm93cw.desc": {
+          "source": "A row list, hash-of-lists block, ColumnarResult, DataFrame, or ArrowRecordBatch to send as Arrow record batches",
+          "message": "Arrow 레코드 배치로 전송할 행 목록, 해시-오브-리스트 블록, ColumnarResult, DataFrame 또는 ArrowRecordBatch"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.cm93cw.display_name": {
+          "source": "Rows",
+          "message": "행"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.cm93cw.short_desc": {
+          "source": "Rows or columnar data to send",
+          "message": "전송할 행 또는 컬럼너 데이터"
+        },
+        "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.short_desc": {
+          "source": "Send data to an Arrow Flight dataset",
+          "message": "Arrow Flight 데이터셋에 데이터 전송"
+        },
+        "app.QXJyb3dGbGlnaHQ.desc": {
+          "source": "Connect to [Apache Arrow Flight](https://arrow.apache.org/docs/format/Flight.html) services for high-performance columnar data exchange using Apache Arrow IPC format.\n\n**Supported operations**:\n- **DoGet**: streaming read of columnar data\n- **DoPut**: streaming write of columnar data\n- **DoExchange**: bidirectional streaming data transformation\n- **DoAction**: execute custom server actions\n- **ListFlights / GetFlightInfo**: dataset discovery and metadata",
+          "message": "Apache Arrow IPC 형식을 사용하여 고성능 컬럼너 데이터 교환을 수행하는 [Apache Arrow Flight](https://arrow.apache.org/docs/format/Flight.html) 서비스에 연결합니다.\n\n**지원되는 작업**:\n- **DoGet**: 컬럼너 데이터의 스트리밍 읽기\n- **DoPut**: 컬럼너 데이터의 스트리밍 쓰기\n- **DoExchange**: 양방향 스트리밍 데이터 변환\n- **DoAction**: 사용자 지정 서버 작업 실행\n- **ListFlights / GetFlightInfo**: 데이터셋 탐색 및 메타데이터"
+        },
+        "app.QXJyb3dGbGlnaHQ.display_name": {
+          "source": "Arrow Flight",
+          "message": "Arrow Flight"
+        },
+        "app.QXJyb3dGbGlnaHQ.short_desc": {
+          "source": "Arrow Flight columnar data service",
+          "message": "Arrow Flight 컬럼너 데이터 서비스"
+        }
+      }
+    }
+  }
+}

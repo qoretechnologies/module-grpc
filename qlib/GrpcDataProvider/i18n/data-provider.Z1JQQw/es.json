@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "locales": {
+    "es": {
+      "messages": {
+        "app.Z1JQQw.action.Y2FsbA.desc": {
+          "source": "Makes a gRPC call to the specified service method",
+          "message": "Realiza una llamada gRPC al método de servicio especificado"
+        },
+        "app.Z1JQQw.action.Y2FsbA.display_name": {
+          "source": "Call gRPC Method",
+          "message": "Llamar a método gRPC"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.bWV0aG9k.desc": {
+          "source": "The gRPC method name as defined in the service",
+          "message": "El nombre del método gRPC según se define en el servicio"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.bWV0aG9k.display_name": {
+          "source": "Method",
+          "message": "Método"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.bWV0aG9k.short_desc": {
+          "source": "The gRPC method name",
+          "message": "El nombre del método gRPC"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.c2VydmljZQ.desc": {
+          "source": "The gRPC service name as defined in the protobuf schema",
+          "message": "El nombre del servicio gRPC tal como se define en el esquema protobuf"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.c2VydmljZQ.display_name": {
+          "source": "Service",
+          "message": "Servicio"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.c2VydmljZQ.short_desc": {
+          "source": "The gRPC service name",
+          "message": "El nombre del servicio gRPC"
+        },
+        "app.Z1JQQw.action.Y2FsbA.short_desc": {
+          "source": "Call a gRPC service method",
+          "message": "Llamar a un método de servicio gRPC"
+        },
+        "app.Z1JQQw.desc": {
+          "source": "Connect to gRPC services using protobuf schemas for request/response serialization, supporting all four RPC patterns: unary, server streaming, client streaming, and bidirectional streaming",
+          "message": "Conéctese a servicios gRPC mediante esquemas protobuf para la serialización de solicitudes y respuestas, admitiendo los cuatro patrones RPC: unario, transmisión desde el servidor, transmisión desde el cliente y transmisión bidireccional"
+        },
+        "app.Z1JQQw.display_name": {
+          "source": "gRPC Server",
+          "message": "Servidor gRPC"
+        },
+        "app.Z1JQQw.short_desc": {
+          "source": "gRPC remote procedure call server",
+          "message": "Servidor de llamada a procedimiento remoto gRPC"
+        }
+      }
+    }
+  }
+}

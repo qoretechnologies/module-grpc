@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "locales": {
+    "pl": {
+      "messages": {
+        "app.Z1JQQw.action.Y2FsbA.desc": {
+          "source": "Makes a gRPC call to the specified service method",
+          "message": "Wykonuje wywołanie gRPC do określonej metody usługi"
+        },
+        "app.Z1JQQw.action.Y2FsbA.display_name": {
+          "source": "Call gRPC Method",
+          "message": "Wywołaj metodę gRPC"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.bWV0aG9k.desc": {
+          "source": "The gRPC method name as defined in the service",
+          "message": "Nazwa metody gRPC zdefiniowana w usłudze"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.bWV0aG9k.display_name": {
+          "source": "Method",
+          "message": "Metoda"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.bWV0aG9k.short_desc": {
+          "source": "The gRPC method name",
+          "message": "Nazwa metody gRPC"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.c2VydmljZQ.desc": {
+          "source": "The gRPC service name as defined in the protobuf schema",
+          "message": "Nazwa usługi gRPC zdefiniowana w schemacie protobuf"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.c2VydmljZQ.display_name": {
+          "source": "Service",
+          "message": "Usługa"
+        },
+        "app.Z1JQQw.action.Y2FsbA.option.c2VydmljZQ.short_desc": {
+          "source": "The gRPC service name",
+          "message": "Nazwa usługi gRPC"
+        },
+        "app.Z1JQQw.action.Y2FsbA.short_desc": {
+          "source": "Call a gRPC service method",
+          "message": "Wywołaj metodę usługi gRPC"
+        },
+        "app.Z1JQQw.desc": {
+          "source": "Connect to gRPC services using protobuf schemas for request/response serialization, supporting all four RPC patterns: unary, server streaming, client streaming, and bidirectional streaming",
+          "message": "Łącz się z usługami gRPC za pomocą schematów protobuf do serializacji żądań/odpowiedzi, z obsługą wszystkich czterech wzorców RPC: jednoelementowego (unary), strumieniowania serwera, strumieniowania klienta oraz strumieniowania dwukierunkowego"
+        },
+        "app.Z1JQQw.display_name": {
+          "source": "gRPC Server",
+          "message": "Serwer gRPC"
+        },
+        "app.Z1JQQw.short_desc": {
+          "source": "gRPC remote procedure call server",
+          "message": "Serwer zdalnego wywołania procedur gRPC"
+        }
+      }
+    }
+  }
+}
