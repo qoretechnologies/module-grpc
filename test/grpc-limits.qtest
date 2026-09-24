@@ -20,6 +20,7 @@
 %requires HttpClientIo
 %requires HttpServer
 %requires HttpServerAsyncIo
+%requires GrpcDataProvider
 
 %exec-class GrpcLimitsTest
 
@@ -87,6 +88,17 @@ public class GrpcLimitsTest inherits QUnit::Test {
         addTestCase("server: listener body limit error ends a body read", \testServerBodyTooLargeUnary());
         addTestCase("server: listener body limit error ends a stream read", \testServerBodyTooLargeStream());
         addTestCase("server: limit errors map to RESOURCE_EXHAUSTED", \testServerStatusMapping());
+
+        # client
+        addTestCase("client: frame buffer message size limit", \testClientFrameBufferLimit());
+        addTestCase("client: channel options", \testClientChannelOptions());
+        addTestCase("client: unary response body limit", \testClientUnaryBodyLimit());
+        addTestCase("client: unary response message limit", \testClientUnaryMessageLimit());
+        addTestCase("client: blocking stream message limit", \testClientStreamMessageLimit());
+        addTestCase("client: async stream message limit", \testClientAsyncStreamMessageLimit());
+        addTestCase("client: no limits by default", \testClientNoLimits());
+        addTestCase("client: GrpcConnection options", \testClientConnectionOptions());
+        addTestCase("client: GrpcDataProvider options", \testClientDataProviderOptions());
 
         set_return_value(main());
     }
@@ -381,6 +393,281 @@ public class GrpcLimitsTest inherits QUnit::Test {
         assertEq(GRPC_STATUS_RESOURCE_EXHAUSTED, server.testStatusCode("HTTP-BODY-TOO-LARGE"));
         assertEq(GRPC_STATUS_RESOURCE_EXHAUSTED, server.testStatusCode("GRPC-RESOURCE-EXHAUSTED"));
         assertEq(GRPC_STATUS_INTERNAL, server.testStatusCode("OTHER-ERROR"));
+    }
+
+    #! Starts a server whose responses have a \c message of \c request.id bytes
+    /** \c UnaryCall returns one such response; \c ServerStream returns a message of 1 byte, one of
+        \c request.id bytes, and another of 1 byte.
+    */
+    private int startSizedResponseServer(GrpcServer server) {
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                return {"message": strmul("r", request.id)};
+            });
+        server.registerHandler("TestService", "ServerStream",
+            sub(hash<auto> request, GrpcServerStream stream, hash<string, string> metadata) {
+                stream.write({"message": "a"});
+                stream.write({"message": strmul("r", request.id)});
+                stream.write({"message": "c"});
+            });
+        return startServer(server);
+    }
+
+    testClientFrameBufferLimit() {
+        GrpcFrameBuffer fb(10);
+        # a frame declaring exactly the limit
+        fb.add(GrpcHelper::frameMessage(binary(strmul("x", 10))));
+        assertTrue(fb.hasFrame());
+        assertEq(binary(strmul("x", 10)), fb.takeFrame());
+
+        # a frame over the limit is rejected from its header, before its payload arrives
+        binary frame = GrpcHelper::frameMessage(binary(strmul("y", 11)));
+        fb.add(frame.substr(0, 5));
+        assertThrows("GRPC-RESOURCE-EXHAUSTED", "received a message of 11 bytes, larger than the maximum message "
+            "size of 10 bytes", \fb.hasFrame());
+        assertThrows("GRPC-RESOURCE-EXHAUSTED", \fb.takeFrame());
+
+        # no limit by default
+        GrpcFrameBuffer unlimited();
+        unlimited.add(GrpcHelper::frameMessage(binary(strmul("z", 100000))));
+        assertEq(100000, unlimited.takeFrame().size());
+    }
+
+    testClientChannelOptions() {
+        GrpcChannel channel("http://localhost:1");
+        on_exit channel.shutdown();
+        assertEq(0, channel.getMaxMessageSize());
+
+        GrpcChannel limited("http://localhost:1", <GrpcChannelOptions>{"max_message_size": 123});
+        on_exit limited.shutdown();
+        assertEq(123, limited.getMaxMessageSize());
+    }
+
+    testClientUnaryBodyLimit() {
+        ProtobufSchema schema = getSchema();
+        GrpcServer server(schema);
+        int port = startSizedResponseServer(server);
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + port, <GrpcChannelOptions>{"max_response_body_size": 100});
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        # a framed response of exactly 100 bytes: 5 frame bytes, 2 bytes of field header, 93 bytes of message
+        hash<GrpcCallResult> result = client.call("UnaryCall", {"id": 93});
+        assertEq(GRPC_STATUS_OK, result.status_code);
+        assertEq(93, result.body.message.size());
+
+        result = client.call("UnaryCall", {"id": 94});
+        assertEq(GRPC_STATUS_RESOURCE_EXHAUSTED, result.status_code);
+        assertRegex("^HTTP-CLIENT-RESPONSE-BODY-TOO-LARGE: ", result.status_message);
+        assertEq({}, result.body);
+
+        # the channel stays usable
+        result = client.call("UnaryCall", {"id": 1});
+        assertEq(GRPC_STATUS_OK, result.status_code);
+    }
+
+    testClientUnaryMessageLimit() {
+        ProtobufSchema schema = getSchema();
+        GrpcServer server(schema);
+        int port = startSizedResponseServer(server);
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + port, <GrpcChannelOptions>{"max_message_size": 50});
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        # a message of exactly 50 bytes: 2 bytes of field header, 48 bytes of message
+        hash<GrpcCallResult> result = client.call("UnaryCall", {"id": 48});
+        assertEq(GRPC_STATUS_OK, result.status_code);
+        assertEq(48, result.body.message.size());
+
+        result = client.call("UnaryCall", {"id": 49});
+        assertEq(GRPC_STATUS_RESOURCE_EXHAUSTED, result.status_code);
+        assertEq("GRPC-RESOURCE-EXHAUSTED: received a message of 51 bytes, larger than the maximum message size of "
+            "50 bytes", result.status_message);
+        assertEq({}, result.body);
+    }
+
+    testClientStreamMessageLimit() {
+        ProtobufSchema schema = getSchema();
+        GrpcServer server(schema);
+        int port = startSizedResponseServer(server);
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + port, <GrpcChannelOptions>{"max_message_size": 50});
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        # within the limit: all three messages are read
+        GrpcClientStream stream = client.serverStream("ServerStream", {"id": 48});
+        list<string> msgs = ();
+        while (*hash<auto> msg = stream.read(30s)) {
+            msgs += msg.message;
+        }
+        assertEq(("a", strmul("r", 48), "c"), msgs);
+        assertEq(GRPC_STATUS_OK, stream.finish().status_code);
+
+        # over the limit: the first message is read, the second raises, and the stream ends
+        stream = client.serverStream("ServerStream", {"id": 49});
+        assertEq("a", stream.read(30s).message);
+        assertThrows("GRPC-RESOURCE-EXHAUSTED", "received a message of 51 bytes", \stream.read(), (30s,));
+        assertTrue(stream.readsDone());
+        assertNothing(stream.read(1s));
+        hash<GrpcCallResult> result = stream.finish();
+        assertEq(GRPC_STATUS_RESOURCE_EXHAUSTED, result.status_code);
+        assertRegex("^GRPC-RESOURCE-EXHAUSTED: received a message of 51 bytes", result.status_message);
+        assertEq("a", result.body.message);
+
+        # finish() alone reports the limit
+        stream = client.serverStream("ServerStream", {"id": 49});
+        result = stream.finish();
+        assertEq(GRPC_STATUS_RESOURCE_EXHAUSTED, result.status_code);
+    }
+
+    testClientAsyncStreamMessageLimit() {
+        ProtobufSchema schema = getSchema();
+        GrpcServer server(schema);
+        int port = startSizedResponseServer(server);
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + port, <GrpcChannelOptions>{"max_message_size": 50});
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        list<auto> events = getAsyncEvents(client, 49);
+        list<string> msgs = map $1.data.message, events, $1.event == GRPC_ASYNC_EVENT_MESSAGE;
+        assertEq(("a",), msgs);
+        assertEq(GRPC_ASYNC_EVENT_COMPLETE, events.last().event);
+        assertEq(GRPC_STATUS_RESOURCE_EXHAUSTED, events.last().data.status_code);
+        assertEq("GRPC-RESOURCE-EXHAUSTED: received a message of 51 bytes, larger than the maximum message size of "
+            "50 bytes", events.last().data.status_message);
+
+        events = getAsyncEvents(client, 48);
+        msgs = map $1.data.message, events, $1.event == GRPC_ASYNC_EVENT_MESSAGE;
+        assertEq(("a", strmul("r", 48), "c"), msgs);
+        assertEq(GRPC_STATUS_OK, events.last().data.status_code);
+    }
+
+    #! Runs an async server-streaming call and returns all of its events
+    private list<auto> getAsyncEvents(GrpcClient client, int size) {
+        Queue q();
+        GrpcAsyncClientStream stream = client.serverStreamAsync("ServerStream", {"id": size}, NOTHING,
+            <GrpcAsyncStreamOptions>{"queue": q});
+        list<auto> events = ();
+        while (True) {
+            auto e = q.get(30s);
+            if (!exists e) {
+                # the NOTHING sentinel follows the terminal event
+                break;
+            }
+            events += e;
+        }
+        assertTrue(stream.waitForDone(10s));
+        return events;
+    }
+
+    testClientNoLimits() {
+        ProtobufSchema schema = getSchema();
+        GrpcServer server(schema);
+        int port = startSizedResponseServer(server);
+        on_exit server.shutdown();
+
+        GrpcChannel channel("http://localhost:" + port);
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        hash<GrpcCallResult> result = client.call("UnaryCall", {"id": 200000});
+        assertEq(GRPC_STATUS_OK, result.status_code);
+        assertEq(200000, result.body.message.size());
+
+        GrpcClientStream stream = client.serverStream("ServerStream", {"id": 200000});
+        list<int> sizes = ();
+        while (*hash<auto> msg = stream.read(30s)) {
+            sizes += msg.message.size();
+        }
+        assertEq((1, 200000, 1), sizes);
+        assertEq(GRPC_STATUS_OK, stream.finish().status_code);
+    }
+
+    testClientConnectionOptions() {
+        hash<auto> opts = GrpcDataProvider::GrpcConnection::ConnectionScheme.options;
+        assertEq("int", opts.max_message_size.type);
+        assertEq("int", opts.max_response_body_size.type);
+
+        ProtobufSchema schema = getSchema();
+        GrpcServer server(schema);
+        int port = startSizedResponseServer(server);
+        on_exit server.shutdown();
+
+        string proto = ReadOnlyFile::readTextFile(test_dir + "/test.proto");
+        GrpcDataProvider::GrpcConnection conn("limits", "size limits", "grpc://localhost:" + port, {}, {
+            "proto_content": proto,
+            "max_message_size": 50,
+            "max_response_body_size": 1000,
+        });
+
+        # the channel from the connection has the limits
+        GrpcChannel channel = conn.get();
+        on_exit channel.shutdown();
+        assertEq(50, channel.getMaxMessageSize());
+        GrpcClient client(channel, schema, "TestService");
+        assertEq(GRPC_STATUS_RESOURCE_EXHAUSTED, client.call("UnaryCall", {"id": 49}).status_code);
+
+        GrpcDataProvider::GrpcConnection body_conn("limits", "size limits", "grpc://localhost:" + port, {}, {
+            "max_response_body_size": 100,
+        });
+        GrpcChannel body_channel = body_conn.get();
+        on_exit body_channel.shutdown();
+        GrpcClient body_client(body_channel, schema, "TestService");
+        assertEq(GRPC_STATUS_OK, body_client.call("UnaryCall", {"id": 93}).status_code);
+        hash<GrpcCallResult> result = body_client.call("UnaryCall", {"id": 94});
+        assertEq(GRPC_STATUS_RESOURCE_EXHAUSTED, result.status_code);
+        assertRegex("^HTTP-CLIENT-RESPONSE-BODY-TOO-LARGE: ", result.status_message);
+
+        # the data provider from the connection has the limits
+        AbstractDataProvider method = conn.getDataProvider().getChildProvider("TestService")
+            .getChildProvider("UnaryCall");
+        assertEq(48, method.doRequest({"name": "n", "id": 48}).message.size());
+        try {
+            method.doRequest({"name": "n", "id": 49});
+            assertTrue(False, "a response over the message limit must fail");
+        } catch (hash<ExceptionInfo> ex) {
+            assertEq("GRPC-ERROR", ex.err);
+            assertEq(GRPC_STATUS_RESOURCE_EXHAUSTED, ex.arg.status_code);
+        }
+    }
+
+    testClientDataProviderOptions() {
+        ProtobufSchema schema = getSchema();
+        GrpcServer server(schema);
+        int port = startSizedResponseServer(server);
+        on_exit server.shutdown();
+
+        string proto = ReadOnlyFile::readTextFile(test_dir + "/test.proto");
+        GrpcDataProvider::GrpcDataProvider provider({
+            "url": "http://localhost:" + port,
+            "proto_content": proto,
+            "max_response_body_size": 100,
+        });
+        AbstractDataProvider method = provider.getChildProvider("TestService").getChildProvider("UnaryCall");
+        assertEq(93, method.doRequest({"name": "n", "id": 93}).message.size());
+        try {
+            method.doRequest({"name": "n", "id": 94});
+            assertTrue(False, "a response over the body limit must fail");
+        } catch (hash<ExceptionInfo> ex) {
+            assertEq("GRPC-ERROR", ex.err);
+            assertEq(GRPC_STATUS_RESOURCE_EXHAUSTED, ex.arg.status_code);
+        }
+
+        # no limits by default
+        GrpcDataProvider::GrpcDataProvider unlimited({
+            "url": "http://localhost:" + port,
+            "proto_content": proto,
+        });
+        method = unlimited.getChildProvider("TestService").getChildProvider("UnaryCall");
+        assertEq(100000, method.doRequest({"name": "n", "id": 100000}).message.size());
     }
 
     #! Makes the HttpConnectionInfo of a streaming body dispatch whose body queue is filled by @a fill

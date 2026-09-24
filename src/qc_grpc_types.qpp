@@ -194,8 +194,28 @@ hashdecl Qore::Grpc::GrpcSslOptions {
 /** @since %grpc 1.0
 */
 hashdecl Qore::Grpc::GrpcChannelOptions {
-    //! Maximum message size in bytes (0 = unlimited)
+    //! The maximum size in bytes of one response message received; missing or <= 0 means no limit
+    /** The size is the length declared in the gRPC frame of the message, checked before the message is buffered.
+        A unary call whose response message is larger returns \c RESOURCE_EXHAUSTED; a stream reading a larger
+        message is cancelled and ends with \c RESOURCE_EXHAUSTED: @ref Grpc::GrpcClientStream::read()
+        "GrpcClientStream::read()" raises \c GRPC-RESOURCE-EXHAUSTED and
+        @ref Grpc::GrpcClientStream::finish() "GrpcClientStream::finish()" returns the status, and a
+        @ref Grpc::GrpcAsyncClientStream "GrpcAsyncClientStream" delivers it as its result.
+
+        @since %grpc 1.0
+    */
     *int max_message_size;
+
+    //! The maximum size in bytes of a unary response body received into memory; missing or <= 0 means no limit
+    /** Sets the \c max_response_body_size of the channel's
+        \c HttpClientConnectionManager: the body of a unary response,
+        which is received completely before it is decoded, is limited as it is received.  A unary call whose response
+        body is larger returns \c RESOURCE_EXHAUSTED.  The body of a streaming response is received one message at a
+        time, so its total size is not limited; use \c max_message_size to limit the size of each message.
+
+        @since %grpc 1.0
+    */
+    *int max_response_body_size;
 
     //! SSL/TLS options
     *hash<Qore::Grpc::GrpcSslOptions> ssl;

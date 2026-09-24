@@ -283,6 +283,8 @@ module ArrowFlightDataProvider {
     | Option | Type | Description |
     |--------|------|-------------|
     | \c url | string | Arrow Flight server URL (\c http://host:port or \c https://host:port) |
+    | \c max_message_size | int | Maximum size in bytes of a response message received; a larger message ends the call with \c RESOURCE_EXHAUSTED (default: \c 0, no limit) |
+    | \c max_response_body_size | int | Maximum size in bytes of a unary response body received into memory; a larger body ends the call with \c RESOURCE_EXHAUSTED (default: \c 0, no limit) |
     | \c timeout_ms | int | Default call timeout in milliseconds (default: \c 30000) |
 
     @section arrowflightdataprovider_examples ArrowFlightDataProvider Examples

@@ -40,6 +40,8 @@ public class GrpcChannel {
         string m_target;
         #! Connection manager
         HttpClientIo::HttpClientConnectionManager m_mgr;
+        #! The maximum size of a response message received; <= 0 means no limit
+        int m_max_message_size = 0;
     }
 
     #! Create a new gRPC channel to the given target
@@ -84,6 +86,12 @@ public class GrpcChannel {
             }
         }
 
+        # a unary response body is limited as it is received
+        if (opts.max_response_body_size > 0) {
+            mgr_opts.max_response_body_size = opts.max_response_body_size;
+        }
+        m_max_message_size = opts.max_message_size ?? 0;
+
         m_mgr = new HttpClientIo::HttpClientConnectionManager(mgr_opts);
     }
 
@@ -99,6 +107,15 @@ public class GrpcChannel {
     */
     string target() {
         return m_target;
+    }
+
+    #! Returns the maximum size of a response message received on this channel
+    /** @return the maximum size in bytes of a response message, as declared by its gRPC frame; <= 0 means no limit
+
+        @see @ref Qore::Grpc::GrpcChannelOptions "GrpcChannelOptions" \c max_message_size
+    */
+    int getMaxMessageSize() {
+        return m_max_message_size;
     }
 
     #! Acquire an HTTP/2 stream handle for a request

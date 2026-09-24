@@ -48,6 +48,24 @@ public class ArrowFlightConnection inherits ConnectionProvider::AbstractConnecti
                 "flights": "https",
             },
             "options": {
+                "max_message_size": <ConnectionOptionInfo>{
+                    "display_name": "Max Message Size",
+                    "short_desc": "The maximum size of a response message received",
+                    "type": "int",
+                    "desc": "The maximum size in bytes of one response message received from the server; `0` (the "
+                        "default) means no limit.\n\n"
+                        "A larger message ends the call with the `RESOURCE_EXHAUSTED` status, so a huge message cannot "
+                        "exhaust memory; this limit also applies to streaming calls.",
+                },
+                "max_response_body_size": <ConnectionOptionInfo>{
+                    "display_name": "Max Response Body Size",
+                    "short_desc": "The maximum size of a unary response body received into memory",
+                    "type": "int",
+                    "desc": "The maximum size in bytes of the response body of a unary call, which is received into "
+                        "memory completely before it is decoded; `0` (the default) means no limit.\n\n"
+                        "A larger response ends the call with the `RESOURCE_EXHAUSTED` status.  The response of a "
+                        "streaming call is received one message at a time and is limited by `max_message_size` instead.",
+                },
                 "timeout_ms": <ConnectionOptionInfo>{
                     "display_name": "Timeout",
                     "short_desc": "Default call timeout in milliseconds",
@@ -90,6 +108,7 @@ public class ArrowFlightConnection inherits ConnectionProvider::AbstractConnecti
         if (self.opts.timeout_ms) {
             provider_opts.timeout_ms = self.opts.timeout_ms;
         }
+        provider_opts += getChannelOptions();
         return new ArrowFlightDataProvider(provider_opts);
     }
 
@@ -110,7 +129,7 @@ public class ArrowFlightConnection inherits ConnectionProvider::AbstractConnecti
         @return a GrpcChannel object for this connection
     */
     private GrpcChannel getImpl(bool connect = True, *hash<auto> rtopts) {
-        return new GrpcChannel(getHttpUrl());
+        return new GrpcChannel(getHttpUrl(), getChannelOptions());
     }
 
     #! Returns a ping hash for the connection
@@ -118,7 +137,7 @@ public class ArrowFlightConnection inherits ConnectionProvider::AbstractConnecti
         hash<PingInfo> rv;
         date start = now_us();
         try {
-            GrpcChannel ch(getHttpUrl());
+            GrpcChannel ch(getHttpUrl(), getChannelOptions());
             on_exit ch.shutdown();
             auto stream = ch.acquireStream();
             rv.ok = True;
@@ -128,6 +147,18 @@ public class ArrowFlightConnection inherits ConnectionProvider::AbstractConnecti
             rv.ok = False;
             rv.time = now_us() - start;
             rv.info = sprintf("%s: %s", ex.err, ex.desc);
+        }
+        return rv;
+    }
+
+    #! Returns the channel options for the size limits set in the connection options
+    private hash<GrpcChannelOptions> getChannelOptions() {
+        hash<GrpcChannelOptions> rv();
+        if (self.opts.max_message_size) {
+            rv.max_message_size = self.opts.max_message_size;
+        }
+        if (self.opts.max_response_body_size) {
+            rv.max_response_body_size = self.opts.max_response_body_size;
         }
         return rv;
     }

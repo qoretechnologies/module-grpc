@@ -221,6 +221,7 @@ public class ArrowFlightDataProviderTest inherits QUnit::Test {
         addTestCase("doExchange observable events", \testDoExchangeObservable());
         addTestCase("flights:// TLS scheme", \testFlightsTlsScheme());
         addTestCase("error event on invalid dataset", \testErrorEvent());
+        addTestCase("message and body size limit options", \testSizeLimitOptions());
 
         set_return_value(main());
     }
@@ -713,6 +714,38 @@ public class ArrowFlightDataProviderTest inherits QUnit::Test {
 
         # Verify the connection URL uses flights://
         assertTrue(conn.url =~ /^flights:/, "URL uses flights:// scheme");
+    }
+
+    testSizeLimitOptions() {
+        hash<auto> opts = ArrowFlightConnection::ConnectionScheme.options;
+        assertEq("int", opts.max_message_size.type);
+        assertEq("int", opts.max_response_body_size.type);
+        assertEq("Max Message Size", ArrowFlightDataProvider::ConstructorOptions.max_message_size.display_name);
+        assertEq("Max Response Body Size",
+            ArrowFlightDataProvider::ConstructorOptions.max_response_body_size.display_name);
+
+        # a ListFlights response message is larger than 10 bytes
+        ArrowFlightDataProvider provider({"url": url, "max_message_size": 10});
+        AbstractDataProvider lf = provider.getChildProvider("list-flights");
+        assertThrows("GRPC-RESOURCE-EXHAUSTED", "larger than the maximum message size of 10 bytes",
+            \lf.doRequest(), (NOTHING,));
+
+        string flight_url = regex_subst(url, "^http:", "flight:");
+        ArrowFlightConnection conn("limits", "size limits", flight_url, {}, {"max_message_size": 10});
+        GrpcChannel channel = conn.get();
+        on_exit channel.shutdown();
+        assertEq(10, channel.getMaxMessageSize());
+        AbstractDataProvider conn_provider = conn.getDataProvider();
+        AbstractDataProvider conn_lf = conn_provider.getChildProvider("list-flights");
+        assertThrows("GRPC-RESOURCE-EXHAUSTED", \conn_lf.doRequest(), (NOTHING,));
+
+        # limits large enough for the responses
+        ArrowFlightConnection ok_conn("limits", "size limits", flight_url, {}, {
+            "max_message_size": 1024 * 1024,
+            "max_response_body_size": 1024 * 1024,
+        });
+        auto result = ok_conn.getDataProvider().getChildProvider("list-flights").doRequest(NOTHING);
+        assertGt(0, result.size());
     }
 
     testErrorEvent() {

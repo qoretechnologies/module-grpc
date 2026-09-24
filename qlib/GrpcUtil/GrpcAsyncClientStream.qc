@@ -292,7 +292,7 @@ public class GrpcAsyncClientStream {
         /** Touched only from the drain, which the controller runs on one
             worker at a time for this operation, so it needs no lock.
         */
-        GrpcFrameBuffer m_buf();
+        GrpcFrameBuffer m_buf;
 
         #! State lock
         Mutex m();
@@ -359,6 +359,8 @@ public class GrpcAsyncClientStream {
         @param opts delivery sinks and deadlines
         @param writes_done if True, the write side is already half-closed
         (server-streaming)
+        @param max_message_size the maximum size in bytes of a received message, as declared by its gRPC frame; a
+        larger message cancels the stream, which ends with a \c RESOURCE_EXHAUSTED result; <= 0 means no limit
 
         @note The stream is inert until @ref start() is called.
 
@@ -369,7 +371,8 @@ public class GrpcAsyncClientStream {
     */
     constructor(HttpClientIo::HttpClientStreamHandle stream, EventNotifier notifier,
             ProtobufSchema schema, string read_type, string write_type,
-            *hash<GrpcAsyncStreamOptions> opts, bool writes_done = False) {
+            *hash<GrpcAsyncStreamOptions> opts, bool writes_done = False, int max_message_size = 0) {
+        m_buf = new GrpcFrameBuffer(max_message_size);
         m_stream = stream;
         m_notifier = notifier;
         m_schema = schema;
@@ -722,8 +725,9 @@ public class GrpcAsyncClientStream {
                         AutoLock al(m);
                         m_reads_done = True;
                     }
-                    deliverBufferedMessages();
-                    deliverResult(makeTrailerResult());
+                    if (!deliverBufferedMessages()) {
+                        deliverResult(makeTrailerResult());
+                    }
                     return True;
                 }
                 # response metadata (status_code + headers) or another hash the
@@ -733,8 +737,7 @@ public class GrpcAsyncClientStream {
             }
 
             m_buf.add(item);
-            deliverBufferedMessages();
-            if (checkCancelled()) {
+            if (deliverBufferedMessages() || checkCancelled()) {
                 return True;
             }
         }
@@ -872,11 +875,25 @@ public class GrpcAsyncClientStream {
     }
 
     #! Decodes and delivers every complete gRPC frame currently buffered
-    private deliverBufferedMessages() {
+    /** @return True if the stream was ended because a message exceeds the maximum message size
+    */
+    private bool deliverBufferedMessages() {
         while (True) {
-            *binary payload = m_buf.takeFrame();
+            *binary payload;
+            try {
+                payload = m_buf.takeFrame();
+            } catch (hash<ExceptionInfo> ex) {
+                if (ex.err != "GRPC-RESOURCE-EXHAUSTED") {
+                    rethrow;
+                }
+                # the message is not read: stop the server sending the rest of the stream
+                m_buf.clear();
+                cancelTransport();
+                deliverResult(makeResult(GRPC_STATUS_RESOURCE_EXHAUSTED, sprintf("%s: %s", ex.err, ex.desc)));
+                return True;
+            }
             if (!exists payload) {
-                return;
+                return False;
             }
             hash<auto> msg = m_schema.decode(m_read_type, payload);
             *code<nothing(hash<auto>)> cb;
@@ -884,7 +901,7 @@ public class GrpcAsyncClientStream {
             {
                 AutoLock al(m);
                 if (!m_active) {
-                    return;
+                    return False;
                 }
                 cb = m_opts.on_message;
                 q = m_opts.queue;
@@ -939,8 +956,9 @@ public class GrpcAsyncClientStream {
             deliverError(makeErrorInfo(err));
             return True;
         }
-        deliverBufferedMessages();
-        deliverResult(makeTrailerResult());
+        if (!deliverBufferedMessages()) {
+            deliverResult(makeTrailerResult());
+        }
         return True;
     }
 

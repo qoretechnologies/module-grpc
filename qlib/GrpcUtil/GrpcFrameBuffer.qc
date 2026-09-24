@@ -60,6 +60,18 @@ public class GrpcFrameBuffer {
             runs once per transport chunk rather than once per message.
         */
         int consumed = 0;
+
+        #! The maximum payload length of a frame; <= 0 means no limit
+        int max_frame_size = 0;
+    }
+
+    #! Creates the deframer
+    /** @param max_frame_size the maximum payload length of a frame, as declared in its header; a larger frame raises
+        \c GRPC-RESOURCE-EXHAUSTED as soon as its header is received, before its payload is buffered; <= 0 means no
+        limit
+    */
+    constructor(int max_frame_size = 0) {
+        self.max_frame_size = max_frame_size;
     }
 
     #! Appends transport data to the buffer
@@ -84,6 +96,7 @@ public class GrpcFrameBuffer {
         @ref nothing if the buffer does not yet hold a complete frame
 
         @throw GRPC-FRAMING-ERROR if the frame declares a negative length
+        @throw GRPC-RESOURCE-EXHAUSTED if the frame declares a payload longer than the maximum frame size
     */
     *binary takeFrame() {
         if (size() < 5) {
@@ -94,6 +107,7 @@ public class GrpcFrameBuffer {
             throw "GRPC-FRAMING-ERROR",
                 sprintf("gRPC frame declares an invalid length: %d", len);
         }
+        checkFrameLength(len);
         if (size() < 5 + len) {
             return NOTHING;
         }
@@ -108,9 +122,16 @@ public class GrpcFrameBuffer {
 
     #! Returns True if a complete frame is available
     /** @return True if @ref takeFrame() would return a payload
+
+        @throw GRPC-RESOURCE-EXHAUSTED if the frame declares a payload longer than the maximum frame size
     */
     bool hasFrame() {
-        return size() >= 5 && size() >= 5 + frameLength();
+        if (size() < 5) {
+            return False;
+        }
+        int len = frameLength();
+        checkFrameLength(len);
+        return size() >= 5 + len;
     }
 
     #! Returns the number of unconsumed bytes in the buffer
@@ -132,6 +153,16 @@ public class GrpcFrameBuffer {
     clear() {
         buf = binary();
         consumed = 0;
+    }
+
+    #! Checks a declared payload length against the maximum frame size
+    /** @throw GRPC-RESOURCE-EXHAUSTED if the length exceeds the maximum frame size
+    */
+    private checkFrameLength(int len) {
+        if (max_frame_size > 0 && len > max_frame_size) {
+            throw "GRPC-RESOURCE-EXHAUSTED", sprintf("received a message of %d bytes, larger than the maximum "
+                "message size of %d bytes", len, max_frame_size);
+        }
     }
 
     #! Returns the payload length declared by the frame at the read offset

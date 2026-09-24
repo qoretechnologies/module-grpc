@@ -92,7 +92,9 @@ public class GrpcClient {
         @param request the request data as a Qore hash
         @param opts optional call options (timeout, metadata, compression)
 
-        @return a @ref GrpcCallResult with the response body, status, and metadata
+        @return a @ref GrpcCallResult with the response body, status, and metadata; a response body over the
+        \c max_response_body_size of the channel or a response message over its \c max_message_size returns
+        @ref Qore::Grpc::GRPC_STATUS_RESOURCE_EXHAUSTED
 
         @throw GRPC-METHOD-ERROR if the method is not found
         @throw GRPC-ERROR if the call fails at the transport level
@@ -114,6 +116,16 @@ public class GrpcClient {
         try {
             response = stream.request("POST", method_info.full_path, headers, framed);
         } catch (hash<ExceptionInfo> ex) {
+            # a response over the max_response_body_size of the channel is a gRPC status, not a transport failure
+            if (ex.err == "HTTP-CLIENT-RESPONSE-BODY-TOO-LARGE") {
+                return <GrpcCallResult>{
+                    "body": {},
+                    "status_code": GRPC_STATUS_RESOURCE_EXHAUSTED,
+                    "status_message": sprintf("%s: %s", ex.err, ex.desc),
+                    "trailing_metadata": {},
+                    "initial_metadata": {},
+                };
+            }
             throw "GRPC-ERROR", sprintf("gRPC call to %s failed: %s: %s",
                 method_info.full_path, ex.err, ex.desc);
         }
@@ -155,7 +167,7 @@ public class GrpcClient {
         stream.startStreaming("POST", method_info.full_path, headers, False, framed);
 
         return new GrpcClientStream(stream, m_schema,
-            method_info.output_type, method_info.input_type, True);
+            method_info.output_type, method_info.input_type, True, m_channel.getMaxMessageSize());
     }
 
     #! Start a client-streaming call
@@ -182,7 +194,7 @@ public class GrpcClient {
         stream.startStreaming("POST", method_info.full_path, headers, True);
 
         return new GrpcClientStream(stream, m_schema,
-            method_info.output_type, method_info.input_type);
+            method_info.output_type, method_info.input_type, False, m_channel.getMaxMessageSize());
     }
 
     #! Start a bidirectional streaming call
@@ -335,7 +347,8 @@ public class GrpcClient {
             request, notifier);
 
         GrpcAsyncClientStream async_stream(stream, notifier, m_schema,
-            method_info.output_type, method_info.input_type, sopts, exists request);
+            method_info.output_type, method_info.input_type, sopts, exists request,
+            m_channel.getMaxMessageSize());
         try {
             async_stream.start();
         } catch (hash<ExceptionInfo> ex) {
@@ -373,6 +386,17 @@ public class GrpcClient {
                 response_data = binary(response.body);
             }
             if (response_data.size() >= 5) {
+                int max_message_size = m_channel.getMaxMessageSize();
+                if (max_message_size > 0) {
+                    int len = (response_data[1] << 24) | (response_data[2] << 16) | (response_data[3] << 8)
+                        | response_data[4];
+                    if (len > max_message_size) {
+                        result.status_code = GRPC_STATUS_RESOURCE_EXHAUSTED;
+                        result.status_message = sprintf("GRPC-RESOURCE-EXHAUSTED: received a message of %d bytes, "
+                            "larger than the maximum message size of %d bytes", len, max_message_size);
+                        return result;
+                    }
+                }
                 hash<auto> unframed = GrpcHelper::unframeMessage(response_data);
                 result.body = m_schema.decode(output_type, unframed.data);
             }

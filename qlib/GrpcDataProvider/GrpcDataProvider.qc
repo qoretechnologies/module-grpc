@@ -66,6 +66,25 @@ public class GrpcDataProvider inherits AbstractDataProvider {
                 "desc": "The URL of the gRPC server (e.g., `http://localhost:50051` "
                     "or `https://api.example.com:443`)",
             },
+            "max_message_size": <DataProviderOptionInfo>{
+                "display_name": "Max Message Size",
+                "short_desc": "The maximum size of a response message received",
+                "type": AbstractDataProviderType::get(SoftIntType),
+                "desc": "The maximum size in bytes of one response message received from the server; `0` (the "
+                    "default) means no limit.\n\n"
+                    "A larger message ends the call with the `RESOURCE_EXHAUSTED` status, so a huge message cannot "
+                    "exhaust memory; this limit also applies to streaming calls.  Ignored when `grpcchannel` is set.",
+            },
+            "max_response_body_size": <DataProviderOptionInfo>{
+                "display_name": "Max Response Body Size",
+                "short_desc": "The maximum size of a unary response body received into memory",
+                "type": AbstractDataProviderType::get(SoftIntType),
+                "desc": "The maximum size in bytes of the response body of a unary call, which is received into "
+                    "memory completely before it is decoded; `0` (the default) means no limit.\n\n"
+                    "A larger response ends the call with the `RESOURCE_EXHAUSTED` status.  The response of a "
+                    "streaming call is received one message at a time and is limited by `max_message_size` instead.  "
+                    "Ignored when `grpcchannel` is set.",
+            },
             "proto_path": <DataProviderOptionInfo>{
                 "display_name": "Proto Path",
                 "short_desc": "Path to directory containing .proto files",
@@ -159,7 +178,7 @@ public class GrpcDataProvider inherits AbstractDataProvider {
         if (copts.grpcchannel) {
             channel = copts.grpcchannel;
         } else if (copts.url) {
-            channel = new GrpcChannel(copts.url);
+            channel = new GrpcChannel(copts.url, getChannelOptions(copts));
         }
 
         # Handle reflection
@@ -184,6 +203,18 @@ public class GrpcDataProvider inherits AbstractDataProvider {
                 display_name = sprintf("gRPC %s", copts.url);
             }
         }
+    }
+
+    #! Returns the channel options for the size limits set in the constructor options
+    private static hash<GrpcChannelOptions> getChannelOptions(*hash<auto> copts) {
+        hash<GrpcChannelOptions> rv();
+        if (copts.max_message_size) {
+            rv.max_message_size = copts.max_message_size;
+        }
+        if (copts.max_response_body_size) {
+            rv.max_response_body_size = copts.max_response_body_size;
+        }
+        return rv;
     }
 
     #! Creates the root gRPC data provider from a schema and channel

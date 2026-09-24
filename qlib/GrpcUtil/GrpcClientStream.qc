@@ -68,7 +68,10 @@ public class GrpcClientStream {
         bool m_writes_done = False;
 
         #! Read buffer for accumulating partial gRPC frames
-        GrpcFrameBuffer m_read_buf();
+        GrpcFrameBuffer m_read_buf;
+
+        #! The error that ended the stream locally, reported by finish()
+        *hash<ExceptionInfo> m_error;
 
         #! Last response body decoded (for client-streaming finish())
         hash<auto> m_last_body;
@@ -80,10 +83,13 @@ public class GrpcClientStream {
         @param read_type message type for decoding received messages
         @param write_type message type for encoding sent messages
         @param writes_done if True, writes are already complete (server-streaming)
+        @param max_message_size the maximum size in bytes of a received message, as declared by its gRPC frame;
+        <= 0 means no limit
     */
     constructor(HttpClientIo::HttpClientStreamHandle stream,
             ProtobufSchema schema, string read_type, string write_type,
-            bool writes_done = False) {
+            bool writes_done = False, int max_message_size = 0) {
+        m_read_buf = new GrpcFrameBuffer(max_message_size);
         m_stream = stream;
         m_schema = schema;
         m_read_type = read_type;
@@ -96,6 +102,8 @@ public class GrpcClientStream {
         @return a decoded message hash, or NOTHING if the stream has ended
 
         @throw GRPC-STREAM-ERROR if a stream error occurs
+        @throw GRPC-RESOURCE-EXHAUSTED if the message exceeds the maximum message size; the stream is cancelled, and
+        @ref finish() returns \c RESOURCE_EXHAUSTED
     */
     *hash<auto> read(*timeout timeout) {
         if (m_reads_done) {
@@ -176,7 +184,9 @@ public class GrpcClientStream {
     /** Automatically calls writesDone() if not already called.
         Reads any remaining messages and extracts the gRPC status.
 
-        @return a @ref GrpcCallResult with response body and status info
+        @return a @ref GrpcCallResult with response body and status info; if the stream ended because a message
+        exceeds the maximum message size and the server sent no error status, the status is
+        @ref Qore::Grpc::GRPC_STATUS_RESOURCE_EXHAUSTED
 
         @see @ref Grpc::GrpcHelper::parseCallStatus() for the status sources
         covered (trailers, a Trailers-Only response, a non-gRPC HTTP failure)
@@ -198,10 +208,13 @@ public class GrpcClientStream {
 
         hash<GrpcCallResult> result = GrpcHelper::parseCallStatus(m_stream.getResponse());
         result.body = m_last_body ?? {};
-        # a drain failure only reports a status the server never sent itself
-        if (drain_error && result.status_code == GRPC_STATUS_OK) {
-            result.status_code = GRPC_STATUS_INTERNAL;
-            result.status_message = sprintf("%s: %s", drain_error.err, drain_error.desc);
+        # a local failure only reports a status the server never sent itself
+        *hash<ExceptionInfo> error = m_error ?? drain_error;
+        if (error && result.status_code == GRPC_STATUS_OK) {
+            result.status_code = error.err == "GRPC-RESOURCE-EXHAUSTED"
+                ? GRPC_STATUS_RESOURCE_EXHAUSTED
+                : GRPC_STATUS_INTERNAL;
+            result.status_message = sprintf("%s: %s", error.err, error.desc);
         }
         return result;
     }
@@ -223,7 +236,23 @@ public class GrpcClientStream {
 
     #! Try to parse a complete gRPC frame from the read buffer
     private *hash<auto> tryParseFrame() {
-        *binary msg_data = m_read_buf.takeFrame();
+        *binary msg_data;
+        try {
+            msg_data = m_read_buf.takeFrame();
+        } catch (hash<ExceptionInfo> ex) {
+            if (ex.err == "GRPC-RESOURCE-EXHAUSTED") {
+                # the message is not read: stop the server sending the rest of the stream
+                m_error = ex;
+                m_reads_done = True;
+                m_read_buf.clear();
+                try {
+                    m_stream.cancel();
+                } catch (hash<ExceptionInfo> ex1) {
+                    # the stream is already in a terminal state
+                }
+            }
+            rethrow;
+        }
         if (!exists msg_data) {
             return NOTHING;
         }
