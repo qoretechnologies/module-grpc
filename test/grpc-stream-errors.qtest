@@ -1,0 +1,409 @@
+#!/usr/bin/env qore
+# -*- mode: qore; indent-tabs-mode: nil -*-
+
+/*
+    Copyright (C) 2026 Qore Technologies, s.r.o., all rights reserved
+
+    gRPC client stream error handling test suite
+*/
+
+%modern
+
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+
+%requires QUnit
+
+%requires protobuf
+%requires grpc
+%requires GrpcUtil
+%requires HttpClientIo
+%requires HttpServerAsyncIo
+
+%exec-class GrpcStreamErrorsTest
+
+#! Stream handle whose sends, reads, and response are scripted by the test
+class ScriptedStream inherits HttpClientIo::HttpClientStreamHandle {
+    public {
+        #! Exceptions raised by sendData() for a message and for the half-close
+        *hash<auto> data_error;
+        *hash<auto> close_error;
+        #! Values returned by readData(), in order
+        list<auto> reads = ();
+        #! The response returned by getResponse()
+        *hash<auto> resp;
+        #! The data sent, in order
+        list<hash<auto>> sent = ();
+        bool cancelled = False;
+    }
+
+    constructor(HttpClientIo::HttpClientConnection conn) : HttpClientStreamHandle(conn) {
+    }
+
+    sendData(data data, bool end_stream = False) {
+        sent += {"data": data, "end_stream": end_stream};
+        *hash<auto> err = (end_stream && !data) ? close_error : data_error;
+        if (err) {
+            throw err.err, err.desc;
+        }
+    }
+
+    auto readData(*timeout timeout_ms) {
+        if (!reads) {
+            return NOTHING;
+        }
+        return shift reads;
+    }
+
+    *hash<auto> getResponse() {
+        return resp;
+    }
+
+    cancel() {
+        cancelled = True;
+    }
+
+    private hash<auto> submitAsyncImpl(string method, string path, *hash<auto> headers, *data body) {
+        throw "TEST-ERROR", "not supported";
+    }
+
+    private hash<auto> submitAsyncWithNotifierImpl(string method, string path, *hash<auto> headers, *data body,
+            EventNotifier notifier) {
+        throw "TEST-ERROR", "not supported";
+    }
+}
+
+#! Async stream whose drain paths are driven by the test, as if its poll operation were running
+class DrivenAsyncStream inherits Grpc::GrpcAsyncClientStream {
+    constructor(HttpClientIo::HttpClientStreamHandle stream, ProtobufSchema schema, *hash<GrpcAsyncStreamOptions> opts)
+            : GrpcAsyncClientStream(stream, new EventNotifier(), schema, "test.SimpleResponse", "test.SimpleRequest",
+                opts) {
+        # a running poll operation: cancel() only requests the cancel and wakes the drain
+        m_started = True;
+        m_poll_active = True;
+    }
+
+    #! The drain finds the stream closed by the transport
+    bool testStreamClosed() {
+        return deliverStreamClosed();
+    }
+
+    #! The drain receives a transport error
+    testError(hash<auto> error) {
+        deliverError(error);
+    }
+}
+
+#! Server that resets the HTTP/2 stream of every call to UnaryCall with metadata "x-reset"
+class ResetServer inherits Grpc::GrpcServer {
+    constructor(ProtobufSchema schema) : GrpcServer(schema) {
+    }
+
+    hash<HttpServerAsyncIo::HttpRequestResultInfo> onHttpRequest(hash<HttpServerAsyncIo::HttpConnectionInfo> info) {
+        if (info.hdr."x-reset") {
+            info.sock.resetHttp2Stream(info.header_info.stream_id);
+            info.header_info.io_wake();
+            return grpcResponseInfo();
+        }
+        return GrpcServer::onHttpRequest(info);
+    }
+}
+
+public class GrpcStreamErrorsTest inherits QUnit::Test {
+    private {
+        string test_dir;
+        ProtobufSchema schema;
+        GrpcServer server;
+        int port;
+    }
+
+    constructor() : Test("GrpcStreamErrorsTest", "1.0") {
+        test_dir = get_script_dir();
+        schema = new ProtobufSchema(test_dir, "test.proto");
+
+        addTestCase("helper: stream not writable errors", \testNotWritableErrors());
+        addTestCase("helper: HTTP/2 error codes to status codes", \testHttp2ErrorToStatus());
+        addTestCase("helper: call errors to status codes", \testErrorToStatus());
+        addTestCase("write after the server finished the call", \testWriteAfterServerFinished());
+        addTestCase("write on a stream that is no longer writable", \testWriteNotWritable());
+        addTestCase("write rethrows other errors", \testWriteOtherError());
+        addTestCase("finish reports the server status after a failed half-close", \testFinishServerStatus());
+        addTestCase("finish maps a reset without a status", \testFinishResetStatus());
+        addTestCase("finish maps a failed half-close without a status", \testFinishCloseErrorStatus());
+        addTestCase("async write and finishWrites on a stream that is not writable", \testAsyncNotWritable());
+        addTestCase("async cancel wins over the end of the stream it causes", \testAsyncCancelRace());
+        addTestCase("unary call on a reset stream raises GRPC-ERROR", \testUnaryReset());
+
+        server = new ResetServer(schema);
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                return {"message": "hi " + request.name};
+            });
+        server.registerHandler("TestService", "BidiStream",
+            sub(GrpcServerStream stream, hash<string, string> metadata) {
+                # reject the call without reading the request stream
+                throw "GRPC-NOT-FOUND", "no such item";
+            });
+        port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        set_return_value(main());
+    }
+
+    #! Returns a stream handle scripted by the test, over a real connection
+    private ScriptedStream getScriptedStream(GrpcChannel channel) {
+        HttpClientIo::HttpClientStreamHandle real = channel.acquireStream();
+        return new ScriptedStream(real.getConnection());
+    }
+
+    testNotWritableErrors() {
+        foreach string err in ("HTTPCLIENT-STREAM-CLOSED", "HTTPCLIENT-STATE-ERROR", "HTTP2-STREAM-CLOSED",
+                "HTTP2-STREAM-RESET") {
+            assertTrue(GrpcHelper::isStreamNotWritableError(err), err);
+        }
+        assertFalse(GrpcHelper::isStreamNotWritableError("HTTP2-ERROR"));
+        assertFalse(GrpcHelper::isStreamNotWritableError("SOCKET-SEND-ERROR"));
+    }
+
+    testHttp2ErrorToStatus() {
+        assertEq(GRPC_STATUS_UNAVAILABLE, GrpcHelper::http2ErrorToStatusCode(7));
+        assertEq(GRPC_STATUS_CANCELLED, GrpcHelper::http2ErrorToStatusCode(8));
+        assertEq(GRPC_STATUS_RESOURCE_EXHAUSTED, GrpcHelper::http2ErrorToStatusCode(11));
+        assertEq(GRPC_STATUS_PERMISSION_DENIED, GrpcHelper::http2ErrorToStatusCode(12));
+        foreach int code in (0, 1, 2, 3, 6, 9, 10, 13) {
+            assertEq(GRPC_STATUS_INTERNAL, GrpcHelper::http2ErrorToStatusCode(code), "code " + code);
+        }
+    }
+
+    testErrorToStatus() {
+        # both forms of the reset description in qore
+        assertEq(GRPC_STATUS_CANCELLED, GrpcHelper::errorToStatusCode({"err": "HTTP2-STREAM-RESET",
+            "desc": "stream 1 was reset by peer (error code 8)"}));
+        assertEq(GRPC_STATUS_UNAVAILABLE, GrpcHelper::errorToStatusCode({"err": "HTTP2-STREAM-RESET",
+            "desc": "HTTP/2 stream 1 reset by peer (error_code=7)"}));
+        assertEq(GRPC_STATUS_INTERNAL, GrpcHelper::errorToStatusCode({"err": "HTTP2-STREAM-RESET",
+            "desc": "reset"}));
+        # a GRPC-STREAM-ERROR is mapped by the transport error it carries
+        assertEq(GRPC_STATUS_CANCELLED, GrpcHelper::errorToStatusCode({"err": "GRPC-STREAM-ERROR",
+            "desc": "x", "arg": {"err": "HTTP2-STREAM-RESET", "desc": "(error_code=8)"}}));
+        assertEq(GRPC_STATUS_INTERNAL, GrpcHelper::errorToStatusCode({"err": "GRPC-STREAM-ERROR",
+            "desc": "x"}));
+        assertEq(GRPC_STATUS_RESOURCE_EXHAUSTED, GrpcHelper::errorToStatusCode({"err": "GRPC-RESOURCE-EXHAUSTED",
+            "desc": "x"}));
+        assertEq(GRPC_STATUS_INTERNAL, GrpcHelper::errorToStatusCode({"err": "OTHER", "desc": "x"}));
+    }
+
+    testWriteAfterServerFinished() {
+        GrpcChannel channel("http://localhost:" + port);
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        GrpcClientStream stream = client.bidiStream("BidiStream");
+        # the server rejects the call without reading: the stream ends with no message
+        assertNothing(stream.read(30s));
+        assertTrue(stream.readsDone());
+        assertThrows("GRPC-STREAM-ERROR", "the call has finished; call finish\\(\\) for its status",
+            \stream.write(), ({"name": "late"},));
+
+        hash<GrpcCallResult> result = stream.finish();
+        assertEq(GRPC_STATUS_NOT_FOUND, result.status_code);
+        assertEq("GRPC-NOT-FOUND: no such item", result.status_message);
+    }
+
+    testWriteNotWritable() {
+        GrpcChannel channel("http://localhost:" + port);
+        on_exit channel.shutdown();
+
+        foreach string err in ("HTTPCLIENT-STREAM-CLOSED", "HTTP2-STREAM-CLOSED", "HTTP2-STREAM-RESET",
+                "HTTPCLIENT-STATE-ERROR") {
+            ScriptedStream scripted = getScriptedStream(channel);
+            scripted.data_error = {"err": err, "desc": "closed"};
+            scripted.reads = ({"end_stream": True},);
+            scripted.resp = {"status_code": 200, "headers": {"content-type": "application/grpc"},
+                "trailers": {"grpc-status": "9", "grpc-message": "not now"}};
+            GrpcClientStream stream(scripted, schema, "test.SimpleResponse", "test.SimpleRequest");
+
+            try {
+                stream.write({"name": "x"});
+                assertTrue(False, err + ": write must fail");
+            } catch (hash<ExceptionInfo> ex) {
+                assertEq("GRPC-STREAM-ERROR", ex.err, err);
+                assertRegex("no longer writable \\(" + err + ": closed\\); call finish\\(\\)", ex.desc, err);
+                assertEq(err, ex.arg.err, err);
+            }
+            # the write side is closed after the failure
+            assertThrows("GRPC-STREAM-ERROR", "the write side of the stream is closed", \stream.write(),
+                ({"name": "y"},));
+
+            # finish() returns the status the server sent; the half-close is not sent again
+            hash<GrpcCallResult> result = stream.finish();
+            assertEq(GRPC_STATUS_FAILED_PRECONDITION, result.status_code, err);
+            assertEq("not now", result.status_message, err);
+            assertEq(1, scripted.sent.size(), err);
+        }
+    }
+
+    testWriteOtherError() {
+        GrpcChannel channel("http://localhost:" + port);
+        on_exit channel.shutdown();
+        ScriptedStream scripted = getScriptedStream(channel);
+        scripted.data_error = {"err": "SOCKET-SEND-ERROR", "desc": "broken"};
+        GrpcClientStream stream(scripted, schema, "test.SimpleResponse", "test.SimpleRequest");
+        assertThrows("SOCKET-SEND-ERROR", "broken", \stream.write(), ({"name": "x"},));
+    }
+
+    testFinishServerStatus() {
+        GrpcChannel channel("http://localhost:" + port);
+        on_exit channel.shutdown();
+        ScriptedStream scripted = getScriptedStream(channel);
+        scripted.close_error = {"err": "HTTP2-STREAM-RESET", "desc": "stream 1 was reset by peer (error code 7)"};
+        scripted.reads = ({"end_stream": True},);
+        scripted.resp = {"status_code": 200, "headers": {"content-type": "application/grpc"},
+            "trailers": {"grpc-status": "5", "grpc-message": "gone"}};
+        GrpcClientStream stream(scripted, schema, "test.SimpleResponse", "test.SimpleRequest");
+
+        # the half-close raises the reset
+        assertThrows("GRPC-STREAM-ERROR", "HTTP2-STREAM-RESET", \stream.writesDone());
+
+        ScriptedStream scripted2 = getScriptedStream(channel);
+        scripted2.close_error = scripted.close_error;
+        scripted2.reads = ({"end_stream": True},);
+        scripted2.resp = scripted.resp;
+        GrpcClientStream stream2(scripted2, schema, "test.SimpleResponse", "test.SimpleRequest");
+        # finish() does not raise and returns the status the server sent
+        hash<GrpcCallResult> result = stream2.finish();
+        assertEq(GRPC_STATUS_NOT_FOUND, result.status_code);
+        assertEq("gone", result.status_message);
+    }
+
+    testFinishResetStatus() {
+        GrpcChannel channel("http://localhost:" + port);
+        on_exit channel.shutdown();
+        ScriptedStream scripted = getScriptedStream(channel);
+        scripted.close_error = {"err": "HTTP2-STREAM-RESET", "desc": "stream 1 was reset by peer (error code 8)"};
+        # the reset ends the read side with an error and no status
+        scripted.reads = ({"error": {"err": "HTTP2-STREAM-RESET",
+            "desc": "HTTP/2 stream 1 reset by peer (error_code=8)"}},);
+        GrpcClientStream stream(scripted, schema, "test.SimpleResponse", "test.SimpleRequest");
+        hash<GrpcCallResult> result = stream.finish();
+        assertEq(GRPC_STATUS_CANCELLED, result.status_code);
+        assertRegex("^GRPC-STREAM-ERROR: stream error: .*HTTP2-STREAM-RESET", result.status_message);
+    }
+
+    testFinishCloseErrorStatus() {
+        GrpcChannel channel("http://localhost:" + port);
+        on_exit channel.shutdown();
+        ScriptedStream scripted = getScriptedStream(channel);
+        scripted.close_error = {"err": "HTTP2-STREAM-RESET", "desc": "stream 1 was reset by peer (error code 7)"};
+        # the stream ends without a status from the server
+        scripted.reads = ({"end_stream": True},);
+        GrpcClientStream stream(scripted, schema, "test.SimpleResponse", "test.SimpleRequest");
+        hash<GrpcCallResult> result = stream.finish();
+        assertEq(GRPC_STATUS_UNAVAILABLE, result.status_code);
+        assertRegex("^GRPC-STREAM-ERROR: the stream is no longer writable \\(HTTP2-STREAM-RESET: ",
+            result.status_message);
+    }
+
+    testAsyncNotWritable() {
+        GrpcChannel channel("http://localhost:" + port);
+        on_exit channel.shutdown();
+
+        ScriptedStream scripted = getScriptedStream(channel);
+        scripted.data_error = {"err": "HTTPCLIENT-STREAM-CLOSED", "desc": "closed"};
+        GrpcAsyncClientStream stream(scripted, new EventNotifier(), schema, "test.SimpleResponse",
+            "test.SimpleRequest");
+        try {
+            stream.write({"name": "x"});
+            assertTrue(False, "write must fail");
+        } catch (hash<ExceptionInfo> ex) {
+            assertEq("GRPC-STREAM-ERROR", ex.err);
+            assertRegex("no longer writable \\(HTTPCLIENT-STREAM-CLOSED: closed\\)", ex.desc);
+            assertEq("HTTPCLIENT-STREAM-CLOSED", ex.arg.err);
+        }
+        assertThrows("GRPC-STREAM-ERROR", "the write side of the stream is closed", \stream.write(),
+            ({"name": "y"},));
+
+        # a half-close the server reset does not escape finishWrites(); the terminal event reports the call's end
+        ScriptedStream scripted2 = getScriptedStream(channel);
+        scripted2.close_error = {"err": "HTTP2-STREAM-RESET", "desc": "stream 1 was reset by peer (error code 8)"};
+        GrpcAsyncClientStream stream2(scripted2, new EventNotifier(), schema, "test.SimpleResponse",
+            "test.SimpleRequest");
+        stream2.finishWrites(1s);
+        assertEq(({"data": binary(), "end_stream": True},), scripted2.sent);
+        # the half-close is not sent again
+        stream2.writesDone();
+        assertEq(1, scripted2.sent.size());
+
+        # writesDone() raises the reset
+        ScriptedStream scripted3 = getScriptedStream(channel);
+        scripted3.close_error = scripted2.close_error;
+        GrpcAsyncClientStream stream3(scripted3, new EventNotifier(), schema, "test.SimpleResponse",
+            "test.SimpleRequest");
+        assertThrows("GRPC-STREAM-ERROR", "HTTP2-STREAM-RESET", \stream3.writesDone());
+    }
+
+    testAsyncCancelRace() {
+        GrpcChannel channel("http://localhost:" + port);
+        on_exit channel.shutdown();
+
+        # the transport reports the stream closed without an error after the cancel
+        ScriptedStream scripted = getScriptedStream(channel);
+        Queue q();
+        DrivenAsyncStream stream(scripted, schema, <GrpcAsyncStreamOptions>{"queue": q});
+        stream.cancel();
+        assertTrue(scripted.cancelled);
+        assertTrue(stream.isActive(), "the drain delivers the terminal event");
+        assertTrue(stream.testStreamClosed());
+        assertFalse(stream.isActive());
+        hash<auto> e = q.get(1s);
+        assertEq(GRPC_ASYNC_EVENT_COMPLETE, e.event);
+        assertEq(GRPC_STATUS_CANCELLED, e.data.status_code);
+        assertEq("stream cancelled by client", e.data.status_message);
+        assertNothing(q.get(1s), "the terminal event is followed by the end of the queue");
+        assertEq(GRPC_STATUS_CANCELLED, stream.getResult().status_code);
+        assertNothing(stream.getError());
+
+        # the transport reports an error after the cancel
+        ScriptedStream scripted2 = getScriptedStream(channel);
+        Queue q2();
+        DrivenAsyncStream stream2(scripted2, schema, <GrpcAsyncStreamOptions>{"queue": q2});
+        stream2.cancel();
+        stream2.testError({"err": "HTTPCLIENT-STREAM-CANCELLED", "desc": "cancelled"});
+        e = q2.get(1s);
+        assertEq(GRPC_ASYNC_EVENT_COMPLETE, e.event);
+        assertEq(GRPC_STATUS_CANCELLED, e.data.status_code);
+        assertNothing(stream2.getError());
+
+        # without a cancel, the end of the stream and transport errors are reported as they are
+        ScriptedStream scripted3 = getScriptedStream(channel);
+        scripted3.resp = {"status_code": 200, "headers": {"content-type": "application/grpc"},
+            "trailers": {"grpc-status": "0", "grpc-message": "OK"}};
+        Queue q3();
+        DrivenAsyncStream stream3(scripted3, schema, <GrpcAsyncStreamOptions>{"queue": q3});
+        stream3.testStreamClosed();
+        e = q3.get(1s);
+        assertEq(GRPC_ASYNC_EVENT_COMPLETE, e.event);
+        assertEq(GRPC_STATUS_OK, e.data.status_code);
+
+        Queue q4();
+        DrivenAsyncStream stream4(getScriptedStream(channel), schema, <GrpcAsyncStreamOptions>{"queue": q4});
+        stream4.testError({"err": "SOCKET-RECV-ERROR", "desc": "reset"});
+        e = q4.get(1s);
+        assertEq(GRPC_ASYNC_EVENT_ERROR, e.event);
+        assertEq("SOCKET-RECV-ERROR", e.data.err);
+        assertEq("SOCKET-RECV-ERROR", stream4.getError().err);
+    }
+
+    testUnaryReset() {
+        GrpcChannel channel("http://localhost:" + port);
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        assertEq("hi a", client.call("UnaryCall", {"name": "a"}).body.message);
+        # a reset stream is a failed call, not an OK result with an empty body
+        assertThrows("GRPC-ERROR", "gRPC call to /test.TestService/UnaryCall failed", \client.call(),
+            ("UnaryCall", {"name": "b"}, <GrpcCallOptions>{"metadata": {"x-reset": "1"}}));
+        # the channel stays usable
+        assertEq("hi c", client.call("UnaryCall", {"name": "c"}).body.message);
+    }
+}

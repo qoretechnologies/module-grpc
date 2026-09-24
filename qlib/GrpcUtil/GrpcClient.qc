@@ -94,7 +94,7 @@ public class GrpcClient {
 
         @return a @ref GrpcCallResult with the response body, status, and metadata; a response body over the
         \c max_response_body_size of the channel or a response message over its \c max_message_size returns
-        @ref Qore::Grpc::GRPC_STATUS_RESOURCE_EXHAUSTED
+        \c GRPC_STATUS_RESOURCE_EXHAUSTED
 
         @throw GRPC-METHOD-ERROR if the method is not found
         @throw GRPC-ERROR if the call fails at the transport level
@@ -160,8 +160,9 @@ public class GrpcClient {
         # A server-streaming client sends exactly one message and half-closes,
         # so the request is submitted with the stream rather than written after
         # it: submitting and then writing leaves a window in which the server
-        # can reject the call and close the stream first, which surfaces as an
-        # opaque HTTP2-ERROR instead of the gRPC status the server sent
+        # can reject the call and close the stream first, so the write fails
+        # with a transport error instead of the call reporting the gRPC status
+        # the server sent
         HttpClientIo::HttpClientStreamHandle stream = m_channel.acquireStream();
         ensureStreamReady(stream);
         stream.startStreaming("POST", method_info.full_path, headers, False, framed);
@@ -340,8 +341,8 @@ public class GrpcClient {
         # established above.  A server-streaming call sends exactly one message
         # and half-closes, so its request rides the stream submission: writing
         # it afterwards leaves a window in which the server can reject the call
-        # and close the stream first, which surfaces as an opaque HTTP2-ERROR
-        # instead of the gRPC status the server sent.  Client-streaming and bidi
+        # and close the stream first, so the write fails with a transport error
+        # instead of the call reporting the gRPC status the server sent.  Client-streaming and bidi
         # calls keep the request write side open for write().
         stream.startStreaming("POST", method_info.full_path, headers, !exists request,
             request, notifier);

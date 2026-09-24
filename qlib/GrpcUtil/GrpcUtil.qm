@@ -389,18 +389,15 @@ printf("Fields: %y\n", keys msg_schema.fields);
       sources a conformant peer can use:
       - a <b>Trailers-Only</b> response, where a server that fails before producing any
         message reports \c grpc-status in a single \c HEADERS frame and sends no
-        trailers at all — this is what grpc-go, grpc-java, and grpc-python send for
-        \c UNIMPLEMENTED, and reading only the trailers reported such a failure as
-        \c GRPC_STATUS_OK with an empty body
-      - a non-gRPC HTTP failure status, reported as \c GRPC_STATUS_INTERNAL rather
-        than as \c GRPC_STATUS_OK
-      - \c grpc-status and \c grpc-message are no longer repeated in the metadata
-        hashes, and @ref Grpc::GrpcClientStream::finish() "GrpcClientStream::finish()"
-        now populates \c initial_metadata instead of always returning it empty
-    - server-streaming calls submit their single request message with the stream rather
-      than writing it afterwards; the old two-step submission left a window in which a
-      server that rejects the call could close the stream first, surfacing an opaque
-      \c HTTP2-ERROR instead of the gRPC status the server sent
+        trailers at all, as grpc-go, grpc-java, and grpc-python do for
+        \c UNIMPLEMENTED
+      - a non-gRPC HTTP failure status, reported as \c GRPC_STATUS_INTERNAL
+      - \c grpc-status and \c grpc-message are reported as the call status and are not
+        repeated in the metadata hashes, and
+        @ref Grpc::GrpcClientStream::finish() "GrpcClientStream::finish()" returns the
+        response headers as \c initial_metadata
+    - server-streaming calls submit their single request message with the stream, so a
+      server that rejects the call at once is reported with the gRPC status it sent
     - @ref Grpc::GrpcClient "GrpcClient":
       @ref Grpc::GrpcClient::serverStreamAsync() "serverStreamAsync()",
       @ref Grpc::GrpcClient::clientStreamAsync() "clientStreamAsync()", and

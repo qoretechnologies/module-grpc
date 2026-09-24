@@ -448,13 +448,13 @@ public class GrpcAsyncClientStream {
     #! Encodes and sends a message to the server
     /** @param message the message to send
 
-        @note The stream can reach its terminal state between the state check
-        and the send, in which case the underlying transport error is raised
-        instead of \c GRPC-STREAM-ERROR; treat any exception here as "the
-        message was not sent".
+        @note The server can finish the call between the state check and the
+        send; the send then raises \c GRPC-STREAM-ERROR, and the call's status
+        is delivered as the stream's terminal event.
 
-        @throw GRPC-STREAM-ERROR if the stream is no longer active or the write
-        side has been closed
+        @throw GRPC-STREAM-ERROR if the stream is no longer active, the write
+        side has been closed, or the stream is no longer writable; for a failed
+        send, the exception's \c arg is the transport error
     */
     write(hash<auto> message) {
         {
@@ -467,11 +467,15 @@ public class GrpcAsyncClientStream {
             }
         }
         binary encoded = m_schema.encode(m_write_type, message);
-        m_stream.sendData(GrpcHelper::frameMessage(encoded), False);
+        send(GrpcHelper::frameMessage(encoded), False);
     }
 
     #! Half-closes the write side of the stream
     /** Safe to call multiple times; subsequent calls are no-ops.
+
+        @throw GRPC-STREAM-ERROR if the server reset the stream or the stream
+        otherwise failed before the half-close; the exception's \c arg is the
+        transport error, and the stream's terminal event reports the call's end
     */
     writesDone() {
         {
@@ -481,7 +485,24 @@ public class GrpcAsyncClientStream {
             }
             m_writes_done = True;
         }
-        m_stream.sendData(binary(), True);
+        send(binary(), True);
+    }
+
+    #! Sends data on the stream, raising GRPC-STREAM-ERROR if the stream is no longer writable
+    private send(binary data, bool end_stream) {
+        try {
+            m_stream.sendData(data, end_stream);
+        } catch (hash<ExceptionInfo> ex) {
+            if (!GrpcHelper::isStreamNotWritableError(ex.err)) {
+                rethrow;
+            }
+            {
+                AutoLock al(m);
+                m_writes_done = True;
+            }
+            throw "GRPC-STREAM-ERROR", sprintf("the stream is no longer writable (%s: %s); the call's status is "
+                "delivered as the stream's terminal event", ex.err, ex.desc), ex;
+        }
     }
 
     #! Half-closes the write side and bounds how long the read side may drain
@@ -496,7 +517,14 @@ public class GrpcAsyncClientStream {
         \c 0 for no bound
     */
     finishWrites(timeout drain_timeout = DefaultDrainTimeout) {
-        writesDone();
+        try {
+            writesDone();
+        } catch (hash<ExceptionInfo> ex) {
+            if (ex.err != "GRPC-STREAM-ERROR") {
+                rethrow;
+            }
+            # the stream's terminal event reports how the call ended
+        }
         {
             AutoLock al(m);
             if (!m_active || m_reads_done) {
@@ -1005,44 +1033,49 @@ public class GrpcAsyncClientStream {
     }
 
     #! Flips the stream to the inactive state exactly once
-    /** @return True if this call performed the transition
+    /** @param cancelled set to True if a cancel was requested before the transition; read under the same lock as
+        the transition, so a @ref cancel() either takes effect here or finds the stream inactive
+
+        @return True if this call performed the transition
     */
-    private bool markInactive() {
+    private bool markInactive(reference<bool> cancelled) {
         AutoLock al(m);
         if (!m_active) {
             return False;
         }
         m_active = False;
+        cancelled = m_cancel_requested;
         cond.broadcast();
         return True;
     }
 
-    #! Delivers the terminal completion event exactly once
+    #! Delivers the terminal result event exactly once
+    /** If the client requested a cancel before the terminal event, the call ends with
+        \c GRPC_STATUS_CANCELLED: the end of the stream that the cancel causes is not the outcome of the
+        call.
+    */
     private deliverResult(hash<GrpcCallResult> result) {
-        if (!markInactive()) {
+        bool cancelled;
+        if (!markInactive(\cancelled)) {
             return;
         }
-        *code<nothing(hash<GrpcCallResult>)> cb;
-        *Queue q;
-        {
-            AutoLock al(m);
-            m_result = result;
-            cb = m_opts.on_complete;
-            q = m_opts.queue;
-            clearSinks();
+        if (cancelled && result.status_code != GRPC_STATUS_CANCELLED) {
+            result = makeResult(GRPC_STATUS_CANCELLED, "stream cancelled by client");
         }
-        if (cb) {
-            cb(result);
-        }
-        if (q) {
-            q.push({"event": GRPC_ASYNC_EVENT_COMPLETE, "data": result});
-            q.push();
-        }
+        completeWithResult(result);
     }
 
     #! Delivers the terminal transport-error event exactly once
+    /** If the client requested a cancel before the terminal event, the call ends with the
+        \c GRPC_STATUS_CANCELLED result instead: the transport error is a consequence of the cancel.
+    */
     private deliverError(hash<auto> error) {
-        if (!markInactive()) {
+        bool cancelled;
+        if (!markInactive(\cancelled)) {
+            return;
+        }
+        if (cancelled) {
+            completeWithResult(makeResult(GRPC_STATUS_CANCELLED, "stream cancelled by client"));
             return;
         }
         *code<nothing(hash<auto>)> cb;
@@ -1059,6 +1092,26 @@ public class GrpcAsyncClientStream {
         }
         if (q) {
             q.push({"event": GRPC_ASYNC_EVENT_ERROR, "data": error});
+            q.push();
+        }
+    }
+
+    #! Stores the terminal result and delivers it to the sinks; the stream must already be inactive
+    private completeWithResult(hash<GrpcCallResult> result) {
+        *code<nothing(hash<GrpcCallResult>)> cb;
+        *Queue q;
+        {
+            AutoLock al(m);
+            m_result = result;
+            cb = m_opts.on_complete;
+            q = m_opts.queue;
+            clearSinks();
+        }
+        if (cb) {
+            cb(result);
+        }
+        if (q) {
+            q.push({"event": GRPC_ASYNC_EVENT_COMPLETE, "data": result});
             q.push();
         }
     }

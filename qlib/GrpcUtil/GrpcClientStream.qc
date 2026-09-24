@@ -138,7 +138,7 @@ public class GrpcClientStream {
                     return remaining;
                 }
                 if (data.error) {
-                    throw "GRPC-STREAM-ERROR", sprintf("stream error: %y", data.error);
+                    throw "GRPC-STREAM-ERROR", sprintf("stream error: %y", data.error), data.error;
                 }
                 # Headers-only or other metadata hash (e.g. the status_code +
                 # headers event the H2 MultiplexPoll emits for non-CONNECT
@@ -157,12 +157,20 @@ public class GrpcClientStream {
     #! Write a message to the stream
     /** @param message the message to send
 
-        @throw GRPC-STREAM-ERROR if the stream is not writable
+        @throw GRPC-STREAM-ERROR if the stream is not writable: the write side has been closed, or the server has
+        finished the call, in which case @ref finish() returns the call's status; for a failed send, the exception's
+        \c arg is the transport error
     */
     write(hash<auto> message) {
+        if (m_writes_done) {
+            throw "GRPC-STREAM-ERROR", "the write side of the stream is closed";
+        }
+        if (m_reads_done) {
+            throw "GRPC-STREAM-ERROR", "the call has finished; call finish() for its status";
+        }
         binary encoded = m_schema.encode(m_write_type, message);
         binary framed = GrpcHelper::frameMessage(encoded);
-        m_stream.sendData(framed, False);
+        send(framed, False);
     }
 
     #! Signal that no more messages will be written
@@ -170,13 +178,30 @@ public class GrpcClientStream {
         can send its response for client-streaming calls.
 
         Safe to call multiple times; subsequent calls are no-ops.
+
+        @throw GRPC-STREAM-ERROR if the server reset the stream or the stream otherwise failed before the
+        half-close; the exception's \c arg is the transport error, and @ref finish() returns the call's status
     */
     writesDone() {
         if (!m_writes_done) {
             m_writes_done = True;
-            # sendData(empty, end_stream=True) is idempotent — if the stream
-            # is already in a terminal state, it's a no-op at the HTTP/2 layer
-            m_stream.sendData(binary(), True);
+            # a half-close of a stream that has completed, or that the server closed cleanly, is a no-op; one that
+            # the server reset with an error code raises the reset
+            send(binary(), True);
+        }
+    }
+
+    #! Sends data on the stream, raising GRPC-STREAM-ERROR if the stream is no longer writable
+    private send(binary data, bool end_stream) {
+        try {
+            m_stream.sendData(data, end_stream);
+        } catch (hash<ExceptionInfo> ex) {
+            if (!GrpcHelper::isStreamNotWritableError(ex.err)) {
+                rethrow;
+            }
+            m_writes_done = True;
+            throw "GRPC-STREAM-ERROR", sprintf("the stream is no longer writable (%s: %s); call finish() for the "
+                "call's status", ex.err, ex.desc), ex;
         }
     }
 
@@ -184,16 +209,26 @@ public class GrpcClientStream {
     /** Automatically calls writesDone() if not already called.
         Reads any remaining messages and extracts the gRPC status.
 
-        @return a @ref GrpcCallResult with response body and status info; if the stream ended because a message
-        exceeds the maximum message size and the server sent no error status, the status is
-        @ref Qore::Grpc::GRPC_STATUS_RESOURCE_EXHAUSTED
+        @return a @ref GrpcCallResult with response body and status info; a status the server sent always wins; if
+        the stream ended without one, the status is derived from the error that ended it (see
+        @ref Grpc::GrpcHelper::errorToStatusCode()): \c GRPC_STATUS_RESOURCE_EXHAUSTED for a message
+        over the maximum message size, the status for the HTTP/2 error code of a stream reset, and otherwise
+        \c GRPC_STATUS_INTERNAL
+
+        @note this method does not raise for a failed half-close or a failed read; the failure is reported in the
+        result
 
         @see @ref Grpc::GrpcHelper::parseCallStatus() for the status sources
         covered (trailers, a Trailers-Only response, a non-gRPC HTTP failure)
     */
     hash<GrpcCallResult> finish() {
-        # Auto-close writes if needed
-        writesDone();
+        # Auto-close writes if needed; a failed half-close must not hide the status the server sent
+        *hash<ExceptionInfo> close_error;
+        try {
+            writesDone();
+        } catch (hash<ExceptionInfo> ex) {
+            close_error = ex;
+        }
 
         # Drain remaining messages — catch errors so we can still return status
         *hash<ExceptionInfo> drain_error;
@@ -209,11 +244,9 @@ public class GrpcClientStream {
         hash<GrpcCallResult> result = GrpcHelper::parseCallStatus(m_stream.getResponse());
         result.body = m_last_body ?? {};
         # a local failure only reports a status the server never sent itself
-        *hash<ExceptionInfo> error = m_error ?? drain_error;
+        *hash<ExceptionInfo> error = m_error ?? drain_error ?? close_error;
         if (error && result.status_code == GRPC_STATUS_OK) {
-            result.status_code = error.err == "GRPC-RESOURCE-EXHAUSTED"
-                ? GRPC_STATUS_RESOURCE_EXHAUSTED
-                : GRPC_STATUS_INTERNAL;
+            result.status_code = GrpcHelper::errorToStatusCode(error);
             result.status_message = sprintf("%s: %s", error.err, error.desc);
         }
         return result;

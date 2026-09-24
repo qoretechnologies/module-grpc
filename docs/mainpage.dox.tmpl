@@ -316,6 +316,35 @@ GrpcChannel channel("https://api.example.com:443", <GrpcChannelOptions>{
     @ref Qore::Grpc::GRPC_STATUS_RESOURCE_EXHAUSTED (see @ref grpclimits), and any other exception is returned as
     @ref Qore::Grpc::GRPC_STATUS_INTERNAL.
 
+    In a client-streaming or bidirectional call, the server can finish the call before the client has sent every
+    message, for example by rejecting it.  A later @ref Grpc::GrpcClientStream::write() "write()" then raises
+    \c GRPC-STREAM-ERROR, and @ref Grpc::GrpcClientStream::finish() "finish()" returns the status the server sent.
+    @ref Grpc::GrpcClientStream::finish() "finish()" always returns a result: if the stream ends without a status from
+    the server, such as when the server or a proxy resets the stream, the status is derived from the error; a reset is
+    mapped by its HTTP/2 error code as in the gRPC protocol (\c REFUSED_STREAM to
+    @ref Qore::Grpc::GRPC_STATUS_UNAVAILABLE, \c CANCEL to @ref Qore::Grpc::GRPC_STATUS_CANCELLED,
+    \c ENHANCE_YOUR_CALM to @ref Qore::Grpc::GRPC_STATUS_RESOURCE_EXHAUSTED, \c INADEQUATE_SECURITY to
+    @ref Qore::Grpc::GRPC_STATUS_PERMISSION_DENIED, and any other code to @ref Qore::Grpc::GRPC_STATUS_INTERNAL).
+    A unary call whose stream is reset raises \c GRPC-ERROR.
+
+    @code{.py}
+GrpcClientStream stream = client.clientStream("Upload");
+try {
+    foreach hash<auto> record in (records) {
+        stream.write(record);
+    }
+} catch (hash<ExceptionInfo> ex) {
+    if (ex.err != "GRPC-STREAM-ERROR") {
+        rethrow;
+    }
+    # the server finished the call early; finish() returns its status
+}
+hash<GrpcCallResult> result = stream.finish();
+if (result.status_code != GRPC_STATUS_OK) {
+    printf("upload failed: %d: %s\n", result.status_code, result.status_message);
+}
+    @endcode
+
     @section grpcreflection Server Reflection
 
     The @ref Qore::Grpc::GrpcReflectionService class implements the standard gRPC server

@@ -156,6 +156,72 @@ public class GrpcHelper {
         }
     }
 
+    #! Returns True if an exception code means that the client can no longer send on an HTTP/2 stream
+    /** The server has finished the call (it closed or reset the stream), or the stream or its connection has
+        otherwise ended; the call's status is then read from the stream, not from the failed send.
+
+        @param err the exception code raised by a send on the stream
+
+        @return True if the stream is no longer writable
+    */
+    static bool isStreamNotWritableError(string err) {
+        switch (err) {
+            case "HTTPCLIENT-STREAM-CLOSED":
+            case "HTTPCLIENT-STATE-ERROR":
+            case "HTTP2-STREAM-CLOSED":
+            case "HTTP2-STREAM-RESET":
+                return True;
+        }
+        return False;
+    }
+
+    #! Maps an HTTP/2 \c RST_STREAM error code to a gRPC status code
+    /** Follows the gRPC over HTTP/2 protocol: \c REFUSED_STREAM (7) maps to
+        \c GRPC_STATUS_UNAVAILABLE, \c CANCEL (8) to \c GRPC_STATUS_CANCELLED,
+        \c ENHANCE_YOUR_CALM (11) to \c GRPC_STATUS_RESOURCE_EXHAUSTED, \c INADEQUATE_SECURITY (12)
+        to \c GRPC_STATUS_PERMISSION_DENIED, and every other code to
+        \c GRPC_STATUS_INTERNAL.
+
+        @param error_code the HTTP/2 error code
+
+        @return the gRPC status code
+    */
+    static int http2ErrorToStatusCode(int error_code) {
+        switch (error_code) {
+            case 7: return GRPC_STATUS_UNAVAILABLE;
+            case 8: return GRPC_STATUS_CANCELLED;
+            case 11: return GRPC_STATUS_RESOURCE_EXHAUSTED;
+            case 12: return GRPC_STATUS_PERMISSION_DENIED;
+        }
+        return GRPC_STATUS_INTERNAL;
+    }
+
+    #! Returns the gRPC status code for an error that ended a call on the client without a status from the server
+    /** @param err the error: an exception or an error hash with \c err and \c desc keys; a
+        \c GRPC-STREAM-ERROR is mapped by the transport error in its \c arg
+
+        @return \c GRPC_STATUS_RESOURCE_EXHAUSTED for \c GRPC-RESOURCE-EXHAUSTED, the status for the
+        HTTP/2 error code of a stream reset (see @ref http2ErrorToStatusCode()), and otherwise
+        \c GRPC_STATUS_INTERNAL
+    */
+    static int errorToStatusCode(hash<auto> err) {
+        switch (err.err) {
+            case "GRPC-RESOURCE-EXHAUSTED":
+                return GRPC_STATUS_RESOURCE_EXHAUSTED;
+            case "HTTP2-STREAM-RESET": {
+                # the reset's error code is only given in the description
+                *string code = (err.desc =~ x/error[ _]code[ =]([0-9]+)/)[0];
+                return exists code ? http2ErrorToStatusCode(code.toInt()) : GRPC_STATUS_INTERNAL;
+            }
+            case "GRPC-STREAM-ERROR":
+                if (err.arg.typeCode() == NT_HASH && err.arg.err) {
+                    return errorToStatusCode(err.arg);
+                }
+                break;
+        }
+        return GRPC_STATUS_INTERNAL;
+    }
+
     #! Extract the gRPC call status and metadata from an HTTP response
     /** Handles the three ways a gRPC peer can report the outcome of a call:
         - the normal case, where \c grpc-status is in the response trailers;
