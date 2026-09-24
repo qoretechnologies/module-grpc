@@ -173,7 +173,7 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
         }
         AsyncSocketIo::AsyncSocketIoController ctrl
             = AsyncSocketIo::getGlobalAsyncIoController();
-        m_ctl = new HttpServerAsyncIo::HttpAsyncSocketIoController(ctrl);
+        m_ctl = createController(ctrl);
         m_ctl.start();
 
         for (int i = 0; i < m_listeners.size(); ++i) {
@@ -201,7 +201,10 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
                     key = new SSLPrivateKey(ssl_cfg.ssl.server_key);
                 }
             }
-            m_ctl.addListener(listener, self, ssl, cert, key, http_version);
+            # the listener limits the request data it buffers for a stream before the data is read; the
+            # arguments before the limit are the defaults of addListener()
+            m_ctl.addListener(listener, self, ssl, cert, key, http_version, SSL_VERIFY_NONE, True, False,
+                m_opts.max_request_body_size ?? 0);
         }
 
         m_lifecycle.inc();
@@ -297,7 +300,10 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
                 metadata, deadline, io_wake, register_body_queue,
                 info.header_info.body);
         } else if (method_info.server_streaming) {
-            binary body_data = extractBody(info);
+            *binary body_data = extractBodyOrSendError(info, sock, stream_id, io_wake);
+            if (!exists body_data) {
+                return grpcResponseInfo();
+            }
             handleServerStream(sock, stream_id, handler, method_info, metadata,
                 body_data, deadline, io_wake);
         } else if (method_info.client_streaming) {
@@ -309,7 +315,10 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
                 metadata, deadline, io_wake, register_body_queue,
                 info.header_info.body);
         } else {
-            binary body_data = extractBody(info);
+            *binary body_data = extractBodyOrSendError(info, sock, stream_id, io_wake);
+            if (!exists body_data) {
+                return grpcResponseInfo();
+            }
             handleUnary(sock, stream_id, handler, method_info, metadata,
                 body_data, deadline, io_wake);
         }
@@ -344,6 +353,12 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
     # =========================================================================
     # Internal helpers
     # =========================================================================
+
+    #! Creates the HTTP async I/O controller that drives the listeners of the server
+    private HttpServerAsyncIo::HttpAsyncSocketIoController createController(
+            AsyncSocketIo::AsyncSocketIoController ctrl) {
+        return new HttpServerAsyncIo::HttpAsyncSocketIoController(ctrl);
+    }
 
     #! Default HttpRequestResultInfo for a gRPC response already sent via
     #! AsyncHttp2ServerStream (or via sendGrpcError).  The controller must not
@@ -406,6 +421,20 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
         return {"handler_key": handler_key, "method_info": mi};
     }
 
+    #! Reads the request body of a unary or server-streaming call, or sends the call's error response
+    /** @return the request body, or @ref nothing if reading it failed and a gRPC error response has been sent;
+        a body over a size limit is answered with \c RESOURCE_EXHAUSTED
+    */
+    private *binary extractBodyOrSendError(hash<HttpConnectionInfo> info, Socket sock, int stream_id,
+            *code<nothing()> io_wake) {
+        try {
+            return extractBody(info);
+        } catch (hash<ExceptionInfo> ex) {
+            sendGrpcError(sock, stream_id, exceptionToStatusCode(ex.err), sprintf("%s: %s", ex.err, ex.desc),
+                io_wake);
+        }
+    }
+
     #! Collect the request body from HttpConnectionInfo
     /** Three cases:
         - HEADERS had END_STREAM (no body) → return empty
@@ -416,11 +445,19 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
           consume DATA payloads from it until the I/O thread pushes the
           @c NOTHING end-of-stream sentinel.  All I/O runs on the I/O thread;
           the handler only @c Queue::get(timeout)s.
+
+        The body is limited by the \c max_request_body_size and \c max_message_size server options as it is read.
+
+        @throw HTTP-BODY-TOO-LARGE the body exceeded the request body size limit of the HTTP/2 listener
+        @throw GRPC-RESOURCE-EXHAUSTED the body exceeds the \c max_request_body_size server option, or its message
+        exceeds the \c max_message_size server option
     */
     private binary extractBody(hash<HttpConnectionInfo> info) {
         *auto body = info.header_info.body;
         if (exists body && body) {
-            return body.typeCode() == NT_BINARY ? body : binary(body);
+            binary bin = body.typeCode() == NT_BINARY ? body : binary(body);
+            checkRequestBody(bin);
+            return bin;
         }
         if (info.header_info.headers_end_stream) {
             return binary();
@@ -443,13 +480,44 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
         binary out = binary();
         while (True) {
             auto v = body_queue.get(30s);
-            if (!(v instanceof binary)) {
-                # NOTHING sentinel → END_STREAM observed by I/O thread
-                break;
+            if (v instanceof binary) {
+                out += v;
+                try {
+                    checkRequestBody(out);
+                } catch (hash<ExceptionInfo> ex) {
+                    # stop the body read: the I/O thread discards the rest of the body instead of queuing it
+                    body_queue.setError(ex.err, ex.desc);
+                    rethrow;
+                }
+                continue;
             }
-            out += v;
+            if (v.typeCode() == NT_HASH) {
+                # the body exceeded the request body size limit of the listener (HTTP-BODY-TOO-LARGE); the part
+                # received is not the complete body
+                throw v.err, v.desc;
+            }
+            # NOTHING sentinel → END_STREAM observed by I/O thread
+            break;
         }
         return out;
+    }
+
+    #! Checks a request body read so far against the size limits of the server
+    /** @throw GRPC-RESOURCE-EXHAUSTED the body exceeds the \c max_request_body_size server option, or its first
+        message exceeds the \c max_message_size server option
+    */
+    private checkRequestBody(binary body) {
+        if (m_opts.max_request_body_size > 0 && body.size() > m_opts.max_request_body_size) {
+            throw "GRPC-RESOURCE-EXHAUSTED", sprintf("the request body exceeds the maximum request body size of %d "
+                "bytes", m_opts.max_request_body_size);
+        }
+        if (m_opts.max_message_size > 0 && body.size() >= 5) {
+            int len = (body[1] << 24) | (body[2] << 16) | (body[3] << 8) | body[4];
+            if (len > m_opts.max_message_size) {
+                throw "GRPC-RESOURCE-EXHAUSTED", sprintf("received a message of %d bytes, larger than the "
+                    "maximum message size of %d bytes", len, m_opts.max_message_size);
+            }
+        }
     }
 
     #! Build a Queue for stream inbound data (server-streaming doesn't use it,
@@ -551,7 +619,8 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
         AsyncSocketIo::AsyncHttp2ServerStream async_stream(
             client, stream_id, inbound, io_wake);
         GrpcServerStream stream(async_stream, inbound, m_schema,
-            method_info.input_type, method_info.output_type, metadata);
+            method_info.input_type, method_info.output_type, metadata,
+            m_opts.max_message_size ?? 0);
 
         hash<auto> response_body;
         try {
@@ -603,7 +672,8 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
         AsyncSocketIo::AsyncHttp2ServerStream async_stream(
             client, stream_id, inbound, io_wake);
         GrpcServerStream stream(async_stream, inbound, m_schema,
-            method_info.input_type, method_info.output_type, metadata);
+            method_info.input_type, method_info.output_type, metadata,
+            m_opts.max_message_size ?? 0);
 
         int status_code = GRPC_STATUS_OK;
         string status_message = "OK";
@@ -706,6 +776,9 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
                 return GRPC_STATUS_PERMISSION_DENIED;
             case "GRPC-UNIMPLEMENTED":
                 return GRPC_STATUS_UNIMPLEMENTED;
+            case "GRPC-RESOURCE-EXHAUSTED":
+            case "HTTP-BODY-TOO-LARGE":
+                return GRPC_STATUS_RESOURCE_EXHAUSTED;
             default:
                 return GRPC_STATUS_INTERNAL;
         }

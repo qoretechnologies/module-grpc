@@ -99,6 +99,9 @@ public class GrpcServerStream {
 
         #! True after END_STREAM has been observed on @ref m_async_inbound_queue
         bool m_async_reads_done = False;
+
+        #! The maximum size of a received message in live+async mode; <= 0 means no limit
+        int m_max_message_size = 0;
     }
 
     #! Create a server stream backed by an async HTTP/2 stream handle
@@ -153,13 +156,16 @@ public class GrpcServerStream {
         @param input_type the message type for decoding incoming messages
         @param output_type the message type for encoding outgoing messages
         @param metadata the client's request metadata
+        @param max_message_size the maximum size in bytes of a received message, as declared by its gRPC frame;
+        <= 0 means no limit
     */
     constructor(AsyncSocketIo::AsyncHttp2ServerStream async_stream,
             Queue inbound_queue, ProtobufSchema schema,
             string input_type, string output_type,
-            hash<string, string> metadata) {
+            hash<string, string> metadata, int max_message_size = 0) {
         m_async_stream = async_stream;
         m_async_inbound_queue = inbound_queue;
+        m_max_message_size = max_message_size;
         m_schema = schema;
         m_input_type = input_type;
         m_output_type = output_type;
@@ -188,6 +194,14 @@ public class GrpcServerStream {
         @return the next decoded message hash, or NOTHING when all messages
         have been read (buffered mode) or on timeout/end-of-stream (live+async
         mode)
+
+        @throw HTTP-BODY-TOO-LARGE the request data buffered for the stream exceeded the request body size limit of
+        the HTTP/2 listener; the rest of the request is discarded
+        @throw GRPC-RESOURCE-EXHAUSTED a received message exceeds the maximum message size; the rest of the
+        request is discarded
+
+        @note an exception raised by this method that the handler does not catch is returned to the client as
+        the call's status; the two exceptions above as \c RESOURCE_EXHAUSTED
     */
     *hash<auto> read(*timeout timeout) {
         if (!exists m_async_inbound_queue) {
@@ -223,6 +237,12 @@ public class GrpcServerStream {
                 auto v = m_async_inbound_queue.get(milliseconds(remaining_ms));
                 if (v instanceof binary) {
                     m_read_buf += v;
+                } else if (v.typeCode() == NT_HASH) {
+                    # the request exceeded the body size limit of the listener (HTTP-BODY-TOO-LARGE); the data
+                    # received is incomplete, so no further message is returned
+                    m_async_reads_done = True;
+                    m_read_buf = binary();
+                    throw v.err, v.desc;
                 } else {
                     # NOTHING sentinel → END_STREAM observed by I/O thread.
                     # Try one final parse for a complete frame that arrived
@@ -292,6 +312,15 @@ public class GrpcServerStream {
         }
         int len = (m_read_buf[1] << 24) | (m_read_buf[2] << 16)
             | (m_read_buf[3] << 8) | m_read_buf[4];
+        if (m_max_message_size > 0 && len > m_max_message_size) {
+            string desc = sprintf("received a message of %d bytes, larger than the maximum message size of %d "
+                "bytes", len, m_max_message_size);
+            # stop the body read: the I/O thread discards the rest of the request instead of queuing it
+            m_async_inbound_queue.setError("GRPC-RESOURCE-EXHAUSTED", desc);
+            m_async_reads_done = True;
+            m_read_buf = binary();
+            throw "GRPC-RESOURCE-EXHAUSTED", desc;
+        }
         if (m_read_buf.size() < 5 + len) {
             return NOTHING;
         }

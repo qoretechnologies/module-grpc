@@ -234,6 +234,33 @@ if (result.status_code == GRPC_STATUS_DEADLINE_EXCEEDED) {
 }
     @endcode
 
+    @section grpclimits Message and Body Size Limits
+
+    By default neither the server nor the client limits the size of the data it receives.  The server limits the
+    request data it holds in memory for a call with two
+    @ref Qore::Grpc::GrpcServerOptions "GrpcServerOptions":
+    - \c max_message_size: the maximum size in bytes of one request message, checked against the length declared
+      in the message's gRPC frame before the message is buffered
+    - \c max_request_body_size: the maximum size in bytes of a request body held in memory; it is also the
+      \c max_request_body_size of the server's HTTP/2 listeners, which limits the request data buffered for a
+      stream that has not yet been read.  The body of a unary or server-streaming call, which is read completely
+      before the handler is called, is limited as it is read.  The body of a client-streaming or bidirectional call
+      is read one message at a time, so only its messages are limited, by \c max_message_size
+
+    A call that exceeds a limit fails with @ref Qore::Grpc::GRPC_STATUS_RESOURCE_EXHAUSTED, and the rest of its
+    request is discarded.  A unary or server-streaming handler is not called.  In a client-streaming or bidirectional
+    handler, @ref Grpc::GrpcServerStream::read() "GrpcServerStream::read()" raises \c GRPC-RESOURCE-EXHAUSTED (a
+    message over \c max_message_size) or \c HTTP-BODY-TOO-LARGE (the listener's limit), and the stream returns no
+    further messages; if the handler does not catch the exception, the client receives
+    @ref Qore::Grpc::GRPC_STATUS_RESOURCE_EXHAUSTED.
+
+    @code{.py}
+GrpcServer server(schema, <GrpcServerOptions>{
+    "max_message_size": 4 * 1024 * 1024,        # 4 MiB per request message
+    "max_request_body_size": 8 * 1024 * 1024,   # 8 MiB per request body
+});
+    @endcode
+
     @section grpcerrors Error Handling
 
     gRPC uses status codes for error communication via HTTP/2 trailers. The standard status
@@ -258,8 +285,13 @@ if (result.status_code == GRPC_STATUS_DEADLINE_EXCEEDED) {
     |@ref Qore::Grpc::GRPC_STATUS_DATA_LOSS|15|Data loss
     |@ref Qore::Grpc::GRPC_STATUS_UNAUTHENTICATED|16|Unauthenticated
 
-    Server handler exceptions are automatically caught and returned as
-    @ref Qore::Grpc::GRPC_STATUS_INTERNAL with the exception message.
+    Server handler exceptions are automatically caught and returned with the exception message as the status
+    message.  The status code is derived from the exception code: \c GRPC-CANCELLED, \c GRPC-NOT-FOUND,
+    \c GRPC-INVALID-ARGUMENT, \c GRPC-UNAUTHENTICATED, \c GRPC-PERMISSION-DENIED, \c GRPC-UNIMPLEMENTED,
+    and \c GRPC-RESOURCE-EXHAUSTED map to the corresponding status, \c GRPC-TIMEOUT and \c FUTURE-TIMEOUT map to
+    @ref Qore::Grpc::GRPC_STATUS_DEADLINE_EXCEEDED, \c HTTP-BODY-TOO-LARGE maps to
+    @ref Qore::Grpc::GRPC_STATUS_RESOURCE_EXHAUSTED (see @ref grpclimits), and any other exception is returned as
+    @ref Qore::Grpc::GRPC_STATUS_INTERNAL.
 
     @section grpcreflection Server Reflection
 

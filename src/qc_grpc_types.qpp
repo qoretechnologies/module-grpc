@@ -214,8 +214,32 @@ hashdecl Qore::Grpc::GrpcChannelOptions {
 /** @since %grpc 1.0
 */
 hashdecl Qore::Grpc::GrpcServerOptions {
-    //! Maximum message size in bytes (0 = unlimited)
+    //! The maximum size in bytes of one request message received; missing or <= 0 means no limit
+    /** The size is the length declared in the gRPC frame of the message, checked before the message is buffered;
+        a larger message fails the call with \c RESOURCE_EXHAUSTED.  For client-streaming and bidirectional calls,
+        the error is raised by @ref Grpc::GrpcServerStream::read() "GrpcServerStream::read()" as a
+        \c GRPC-RESOURCE-EXHAUSTED exception, which a handler that does not catch it returns to the client as
+        \c RESOURCE_EXHAUSTED.
+
+        @since %grpc 1.0
+    */
     *int max_message_size;
+
+    //! The maximum size in bytes of a request body held in memory; missing or <= 0 means no limit
+    /** Limits the memory the server uses for the request data of one call:
+        - the HTTP/2 listener limits the request data it buffers for a stream that has not yet been read (the
+          \c max_request_body_size of the listener); data over the limit is discarded and the body read fails
+          with \c HTTP-BODY-TOO-LARGE
+        - the complete request body of a unary or server-streaming call, which the server reads into memory before
+          calling the handler, is limited as it is read
+
+        A call whose request body exceeds the limit fails with \c RESOURCE_EXHAUSTED.  The request body of a
+        client-streaming or bidirectional call is read one message at a time, so its total size is not limited;
+        use \c max_message_size to limit the size of each message.
+
+        @since %grpc 1.0
+    */
+    *int max_request_body_size;
 
     //! Enable gRPC server reflection (grpc.reflection.v1) for client service discovery
     /** When True, the server automatically registers the standard gRPC server reflection
