@@ -1,0 +1,14 @@
+qore-grpc-module (1.0.0~git20260928.1-0qore1~ubuntu26.04) resolute; urgency=medium
+
+  * Package Arrow bindings and four source/compiled user modules, metadata,
+    resources/translations, API docs, test fixtures and debug symbols.
+  * Add offline profiles, installed runtime/compiler tests and locale checks.
+  * Require CMake 3.21 for the existing documentation COPY_FILE operation.
+  * Fix the PyArrow upload fixture and verify its metadata acknowledgement.
+  * Locate the Salesforce schema relative to the loaded module in tests.
+  * Handle a missing process module explicitly in interoperability tests.
+  * Isolate generated Python test files from packaged examples.
+  * Preserve AOT trailers and use fixed partitions for reproducible builds.
+  * Declare GrpcUtil dependencies for deterministic parallel AOT compilation.
+
+ -- David Nichols <david@qore.org>  Tue, 29 Sep 2026 02:17:56 +0000

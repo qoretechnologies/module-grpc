@@ -1,0 +1,5 @@
+test/*.qtest
+test/*.proto
+test/*.py
+test/certs
+test/interop

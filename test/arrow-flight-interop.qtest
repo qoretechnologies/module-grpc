@@ -30,6 +30,7 @@
 */
 
 %modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
 
 %requires QUnit
 
@@ -40,6 +41,8 @@
 %requires GrpcUtil
 
 %exec-class ArrowFlightInteropTest
+
+%ifndef NO_PROCESS
 
 #! Dataset handler for the Qore server (used by PyArrow client tests)
 class InteropSalesHandler inherits ArrowFlightDatasetHandler {
@@ -226,10 +229,6 @@ public class ArrowFlightInteropTest inherits QUnit::Test {
     globalSetUp() {
         test_dir = get_script_dir();
 
-%ifdef NO_PROCESS
-        testSkip("process module not available");
-        return;
-%endif
 
         # Check if python3 and pyarrow are available
         bool python_ok = False;
@@ -407,7 +406,9 @@ public class ArrowFlightInteropTest inherits QUnit::Test {
         writer.write(batch2);
 
         hash<GrpcCallResult> result = writer.finish();
-        assertEq(GRPC_STATUS_OK, result.status_code, "DoPut succeeded");
+        assertEq(GRPC_STATUS_OK, result.status_code,
+            sprintf("DoPut succeeded: %s", result.status_message));
+        assertEq(binary("ok"), result.body.app_metadata, "DoPut acknowledgement metadata");
 
         # Verify data was stored by reading it back
         hash<auto> ticket = {"ticket": binary("writable")};
@@ -510,3 +511,16 @@ public class ArrowFlightInteropTest inherits QUnit::Test {
             sprintf("PyArrow client exit code (stderr: %s)", stderr_str));
     }
 }
+
+%else
+class ArrowFlightInteropTest inherits QUnit::Test {
+    constructor() : Test("ArrowFlightInteropTest", "1.0", \ARGV) {
+        addTestCase("process module dependency", \missingProcess());
+        set_return_value(main());
+    }
+
+    private nothing missingProcess() {
+        testSkip("process module not available");
+    }
+}
+%endif

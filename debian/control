@@ -1,0 +1,43 @@
+Source: qore-grpc-module
+Section: interpreters
+Priority: optional
+Maintainer: David Nichols <david@qore.org>
+Build-Depends: debhelper-compat (= 13),
+               cmake (>= 3.21),
+               libarrow-dev,
+               libqore-dev (>= 3.0.0~),
+               qore (>= 3.0.0~),
+               qore-process-module <!nocheck>,
+               qore-misc-tools (>= 3.0.0~) <!nocheck>,
+               python3,
+               python3-grpcio <!nocheck>,
+               python3-grpc-tools <!nocheck>,
+               python3-pyarrow <!nocheck>
+Build-Depends-Indep: doxygen <!nodoc>
+Standards-Version: 4.7.4
+Rules-Requires-Root: no
+Homepage: https://qore.org
+Vcs-Git: https://github.com/qoretechnologies/module-grpc.git
+Vcs-Browser: https://github.com/qoretechnologies/module-grpc
+
+Package: qore-grpc-module
+Architecture: any
+Depends: ${qore:Depends},
+         ${shlibs:Depends},
+         ${misc:Depends}
+Suggests: qore-grpc-module-doc
+Description: gRPC, Arrow Flight and Salesforce Pub/Sub providers for Qore
+ This package provides native Arrow IPC/schema/record-batch bindings and
+ source/compiled Qore modules for gRPC, Arrow Flight and Salesforce Pub/Sub.
+ Compiler metadata, provider resources and translations are included.
+
+Package: qore-grpc-module-doc
+Section: doc
+Architecture: all
+Multi-Arch: foreign
+Build-Profiles: <!nodoc>
+Depends: ${misc:Depends}
+Suggests: qore-grpc-module
+Description: documentation and examples for Qore's gRPC modules
+ This package contains five HTML API references and interoperability test
+ fixtures. Included TLS keys are public test identities, not deployment keys.

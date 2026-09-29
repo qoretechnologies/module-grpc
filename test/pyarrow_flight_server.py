@@ -91,7 +91,7 @@ class InteropFlightServer(flight.FlightServerBase):
         for chunk in reader:
             batches.append(chunk.data)
         self.put_data[name] = pa.Table.from_batches(batches, schema=reader.schema)
-        writer.write_metadata(b"ok")
+        writer.write(b"ok")
 
     # -- DoExchange -----------------------------------------------------------
 

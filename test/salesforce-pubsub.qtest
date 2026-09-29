@@ -53,6 +53,7 @@
 */
 
 %modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
 
 %requires QUnit
 %requires protobuf
@@ -802,8 +803,8 @@ public class SalesforcePubSubTest inherits QUnit::Test {
 
         # the proto must be a resource file that ships with the module, not a string constant: this
         # is what the *.proto resource glob in QoreMacros.cmake exists for
-        string proto = get_script_dir() + "/../qlib/SalesforcePubSubDataProvider/"
-            + SalesforcePubSubProto::ProtoFileName;
+        string proto = dirname(get_module_hash().SalesforcePubSubDataProvider.filename)
+            + "/" + SalesforcePubSubProto::ProtoFileName;
         assertTrue(is_file(proto), sprintf("%y is a file in the module directory", proto));
 
         # the flow-control cap is the API's, so it has to match what the module enforces

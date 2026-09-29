@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5.0)
+cmake_minimum_required(VERSION 3.21)
 
 project(qore-grpc-module)
 
@@ -230,9 +230,11 @@ qore_dist(${PROJECT_VERSION})
 
 qore_user_modules("${QMOD}")
 qore_external_user_module("qlib/GrpcUtil" "")
-qore_external_user_module("qlib/GrpcDataProvider" "")
-qore_external_user_module("qlib/ArrowFlightDataProvider" "")
-qore_external_user_module("qlib/SalesforcePubSubDataProvider" "")
+# Resolve GrpcUtil from its compiled module consistently in parallel and serial
+# builds; these dependencies also order the documentation tag-file generation.
+qore_external_user_module("qlib/GrpcDataProvider" "GrpcUtil")
+qore_external_user_module("qlib/ArrowFlightDataProvider" "GrpcUtil")
+qore_external_user_module("qlib/SalesforcePubSubDataProvider" "GrpcUtil")
 
 # Reconcile the installed i18n catalog root against the fragments these modules
 # currently own.  Installing catalogs is otherwise additive: a fragment installed by

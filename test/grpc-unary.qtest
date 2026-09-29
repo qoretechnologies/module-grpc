@@ -8,6 +8,7 @@
 */
 
 %modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
 
 %requires QUnit
 

@@ -26,15 +26,20 @@
 */
 
 %modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
 
 %requires QUnit
 
 %requires protobuf
 %requires grpc
 %requires GrpcUtil
-%requires process
+%try-module process
+%define NO_PROCESS
+%endtry
 
 %exec-class GrpcInteropTest
+
+%ifndef NO_PROCESS
 
 public class GrpcInteropTest inherits QUnit::Test {
     private {
@@ -434,3 +439,16 @@ public class GrpcInteropTest inherits QUnit::Test {
             "grpcurl server stream: last message");
     }
 }
+
+%else
+class GrpcInteropTest inherits QUnit::Test {
+    constructor() : Test("GrpcInteropTest", "1.0", \ARGV) {
+        addTestCase("process module dependency", \missingProcess());
+        set_return_value(main());
+    }
+
+    private nothing missingProcess() {
+        testSkip("process module not available");
+    }
+}
+%endif

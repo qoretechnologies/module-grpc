@@ -1,0 +1,11 @@
+usr/lib/*/qore-modules/grpc-api-*.qmod
+usr/lib/*/qore-modules/GrpcUtil/
+usr/share/qore-modules/GrpcUtil/
+usr/lib/*/qore-modules/GrpcDataProvider/
+usr/share/qore-modules/GrpcDataProvider/
+usr/lib/*/qore-modules/ArrowFlightDataProvider/
+usr/share/qore-modules/ArrowFlightDataProvider/
+usr/lib/*/qore-modules/SalesforcePubSubDataProvider/
+usr/share/qore-modules/SalesforcePubSubDataProvider/
+usr/share/qore/metadata/grpc/*.meta.json
+usr/share/qore/i18n/

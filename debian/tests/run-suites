@@ -1,0 +1,19 @@
+#!/bin/sh
+# Copyright (C) 2026 David Nichols
+# SPDX-License-Identifier: MIT
+set -eu
+# Fail before QUnit can skip an unexpectedly missing required test dependency.
+/usr/bin/qore -l process -e 'exit(0);'
+/usr/bin/python3 -c 'import grpc, grpc_tools.protoc, pyarrow.flight'
+/usr/bin/python3 -m grpc_tools.protoc -Itest --python_out=test/interop \
+    --grpc_python_out=test/interop test/test.proto
+PYTHONPATH=test/interop /usr/bin/python3 -c 'import test_pb2, test_pb2_grpc'
+for suite in test/*.qtest; do
+    timeout 600 /usr/bin/qore --enable-debug \
+        -l "$QORE_GRPC_TEST_MODULE_DIR/grpc-api-$(/usr/bin/qore --latest-module-api).qmod" \
+        -l "$QORE_GRPC_TEST_QMOD_DIR/GrpcUtil/GrpcUtil.qmod" \
+        -l "$QORE_GRPC_TEST_QMOD_DIR/GrpcDataProvider/GrpcDataProvider.qmod" \
+        -l "$QORE_GRPC_TEST_QMOD_DIR/ArrowFlightDataProvider/ArrowFlightDataProvider.qmod" \
+        -l "$QORE_GRPC_TEST_QMOD_DIR/SalesforcePubSubDataProvider/SalesforcePubSubDataProvider.qmod" \
+        "$suite" -v
+done

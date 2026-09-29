@@ -1,0 +1,38 @@
+Qore gRPC module packages
+========================
+
+This is a development snapshot for qore-testing, not a final release.
+The native Arrow schema/IPC/record-batch implementation links to distribution
+libarrow. GrpcUtil, GrpcDataProvider, ArrowFlightDataProvider and
+SalesforcePubSubDataProvider ship as source and AOT modules, with metadata,
+resources and all translation catalogs. The doc package contains five API
+references and complete test fixtures. Test TLS keys are PUBLIC TEST IDENTITIES
+and must never be used for real deployments.
+
+Build natively with dpkg-buildpackage -us -uc and the matching Qore 3 SDK.
+No network downloads are performed during builds. Arch-only, indep-only,
+nocheck and nodoc profiles are supported; cross builds require a separate
+host SDK and are rejected. Fixed qcc partitions and preserved AOT trailers
+support reproducible builds and fresh-process compilation. Provider build
+dependencies ensure GrpcUtil is compiled before its consumers.
+
+Tests use local Qore/Python servers and distribution grpcio, grpc-tools and
+PyArrow, plus the separately packaged Qore process module. Required test
+dependencies are checked before running the suites. Python protobuf stubs
+are regenerated from test/test.proto in a disposable build test tree; no
+generated test stubs, Python caches or binary dependencies ship.
+Installed autopkgtests copy fixtures to a temporary directory without checkout
+module paths and compile a fresh SDK client. The two interoperability scripts
+also report an explicit QUnit skip if process is unavailable to source users.
+
+Optional grpcurl interoperability tests skip if that command is unavailable;
+it is not in the target distribution repositories. Live Salesforce checks
+require an explicitly configured org; offline fixtures cover the provider
+without contacting an account. Record all skips rather than counting them as
+coverage. Package qualification alone does not certify live Salesforce access
+or every Flight/reflection protocol feature.
+
+Before general publication, qualify other Debian/Ubuntu releases and
+architectures, freeze the Qore ABI/dependency versions and test relevant
+upgrades. Testing PPA publication requires the matching Qore SDK and process
+package. Source signing/upload and Launchpad publication are separate steps.

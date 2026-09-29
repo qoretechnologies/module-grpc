@@ -1,0 +1,9 @@
+Tests: runtime
+Depends: qore-grpc-module, qore-process-module, python3,
+         python3-grpcio, python3-grpc-tools, python3-pyarrow
+# QUnit and expected invalid-input diagnostics use stderr.
+Restrictions: allow-stderr
+
+Tests: compiler
+Depends: qore-grpc-module, libqore-dev
+Restrictions: allow-stderr

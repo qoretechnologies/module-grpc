@@ -1,0 +1,27 @@
+#!/bin/sh
+# Copyright (C) 2026 David Nichols
+# SPDX-License-Identifier: MIT
+set -eu
+unset QORE_MODULE_DIR QORE_MODULE_DIR_ONLY QORE_INCLUDE_DIR LD_LIBRARY_PATH LD_PRELOAD
+cd "$AUTOPKGTEST_TMP"
+cat > grpc-smoke.q <<'EOF'
+%modern
+%requires grpc
+%requires DataProvider
+%requires GrpcUtil
+%requires GrpcDataProvider
+%requires ArrowFlightDataProvider
+%requires SalesforcePubSubDataProvider
+ArrowSchema schema(fields: ({"name": "value", "type": "int64"},));
+ArrowRecordBatch batch(schema: schema, rows: ({"value": 42},));
+hash<auto> ipc = ArrowIpc::writeRecordBatch(batch: batch);
+ArrowRecordBatch decoded = ArrowIpc::readRecordBatch(schema: schema,
+    data_header: ipc.data_header, data_body: ipc.data_body);
+if (decoded.toRows()[0].value != 42
+        || DataProvider::getFactory("grpc").getInfo().name != "grpc"
+        || DataProvider::getFactory("flight").getInfo().name != "flight") {
+    throw "PACKAGE-TEST-ERROR", "Installed Arrow roundtrip or provider registration failed";
+}
+EOF
+/usr/bin/qcc -o grpc-smoke grpc-smoke.q
+./grpc-smoke

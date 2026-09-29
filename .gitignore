@@ -6,3 +6,18 @@ build*
 *.pyc
 __pycache__
 .DS_Store
+
+# Debian package build products
+/obj-*/
+/debian/.debhelper/
+/debian/debhelper-build-stamp
+/debian/files
+/debian/*.substvars
+/debian/*.debhelper
+/debian/qore-grpc-module/
+/debian/qore-grpc-module-doc/
+/debian/tmp/
+**/__pycache__/
+
+# Python gRPC interoperability stubs generated during tests
+test/interop/test_pb2*.py
