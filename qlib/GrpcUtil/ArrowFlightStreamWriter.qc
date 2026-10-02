@@ -90,7 +90,7 @@ public class ArrowFlightStreamWriter {
     #! Finish the stream and return the result
     /** Automatically calls writesDone() if not already called.
 
-        @return a @ref GrpcCallResult with status information and PutResult
+        @return a @ref Qore::Grpc::GrpcCallResult with status information and PutResult
     */
     hash<GrpcCallResult> finish() {
         return m_stream.finish();

@@ -366,7 +366,7 @@ provider.getChildProvider("sales")
     - @ref ArrowFlightDataProvider::ArrowFlightStreamEventDataProvider "ArrowFlightStreamEventDataProvider":
       observable event provider for streaming methods
     - DoGet providers support native bulk reads and preserve
-      @ref DataProvider::DataProviderShape::BufferColumns "BufferColumns" blocks with
+      @ref DataProvider::BufferColumns "BufferColumns" blocks with
       \c ColumnarResult when the runtime supports it
     - DoPut, DoExchange, and exchange stream messages accept row lists, hash-of-lists
       blocks, \c ColumnarResult, DataFrame, and \c ArrowRecordBatch values

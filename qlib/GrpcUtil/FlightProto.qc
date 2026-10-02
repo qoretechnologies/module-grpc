@@ -27,7 +27,7 @@ public namespace Grpc {
 #! Provides the Arrow Flight protocol definition and a cached ProtobufSchema
 /** The Arrow Flight protocol is a gRPC-based protocol for high-performance
     columnar data exchange defined by Apache Arrow. This class embeds the
-    \c flight.proto definition and provides a cached @ref ProtobufSchema
+    \c flight.proto definition and provides a cached @ref Qore::Protobuf::ProtobufSchema
     for use by Flight clients and servers.
 
     @par Example:
@@ -177,7 +177,7 @@ message PutResult {
     /** Creates the schema on first call and caches it for subsequent use.
         Thread-safe.
 
-        @return the @ref ProtobufSchema for the Arrow Flight protocol
+        @return the @ref Qore::Protobuf::ProtobufSchema for the Arrow Flight protocol
     */
     static ProtobufSchema get() {
         if (m_schema) {

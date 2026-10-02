@@ -33,7 +33,7 @@ public namespace Grpc {
     Listener management and per-request dispatch run on @ref HttpServerAsyncIo's
     async I/O controller; response writes go through @ref AsyncSocketIo::AsyncHttp2ServerStream
     which routes headers / DATA / trailers through the @c *Async Socket methods
-    introduced with @ref AsyncHttp2ServerStream "AsyncHttp2ServerStream".
+    introduced with @ref AsyncSocketIo::AsyncHttp2ServerStream "AsyncHttp2ServerStream".
 
     Scope of this first-landing: unary dispatch only.  Server-streaming,
     client-streaming, and bidi paths will follow once the unary canary is
@@ -400,7 +400,7 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
         return timeout_ms ? now_us() + milliseconds(timeout_ms) : NOTHING;
     }
 
-    #! Split /<full_service>/<method> and resolve to a handler+method_info pair
+    #! Split <tt>/&lt;full_service&gt;/&lt;method&gt;</tt> and resolve to a handler+method_info pair
     private *hash<auto> resolveRoute(string path) {
         *list<string> parts = path.split("/");
         if (!parts || parts.size() < 3) {

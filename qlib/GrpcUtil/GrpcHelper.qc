@@ -229,7 +229,7 @@ public class GrpcHelper {
           fails before producing any message sends a single \c HEADERS frame
           carrying \c grpc-status — this is what grpc-go, grpc-java, and
           grpc-python send for \c UNIMPLEMENTED, and reading only the trailers
-          reports such a failure as @ref GRPC_STATUS_OK;
+          reports such a failure as @ref Qore::GRPC_STATUS_OK;
         - a non-gRPC HTTP failure status, where the peer is not a gRPC server at
           all (a proxy error, a wrong path on a plain HTTP server) and there is
           no gRPC status to report.

@@ -209,7 +209,7 @@ public class GrpcClientStream {
     /** Automatically calls writesDone() if not already called.
         Reads any remaining messages and extracts the gRPC status.
 
-        @return a @ref GrpcCallResult with response body and status info; a status the server sent always wins; if
+        @return a @ref Qore::Grpc::GrpcCallResult with response body and status info; a status the server sent always wins; if
         the stream ended without one, the status is derived from the error that ended it (see
         @ref Grpc::GrpcHelper::errorToStatusCode()): \c GRPC_STATUS_RESOURCE_EXHAUSTED for a message
         over the maximum message size, the status for the HTTP/2 error code of a stream reset, and otherwise

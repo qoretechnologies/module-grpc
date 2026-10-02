@@ -9,20 +9,22 @@
     with no code generation required.
 
     The module is built natively on %Qore's HTTP/2 infrastructure, not wrapping libgrpc++. The
-    only C++ dependency is \c libprotobuf.
+    native Arrow bindings use the distribution's \c libarrow library. Protobuf schema
+    support comes from Qore's built-in \c protobuf module.
 
-    To use this module, use \c "%requires grpc" in your code for the binary protobuf support and
+    To use this module, use \c "%requires grpc" in your code for native Arrow support and
     \c "%requires GrpcUtil" for the gRPC protocol layer.
 
     @section grpcarch Architecture
 
-    The module has two layers:
+    The module combines three components:
 
-    - <b>Binary module (\c grpc.so)</b>: C++ QPP wrapping \c libprotobuf for schema loading
-      and message encoding/decoding. Provides the @ref Qore::Grpc::ProtobufSchema class.
+    - <b>Binary module (\c grpc)</b>: C++ bindings for Arrow schemas, record batches, and IPC.
+    - <b>Core module (\c protobuf)</b>: Schema loading and message encoding/decoding through
+      the @ref Qore::Protobuf::ProtobufSchema class.
     - <b>Qore module (\c GrpcUtil)</b>: Pure %Qore implementing the gRPC protocol on top of
-      %Qore's HTTP/2 stack. Provides @ref Qore::Grpc::GrpcClient, @ref Qore::Grpc::GrpcServer,
-      @ref Qore::Grpc::GrpcChannel, and streaming classes.
+      %Qore's HTTP/2 stack. Provides @ref Grpc::GrpcClient, @ref Grpc::GrpcServer,
+      @ref Grpc::GrpcChannel, and streaming classes.
 
     @section grpcquickstart Quick Start
 
@@ -222,7 +224,7 @@ hash<string, string> trailing = result.trailing_metadata;
     @section grpctimeouts Timeouts and Deadlines
 
     The client can set a timeout for gRPC calls. The server enforces the deadline — if the
-    handler exceeds it, the server returns @ref Qore::Grpc::GRPC_STATUS_DEADLINE_EXCEEDED.
+    handler exceeds it, the server returns @ref Qore::GRPC_STATUS_DEADLINE_EXCEEDED.
 
     @code{.py}
 hash<GrpcCallOptions> opts = <GrpcCallOptions>{
@@ -247,12 +249,12 @@ if (result.status_code == GRPC_STATUS_DEADLINE_EXCEEDED) {
       before the handler is called, is limited as it is read.  The body of a client-streaming or bidirectional call
       is read one message at a time, so only its messages are limited, by \c max_message_size
 
-    A call that exceeds a limit fails with @ref Qore::Grpc::GRPC_STATUS_RESOURCE_EXHAUSTED, and the rest of its
+    A call that exceeds a limit fails with @ref Qore::GRPC_STATUS_RESOURCE_EXHAUSTED, and the rest of its
     request is discarded.  A unary or server-streaming handler is not called.  In a client-streaming or bidirectional
     handler, @ref Grpc::GrpcServerStream::read() "GrpcServerStream::read()" raises \c GRPC-RESOURCE-EXHAUSTED (a
     message over \c max_message_size) or \c HTTP-BODY-TOO-LARGE (the listener's limit), and the stream returns no
     further messages; if the handler does not catch the exception, the client receives
-    @ref Qore::Grpc::GRPC_STATUS_RESOURCE_EXHAUSTED.
+    @ref Qore::GRPC_STATUS_RESOURCE_EXHAUSTED.
 
     @code{.py}
 GrpcServer server(schema, <GrpcServerOptions>{
@@ -271,9 +273,9 @@ GrpcServer server(schema, <GrpcServerOptions>{
       \c HttpClientConnectionManager.  The response of a streaming
       call is received one message at a time, so only its messages are limited, by \c max_message_size
 
-    A unary call that exceeds a limit returns @ref Qore::Grpc::GRPC_STATUS_RESOURCE_EXHAUSTED.  A stream that receives
+    A unary call that exceeds a limit returns @ref Qore::GRPC_STATUS_RESOURCE_EXHAUSTED.  A stream that receives
     a message over \c max_message_size is cancelled, so the server stops sending, and ends with
-    @ref Qore::Grpc::GRPC_STATUS_RESOURCE_EXHAUSTED: @ref Grpc::GrpcClientStream::read() "GrpcClientStream::read()"
+    @ref Qore::GRPC_STATUS_RESOURCE_EXHAUSTED "GRPC_STATUS_RESOURCE_EXHAUSTED": @ref Grpc::GrpcClientStream::read() "GrpcClientStream::read()"
     raises \c GRPC-RESOURCE-EXHAUSTED and @ref Grpc::GrpcClientStream::finish() "finish()" returns the status, and a
     @ref Grpc::GrpcAsyncClientStream "GrpcAsyncClientStream" delivers it as its result.
 
@@ -290,31 +292,31 @@ GrpcChannel channel("https://api.example.com:443", <GrpcChannelOptions>{
     codes are defined as constants:
 
     |!Constant|!Value|!Description
-    |@ref Qore::Grpc::GRPC_STATUS_OK|0|Success
-    |@ref Qore::Grpc::GRPC_STATUS_CANCELLED|1|Operation cancelled
-    |@ref Qore::Grpc::GRPC_STATUS_UNKNOWN|2|Unknown error
-    |@ref Qore::Grpc::GRPC_STATUS_INVALID_ARGUMENT|3|Invalid argument
-    |@ref Qore::Grpc::GRPC_STATUS_DEADLINE_EXCEEDED|4|Deadline expired
-    |@ref Qore::Grpc::GRPC_STATUS_NOT_FOUND|5|Entity not found
-    |@ref Qore::Grpc::GRPC_STATUS_ALREADY_EXISTS|6|Entity already exists
-    |@ref Qore::Grpc::GRPC_STATUS_PERMISSION_DENIED|7|Permission denied
-    |@ref Qore::Grpc::GRPC_STATUS_RESOURCE_EXHAUSTED|8|Resource exhausted
-    |@ref Qore::Grpc::GRPC_STATUS_FAILED_PRECONDITION|9|Invalid state
-    |@ref Qore::Grpc::GRPC_STATUS_ABORTED|10|Operation aborted
-    |@ref Qore::Grpc::GRPC_STATUS_OUT_OF_RANGE|11|Out of range
-    |@ref Qore::Grpc::GRPC_STATUS_UNIMPLEMENTED|12|Not implemented
-    |@ref Qore::Grpc::GRPC_STATUS_INTERNAL|13|Internal error
-    |@ref Qore::Grpc::GRPC_STATUS_UNAVAILABLE|14|Service unavailable
-    |@ref Qore::Grpc::GRPC_STATUS_DATA_LOSS|15|Data loss
-    |@ref Qore::Grpc::GRPC_STATUS_UNAUTHENTICATED|16|Unauthenticated
+    |@ref Qore::GRPC_STATUS_OK|0|Success
+    |@ref Qore::GRPC_STATUS_CANCELLED|1|Operation cancelled
+    |@ref Qore::GRPC_STATUS_UNKNOWN|2|Unknown error
+    |@ref Qore::GRPC_STATUS_INVALID_ARGUMENT|3|Invalid argument
+    |@ref Qore::GRPC_STATUS_DEADLINE_EXCEEDED|4|Deadline expired
+    |@ref Qore::GRPC_STATUS_NOT_FOUND|5|Entity not found
+    |@ref Qore::GRPC_STATUS_ALREADY_EXISTS|6|Entity already exists
+    |@ref Qore::GRPC_STATUS_PERMISSION_DENIED|7|Permission denied
+    |@ref Qore::GRPC_STATUS_RESOURCE_EXHAUSTED|8|Resource exhausted
+    |@ref Qore::GRPC_STATUS_FAILED_PRECONDITION|9|Invalid state
+    |@ref Qore::GRPC_STATUS_ABORTED|10|Operation aborted
+    |@ref Qore::GRPC_STATUS_OUT_OF_RANGE|11|Out of range
+    |@ref Qore::GRPC_STATUS_UNIMPLEMENTED|12|Not implemented
+    |@ref Qore::GRPC_STATUS_INTERNAL|13|Internal error
+    |@ref Qore::GRPC_STATUS_UNAVAILABLE|14|Service unavailable
+    |@ref Qore::GRPC_STATUS_DATA_LOSS|15|Data loss
+    |@ref Qore::GRPC_STATUS_UNAUTHENTICATED|16|Unauthenticated
 
     Server handler exceptions are automatically caught and returned with the exception message as the status
     message.  The status code is derived from the exception code: \c GRPC-CANCELLED, \c GRPC-NOT-FOUND,
     \c GRPC-INVALID-ARGUMENT, \c GRPC-UNAUTHENTICATED, \c GRPC-PERMISSION-DENIED, \c GRPC-UNIMPLEMENTED,
     and \c GRPC-RESOURCE-EXHAUSTED map to the corresponding status, \c GRPC-TIMEOUT and \c FUTURE-TIMEOUT map to
-    @ref Qore::Grpc::GRPC_STATUS_DEADLINE_EXCEEDED, \c HTTP-BODY-TOO-LARGE maps to
-    @ref Qore::Grpc::GRPC_STATUS_RESOURCE_EXHAUSTED (see @ref grpclimits), and any other exception is returned as
-    @ref Qore::Grpc::GRPC_STATUS_INTERNAL.
+    @ref Qore::GRPC_STATUS_DEADLINE_EXCEEDED, \c HTTP-BODY-TOO-LARGE maps to
+    @ref Qore::GRPC_STATUS_RESOURCE_EXHAUSTED (see @ref grpclimits), and any other exception is returned as
+    @ref Qore::GRPC_STATUS_INTERNAL.
 
     In a client-streaming or bidirectional call, the server can finish the call before the client has sent every
     message, for example by rejecting it.  A later @ref Grpc::GrpcClientStream::write() "write()" then raises
@@ -322,9 +324,9 @@ GrpcChannel channel("https://api.example.com:443", <GrpcChannelOptions>{
     @ref Grpc::GrpcClientStream::finish() "finish()" always returns a result: if the stream ends without a status from
     the server, such as when the server or a proxy resets the stream, the status is derived from the error; a reset is
     mapped by its HTTP/2 error code as in the gRPC protocol (\c REFUSED_STREAM to
-    @ref Qore::Grpc::GRPC_STATUS_UNAVAILABLE, \c CANCEL to @ref Qore::Grpc::GRPC_STATUS_CANCELLED,
-    \c ENHANCE_YOUR_CALM to @ref Qore::Grpc::GRPC_STATUS_RESOURCE_EXHAUSTED, \c INADEQUATE_SECURITY to
-    @ref Qore::Grpc::GRPC_STATUS_PERMISSION_DENIED, and any other code to @ref Qore::Grpc::GRPC_STATUS_INTERNAL).
+    @ref Qore::GRPC_STATUS_UNAVAILABLE, \c CANCEL to @ref Qore::GRPC_STATUS_CANCELLED,
+    \c ENHANCE_YOUR_CALM to @ref Qore::GRPC_STATUS_RESOURCE_EXHAUSTED, \c INADEQUATE_SECURITY to
+    @ref Qore::GRPC_STATUS_PERMISSION_DENIED, and any other code to @ref Qore::GRPC_STATUS_INTERNAL).
     A unary call whose stream is reset raises \c GRPC-ERROR.
 
     @code{.py}
@@ -347,9 +349,9 @@ if (result.status_code != GRPC_STATUS_OK) {
 
     @section grpcreflection Server Reflection
 
-    The @ref Qore::Grpc::GrpcReflectionService class implements the standard gRPC server
+    The @ref Grpc::GrpcReflectionService class implements the standard gRPC server
     reflection protocol (\c grpc.reflection.v1), enabling clients to discover services
-    exposed by a @ref Qore::Grpc::GrpcServer without needing local \c .proto files. This
+    exposed by a @ref Grpc::GrpcServer without needing local \c .proto files. This
     is the same protocol used by tools such as \c grpcurl and \c grpc_cli.
 
     @subsection grpcreflectionserver Enabling Server Reflection
@@ -431,7 +433,7 @@ grpcurl -plaintext localhost:50051 describe mypackage.MyService
 
     @section grpcprotobuf Standalone Protobuf
 
-    The @ref Qore::Grpc::ProtobufSchema class can be used independently for protobuf
+    The @ref Qore::Protobuf::ProtobufSchema class can be used independently for protobuf
     encoding/decoding without gRPC:
 
     @code{.py}
@@ -464,18 +466,18 @@ hash<auto> defaults = schema.defaultMessage("Event");
     @section grpctypemapping Protobuf Type Mapping
 
     |!Protobuf Type|!Qore Type|!Notes
-    |double, float|\c float|
-    |int32, sint32, sfixed32|\c int|
-    |int64, sint64, sfixed64|\c int|
-    |uint32, fixed32|\c int|
+    |double, float|\c float|Not applicable
+    |int32, sint32, sfixed32|\c int|Not applicable
+    |int64, sint64, sfixed64|\c int|Not applicable
+    |uint32, fixed32|\c int|Not applicable
     |uint64, fixed64|\c int|Large values may overflow signed int64
-    |bool|\c bool|
-    |string|\c string|
-    |bytes|\c binary|
+    |bool|\c bool|Not applicable
+    |string|\c string|Not applicable
+    |bytes|\c binary|Not applicable
     |enum|\c int|Numeric value
     |message|\c hash<auto>|Recursive
-    |repeated T|\c list<auto>|
-    |map<K,V>|\c hash<auto>|
+    |repeated T|\c list<auto>|Not applicable
+    |map<K,V>|\c hash<auto>|Not applicable
 
     @section grpcdataprovider GrpcDataProvider Module
 
@@ -916,12 +918,15 @@ events.observersReady();
 
     @section grpcrelnotes Release Notes
 
+    Documentation builds support strict warning checks with \c QORE_GRPC_STRICT_DOCS.
+    API links cover the core protobuf and asynchronous I/O modules, and generated
+    references preserve cross-module links and three-column protobuf type tables.
+
     @subsection grpc_v1_0 grpc Module Version 1.0
 
-    <b>Dependencies</b>: \c libprotobuf (no \c libgrpc++ required)
-    - Ubuntu/Debian: \c libprotobuf-dev
-    - Fedora/RHEL: \c protobuf-devel
-    - Alpine: \c protobuf-dev
+    <b>Dependencies</b>: Apache Arrow development libraries and Qore with the built-in
+    \c protobuf module and HTTP/2 support. Fedora/RHEL use \c libarrow-devel.
+    The module implements the gRPC protocol in Qore and does not require \c libgrpc++.
 
     <b>Features</b>:
     - initial release

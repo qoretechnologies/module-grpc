@@ -90,7 +90,7 @@ public namespace Grpc {
       services without local \c .proto files
 
     For the data provider API integration (factory, connections, action catalog),
-    see the @ref grpcdataproviderintro "GrpcDataProvider module".
+    see the <a href="../../GrpcDataProvider/html/index.html#grpcdataproviderintro">GrpcDataProvider module</a>.
 
     @section grpcutil_client_usage Client Usage
 

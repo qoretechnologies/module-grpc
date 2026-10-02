@@ -162,7 +162,7 @@ public class ArrowFlightStreamReader {
     }
 
     #! Get the final call result
-    /** @return a @ref GrpcCallResult with status information
+    /** @return a @ref Qore::Grpc::GrpcCallResult with status information
     */
     hash<GrpcCallResult> finish() {
         return m_stream.finish();

@@ -23,6 +23,9 @@ if (UNIX AND NOT APPLE)
 endif()
 
 find_package(Qore 2.0 REQUIRED)
+list(APPEND QORE_DOXYGEN_MODULES protobuf AsyncSocketIo HttpClientIo HttpServerAsyncIo
+    ConnectionProvider DataProvider RestClient Util)
+option(QORE_GRPC_STRICT_DOCS "Fail gRPC documentation builds on warnings" OFF)
 include(CheckCXXSourceCompiles)
 
 if(DEFINED QORE_HAVE_COLUMNAR_RESULT_V2)
@@ -217,13 +220,11 @@ elseif(TARGET Arrow::arrow_ipc)
 endif()
 
 set(MODULE_DOX_INPUT ${CMAKE_CURRENT_BINARY_DIR}/mainpage.dox ${QPP_DOX})
-string(REPLACE ";" " " MODULE_DOX_INPUT "${MODULE_DOX_INPUT}")
 
 if (DEFINED ENV{DOXYGEN_EXECUTABLE})
     set(DOXYGEN_EXECUTABLE $ENV{DOXYGEN_EXECUTABLE})
 endif()
 
-set(MODULE_DOX_INPUT ${CMAKE_BINARY_DIR})
 qore_external_binary_module(${module_name} ${PROJECT_VERSION})
 
 qore_dist(${PROJECT_VERSION})
@@ -266,41 +267,13 @@ if (DOXYGEN_FOUND)
     add_custom_target(QORE_MOD_DOX_FILES DEPENDS ${QORE_DOX_SRC})
     add_dependencies(docs-module QORE_MOD_DOX_FILES)
 
-    # Two-phase doc build: the initial pass (docs-module) generates grpc.tag with empty
-    # TAGFILES. User module docs (docs-GrpcUtil, docs-GrpcDataProvider) are then built using
-    # grpc.tag, generating their own tag files. The final pass (docs-module-final) rebuilds
-    # the binary module docs with user module tag files in TAGFILES, enabling @ref
-    # cross-references from the mainpage into user module symbols.
-
-    # Suppress unresolved cross-reference warnings in the initial pass
-    file(APPEND ${CMAKE_BINARY_DIR}/Doxyfile
-        "\n# Suppress warnings for initial pass (no user module TAGFILES available)\nWARN_IF_DOC_ERROR = NO\n")
-
-    # Create final-pass Doxyfile from the binary module's Doxyfile with user module tag files
-    string(CONCAT _tagfiles "${CMAKE_BINARY_DIR}/GrpcUtil.tag=../../GrpcUtil/html "
-        "${CMAKE_BINARY_DIR}/GrpcDataProvider.tag=../../GrpcDataProvider/html")
-    set(_doc_deps docs-GrpcUtil docs-GrpcDataProvider docs-ArrowFlightDataProvider
-        docs-SalesforcePubSubDataProvider)
-    string(APPEND _tagfiles
-        " ${CMAKE_BINARY_DIR}/ArrowFlightDataProvider.tag=../../ArrowFlightDataProvider/html"
-        " ${CMAKE_BINARY_DIR}/SalesforcePubSubDataProvider.tag="
-        "../../SalesforcePubSubDataProvider/html")
-
-    file(COPY_FILE ${CMAKE_BINARY_DIR}/Doxyfile ${CMAKE_BINARY_DIR}/Doxyfile.final)
-    file(APPEND ${CMAKE_BINARY_DIR}/Doxyfile.final
-        "\n# Final pass: enable user module cross-references and re-enable doc error warnings\n"
-        "TAGFILES = ${_tagfiles}\n"
-        "WARN_IF_DOC_ERROR = YES\n")
-
-    add_custom_target(docs-module-final
-        COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_BINARY_DIR}/Doxyfile.final
-        COMMAND ${CMAKE_COMMAND} -E env ${QORE_DOCS_ENV} ${QORE_QDX_COMMAND} --post
-            ${CMAKE_BINARY_DIR}/docs/${module_name}/html
-            ${CMAKE_BINARY_DIR}/docs/${module_name}/html/search
-        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-        COMMENT "Generating API documentation with Doxygen (final pass with user module cross-references)"
-        VERBATIM
-    )
-    add_dependencies(docs-module-final ${_doc_deps})
-    add_dependencies(docs docs-module-final)
+    qore_binary_module_two_phase_docs(${module_name}
+        "GrpcUtil;GrpcDataProvider;ArrowFlightDataProvider;SalesforcePubSubDataProvider")
+    if (QORE_GRPC_STRICT_DOCS)
+        file(GLOB _grpc_doxyfiles "${CMAKE_BINARY_DIR}/doxygen/Doxyfile.*")
+        list(APPEND _grpc_doxyfiles "${CMAKE_BINARY_DIR}/Doxyfile.final")
+        foreach(_grpc_doxyfile IN LISTS _grpc_doxyfiles)
+            file(APPEND "${_grpc_doxyfile}" "\nWARN_AS_ERROR = FAIL_ON_WARNINGS\n")
+        endforeach()
+    endif()
 endif()

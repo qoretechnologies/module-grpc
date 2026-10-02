@@ -43,7 +43,7 @@ public class ArrowFlightDataProviderFactory inherits AbstractDataProviderFactory
 
     #! Returns static factory information
     /** @return static factory information without \a provider_info which is provided by
-        @ref getProviderInfo()
+        @ref DataProvider::AbstractDataProviderFactory::getProviderInfo()
     */
     private hash<DataProviderFactoryInfo> getInfoImpl() {
         return FactoryInfo;

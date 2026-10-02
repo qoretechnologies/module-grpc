@@ -88,7 +88,7 @@ public class GrpcServerStream {
         #! Read buffer for accumulating partial gRPC frames (live+async mode)
         binary m_read_buf = binary();
 
-        #! Inbound @ref Queue "Queue" for live+async mode (client-streaming / bidi)
+        #! Inbound @ref Qore::Thread::Queue "Queue" for live+async mode (client-streaming / bidi)
         /** When set, @ref read() pulls binary DATA chunks from this Queue
             (populated by the HttpServerAsyncIo I/O thread via
             @c header_info.register_body_queue) and parses gRPC frames from the

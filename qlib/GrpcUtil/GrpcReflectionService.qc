@@ -72,7 +72,7 @@ grpcurl -plaintext localhost:50051 list
 grpcurl -plaintext localhost:50051 describe mypackage.MyService
     @endcode
 
-    Or programmatically using @ref GrpcDataProvider::GrpcReflectionClient "GrpcReflectionClient":
+    Or programmatically using <a href="../../GrpcDataProvider/html/classGrpcDataProvider_1_1GrpcReflectionClient.html">GrpcReflectionClient</a>:
     @code{.py}
 GrpcChannel channel("http://localhost:50051");
 GrpcReflectionClient rc(channel);

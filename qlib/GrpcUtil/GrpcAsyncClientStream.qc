@@ -59,7 +59,7 @@ public hashdecl GrpcAsyncStreamOptions {
 
     #! Called once when the stream reaches a terminal state
     /** The argument is a @ref Qore::Grpc::GrpcCallResult "GrpcCallResult"; a
-        non-@ref GRPC_STATUS_OK \c status_code reports a gRPC-level failure
+        non-@ref Qore::GRPC_STATUS_OK \c status_code reports a gRPC-level failure
         (including a locally-detected deadline or cancellation).
     */
     *code<nothing(hash<GrpcCallResult>)> on_complete;
@@ -70,7 +70,7 @@ public hashdecl GrpcAsyncStreamOptions {
     */
     *code<nothing(hash<auto>)> on_failure;
 
-    #! Queue receiving \c {"event": <id>, "data": <payload>} hashes
+    #! Queue receiving <tt>{"event": &lt;id&gt;, "data": &lt;payload&gt;}</tt> hashes
     /** A @ref nothing sentinel is pushed after the terminal event so a
         @ref Qore::Thread::Queue::get() "Queue::get()" loop terminates.
 
@@ -83,14 +83,14 @@ public hashdecl GrpcAsyncStreamOptions {
     *Queue queue;
 
     #! Call deadline in milliseconds; when it expires the stream is cancelled
-    /** Reported as @ref GRPC_STATUS_DEADLINE_EXCEEDED.  Armed on the
+    /** Reported as @ref Qore::GRPC_STATUS_DEADLINE_EXCEEDED.  Armed on the
         controller's timeout heap; not set by default.
     */
     *int deadline_ms;
 
     #! Inactivity bound in milliseconds
     /** If no message, metadata, or lifecycle event arrives within this window,
-        the stream is cancelled and reported as @ref GRPC_STATUS_UNAVAILABLE.
+        the stream is cancelled and reported as @ref Qore::GRPC_STATUS_UNAVAILABLE.
         Not set by default: an idle gRPC stream is healthy, and the transport
         detects a dead peer on its own.
     */
@@ -511,7 +511,7 @@ public class GrpcAsyncClientStream {
         method additionally arms a drain deadline on the controller so a server
         that never closes cannot keep the stream open indefinitely; when the
         deadline expires the stream is cancelled and reported as
-        @ref GRPC_STATUS_DEADLINE_EXCEEDED.
+        @ref Qore::GRPC_STATUS_DEADLINE_EXCEEDED.
 
         @param drain_timeout how long the read side may keep draining; use
         \c 0 for no bound
@@ -539,7 +539,7 @@ public class GrpcAsyncClientStream {
 
     #! Cancels the stream
     /** Sends \c RST_STREAM and completes the poll operation; the terminal event
-        is delivered with @ref GRPC_STATUS_CANCELLED.  This is an asynchronous
+        is delivered with @ref Qore::GRPC_STATUS_CANCELLED.  This is an asynchronous
         cancel: it never blocks and is safe to call from a delivery callback.
 
         Safe to call multiple times; subsequent calls are no-ops.

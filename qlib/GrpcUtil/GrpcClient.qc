@@ -92,7 +92,7 @@ public class GrpcClient {
         @param request the request data as a Qore hash
         @param opts optional call options (timeout, metadata, compression)
 
-        @return a @ref GrpcCallResult with the response body, status, and metadata; a response body over the
+        @return a @ref Qore::Grpc::GrpcCallResult with the response body, status, and metadata; a response body over the
         \c max_response_body_size of the channel or a response message over its \c max_message_size returns
         \c GRPC_STATUS_RESOURCE_EXHAUSTED
 
@@ -283,7 +283,7 @@ public class GrpcClient {
     }
 
     #! Get service info
-    /** @return the @ref GrpcServiceInfo for the bound service
+    /** @return the @ref Qore::Grpc::GrpcServiceInfo for the bound service
     */
     hash<ProtobufServiceInfo> getServiceInfo() {
         return m_service_info;

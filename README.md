@@ -16,9 +16,10 @@ The `grpc` module provides gRPC client/server and protobuf support for Qore, inc
 
 ## Architecture
 
-The module has two layers:
+The module combines three components:
 
-- **Binary module (`grpc.so`)**: C++ QPP wrapping `libprotobuf` for schema loading and message encoding/decoding. Only dependency is `libprotobuf` (no libgrpc++).
+- **Binary module (`grpc`)**: C++ bindings for Arrow schemas, record batches, and IPC using `libarrow`.
+- **Core module (`protobuf`)**: Dynamic schema loading and message encoding/decoding using `ProtobufSchema`.
 - **Qore module (`GrpcUtil`)**: Pure Qore implementing the gRPC protocol natively on Qore's HTTP/2 stack.
 
 Three data provider modules are built on top of it:
@@ -36,13 +37,11 @@ and custom channel event sources with no new connection type. See
 
 ## Requirements
 
-- Qore 2.0+ (with HTTP/2 trailer support)
-- CMake 3.5+
+- Qore with the built-in protobuf module and HTTP/2 support (RPM builds use Qore 3.0+)
+- CMake 3.21+
 - C++17 compiler
-- `libprotobuf` (protobuf development libraries)
-  - Ubuntu/Debian: `libprotobuf-dev`
-  - Alpine: `protobuf-dev`
-  - Fedora: `protobuf-devel`
+- Apache Arrow development headers and shared libraries (`libarrow-devel` on Fedora/RHEL;
+  the package must provide `ArrowConfig.cmake`)
 
 ## Building
 
@@ -369,3 +368,18 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## Copyright
 
 Copyright 2026 Qore Technologies, s.r.o.
+
+## Documentation checks
+
+With the Qore development package and its API indexes installed, build all five
+references and check their links and tables:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DQORE_GRPC_STRICT_DOCS=ON
+cmake --build build --target docs
+python3 -B -W error test/test-doc-index.py --build-dir build -v
+```
+
+Strict mode rejects unresolved references. The output checks cover native and Qore
+APIs, links between modules, installed dependency indexes, protobuf table columns,
+and rejection of a deliberately invalid reference.
