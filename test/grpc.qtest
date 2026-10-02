@@ -195,7 +195,7 @@ public class GrpcTest inherits QUnit::Test {
 
     testSchemaLoadMalformed() {
         assertThrows("PROTOBUF-SCHEMA-ERROR", sub() {
-            ProtobufSchema schema("this is not valid proto content");
+            ProtobufSchema schema("syntax = \"proto3\";\nthis is not valid proto content");
         });
     }
 

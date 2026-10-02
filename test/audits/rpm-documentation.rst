@@ -3,7 +3,7 @@ RPM documentation qualification audit
 
 Copyright 2026 Qore Technologies, s.r.o.
 
-Scope: CMake documentation configuration, documentation comments, README, and test/test-doc-index.py. RPM spec and license payload are a separate packaging change. All 62 checks are listed; no runtime C++ or Qore implementation changes. The user approved the narrow Fedora grpc_tools pkg_resources fixture deprecation diagnostic on 2026-10-02.
+Scope: CMake documentation configuration, documentation comments, README, and test/test-doc-index.py; the malformed protobuf negative fixture explicitly declares syntax so it tests the malformed body without an unrelated parser warning. RPM spec and license payload are a separate packaging change. All 62 checks are listed; no runtime C++ or Qore implementation changes. The user approved the narrow Fedora grpc_tools pkg_resources fixture deprecation diagnostic on 2026-10-02.
 
 .. list-table:: Complete audit-changes checklist
    :header-rows: 1
@@ -258,4 +258,4 @@ Scope: CMake documentation configuration, documentation comments, README, and te
 
    * - 62. Correctness: Algorithms verified against reference implementations; edge cases tested (empty data, single sample, all-zero features)
      - Pass
-     - All five generated-output checks pass; 13 functional suites report 378 registered cases and 1768 assertions. Seven optional integration cases skip explicitly. Fedora fixture deprecation was reproduced without Qore and approved by the user; no warnings are filtered.
+     - All six generated-output checks pass; 13 functional suites report 378 registered cases and 1768 assertions. Seven optional integration cases skip explicitly. Fedora fixture deprecation was reproduced without Qore and approved by the user; no warnings are filtered.

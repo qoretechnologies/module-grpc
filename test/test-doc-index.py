@@ -107,6 +107,18 @@ class GrpcDocumentationTest(unittest.TestCase):
             self.assertEqual(3, len(row), row)
             self.assertTrue(all(row), row)
 
+    def test_factory_option_tables(self):
+        for module, rows in (("GrpcDataProvider", 9), ("ArrowFlightDataProvider", 5)):
+            with self.subTest(module=module):
+                tables = html(BUILD / "docs" / module / "html/index.html").tables
+                selected = [table for table in tables
+                            if table and table[0] == ["Option", "Type", "Description"]]
+                self.assertEqual(1, len(selected))
+                self.assertEqual(rows, len(selected[0]))
+                for row in selected[0]:
+                    self.assertEqual(3, len(row), row)
+                    self.assertTrue(all(row), row)
+
     def test_strict_docs_reject_bad_reference(self):
         config = (BUILD / "Doxyfile.final").read_text()
         self.assertIn("WARN_AS_ERROR = FAIL_ON_WARNINGS", config)
