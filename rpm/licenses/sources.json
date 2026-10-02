@@ -1,0 +1,10 @@
+{
+  "Apache-2.0.txt": {
+    "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  },
+  "CC0-1.0.txt": {
+    "url": "https://raw.githubusercontent.com/developerforce/pub-sub-api/main/LICENSE",
+    "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"
+  }
+}
