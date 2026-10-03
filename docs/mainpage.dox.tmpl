@@ -4,6 +4,8 @@
 
     @section grpcintro grpc Module Introduction
 
+    <img src="grpc-logo.svg" width="96" alt="grpc module logo"/>
+
     The \c grpc module provides gRPC client/server and protobuf support for %Qore using dynamic
     protobuf schema loading — users load \c .proto files at runtime and work with %Qore hashes,
     with no code generation required.
@@ -15,92 +17,35 @@
     To use this module, use \c "%requires grpc" in your code for native Arrow support and
     \c "%requires GrpcUtil" for the gRPC protocol layer.
 
-    @section grpcarch Architecture
+    @section grpcqlibmodules Qore User Modules
 
-    @subpage grpcarchguide
+    - @ref arrowflightdataproviderintro "ArrowFlightDataProvider" — a data provider API for Arrow Flight services
+    - @ref grpcdataproviderintro "GrpcDataProvider" — a data provider API for gRPC services
+    - @ref grpcutilintro "GrpcUtil" — Qore gRPC protocol module
+    - @ref salesforcepubsubdataproviderintro "SalesforcePubSubDataProvider" — a Salesforce Pub/Sub API event data provider
 
+    @section grpcdocumentation Documentation
 
-    @section grpcquickstart Quick Start
-
-    @subpage grpcquickstartguide
-
-
-    @section grpcstreaming Streaming
-
-    @subpage grpcstreamingguide
-
-
-    @section grpctls TLS/SSL
-
-    @subpage grpctlsguide
-
-
-    @section grpcmetadata Metadata
-
-    @subpage grpcmetadataguide
-
-
-    @section grpctimeouts Timeouts and Deadlines
-
-    @subpage grpctimeoutsguide
-
-
-    @section grpclimits Message and Body Size Limits
-
-    @subpage grpclimitsguide
-
-
-    @section grpcerrors Error Handling
-
-    @subpage grpcerrorsguide
-
-
-    @section grpcreflection Server Reflection
-
-    @subpage grpcreflectionguide
-
-
-    @section grpcprotobuf Standalone Protobuf
-
-    @subpage grpcprotobufguide
-
-
-    @section grpctypemapping Protobuf Type Mapping
-
-    @subpage grpctypemappingguide
-
-
-    @section grpcdataprovider GrpcDataProvider Module
-
-    @subpage grpcdataproviderguide
-
-
-    @section grpcarrow Arrow IPC Support
-
-    @subpage grpcarrowguide
-
-
-    @section grpcflight Arrow Flight Protocol
-
-    @subpage grpcflightguide
-
-
-    @section grpcrelnotes Release Notes
-
-    @subpage grpcrelnotesguide
-
+    - @anchor grpcarch @subpage grpcarchguide
+    - @anchor grpcquickstart @subpage grpcquickstartguide
+    - @anchor grpcstreaming @subpage grpcstreamingguide
+    - @anchor grpctls @subpage grpctlsguide
+    - @anchor grpcmetadata @subpage grpcmetadataguide
+    - @anchor grpctimeouts @subpage grpctimeoutsguide
+    - @anchor grpclimits @subpage grpclimitsguide
+    - @anchor grpcerrors @subpage grpcerrorsguide
+    - @anchor grpcreflection @subpage grpcreflectionguide
+    - @anchor grpcprotobuf @subpage grpcprotobufguide
+    - @anchor grpctypemapping @subpage grpctypemappingguide
+    - @anchor grpcdataprovider @subpage grpcdataproviderguide
+    - @anchor grpcarrow @subpage grpcarrowguide
+    - @anchor grpcflight @subpage grpcflightguide
+    - @anchor grpcrelnotes @subpage grpcrelnotesguide
 
     @section grpclicense License
 
     The grpc module is released under the MIT license.
 
     Copyright (C) 2026 Qore Technologies, s.r.o.
-
-    @section grpcqlibmodules Qore User Modules
-
-    - <img src="arrow-flight-logo.svg" width="28" height="28" alt="ArrowFlightDataProvider app icon"/> @ref arrowflightdataproviderintro "ArrowFlightDataProvider" — a data provider API for Arrow Flight services
-    - <img src="grpc-logo.svg" width="28" height="28" alt="GrpcDataProvider app icon"/> @ref grpcdataproviderintro "GrpcDataProvider" — a data provider API for gRPC services
-    - @ref grpcutilintro "GrpcUtil" — Qore gRPC protocol module
-    - @ref salesforcepubsubdataproviderintro "SalesforcePubSubDataProvider" — a Salesforce Pub/Sub API event data provider
 
 */

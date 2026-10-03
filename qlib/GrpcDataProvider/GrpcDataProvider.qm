@@ -110,6 +110,8 @@ module GrpcDataProvider {
 
     @section grpcdataproviderintro GrpcDataProvider Module Introduction
 
+    <img src="grpc-logo.svg" width="96" alt="GrpcDataProvider module logo"/>
+
     The %GrpcDataProvider module integrates gRPC services into Qore's data provider
     framework, enabling gRPC calls to be used alongside REST, SOAP, WebSocket, and
     other protocols through a uniform API. This means gRPC services can be wired
@@ -380,33 +382,6 @@ events.stopEvents();
 
     @subsection grpcdataprovider_v1_0 GrpcDataProvider v1.0
     - initial release
-    - @ref GrpcDataProvider::GrpcStreamEventDataProvider "GrpcStreamEventDataProvider" runs
-      on @ref Grpc::GrpcAsyncClientStream "GrpcAsyncClientStream"
-      (<a href="https://github.com/qoretechnologies/qore/issues/5368">issue 5368</a>):
-      - the per-provider background thread and its 5-second read poll are gone; events are
-        delivered from an async socket I/O controller callback worker as the I/O thread
-        receives them, so an idle subscription costs no thread and no periodic wakeups
-      - \c stopEvents() cancels the stream asynchronously for server-streaming methods; for
-        bidirectional methods it half-closes writes and arms the drain bound on the
-        controller instead of polling a \c stopping flag every 5 seconds
-      - \c observersReady() opens the stream synchronously; a failure to open it is reported
-        via @ref EVENT_GRPC_STREAM_ERROR
-    - @ref GrpcDataProvider::GrpcDataProvider "GrpcDataProvider": root provider with schema
-      discovery via proto files, inline content, or server reflection
-    - @ref GrpcDataProvider::GrpcServiceDataProvider "GrpcServiceDataProvider": service-level
-      container provider
-    - @ref GrpcDataProvider::GrpcMethodDataProvider "GrpcMethodDataProvider": method-level
-      provider supporting all 4 RPC patterns (unary, server streaming, client streaming,
-      bidirectional streaming)
-    - @ref GrpcDataProvider::GrpcConnection "GrpcConnection": connection provider with
-      \c grpc:// and \c grpcs:// URL schemes
-    - @ref GrpcDataProvider::GrpcTypeHelper "GrpcTypeHelper": protobuf-to-DataProvider
-      type mapping for all protobuf types
-    - @ref GrpcDataProvider::GrpcReflectionClient "GrpcReflectionClient": gRPC server
-      reflection protocol client
-    - @ref GrpcDataProvider::GrpcStreamEventDataProvider "GrpcStreamEventDataProvider":
-      observable event provider for server-streaming and bidirectional-streaming methods;
-      bidi methods support sending messages for interactive use (\c qdp \c ix)
 */
 
 #! Contains all public definitions in the GrpcDataProvider module

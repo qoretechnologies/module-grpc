@@ -217,6 +217,8 @@ module ArrowFlightDataProvider {
 
     @section arrowflightdataproviderintro ArrowFlightDataProvider Module Introduction
 
+    <img src="arrow-flight-logo.svg" width="96" alt="ArrowFlightDataProvider module logo"/>
+
     The %ArrowFlightDataProvider module integrates Apache Arrow Flight services into Qore's
     data provider framework, enabling high-performance columnar data exchange alongside
     REST, SOAP, gRPC, and other protocols through a uniform API.
@@ -356,21 +358,6 @@ provider.getChildProvider("sales")
 
     @subsection arrowflightdataprovider_v1_0 ArrowFlightDataProvider v1.0
     - initial release
-    - @ref ArrowFlightDataProvider::ArrowFlightDataProvider "ArrowFlightDataProvider": root
-      provider with dataset discovery via ListFlights
-    - @ref ArrowFlightDataProvider::ArrowFlightDatasetDataProvider "ArrowFlightDatasetDataProvider":
-      dataset-level container provider
-    - @ref ArrowFlightDataProvider::ArrowFlightMethodDataProvider "ArrowFlightMethodDataProvider":
-      method-level provider supporting DoGet, DoPut, and DoExchange
-    - @ref ArrowFlightDataProvider::ArrowFlightStreamEventDataProvider "ArrowFlightStreamEventDataProvider":
-      observable event provider for streaming methods
-    - DoGet providers support native bulk reads and preserve
-      @ref DataProvider::BufferColumns "BufferColumns" blocks with
-      \c ColumnarResult when the runtime supports it
-    - DoPut, DoExchange, and exchange stream messages accept row lists, hash-of-lists
-      blocks, \c ColumnarResult, DataFrame, and \c ArrowRecordBatch values
-    - @ref ArrowFlightDataProvider::ArrowFlightConnection "ArrowFlightConnection": connection
-      provider with \c flight:// and \c flights:// URL schemes
 */
 
 #! Contains all public definitions in the ArrowFlightDataProvider module

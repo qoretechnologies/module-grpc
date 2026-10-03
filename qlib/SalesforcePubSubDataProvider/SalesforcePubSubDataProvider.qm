@@ -436,46 +436,6 @@ subscr.start();
 
     @subsection salesforcepubsubdataprovider_v1_0 SalesforcePubSubDataProvider v1.0
     - initial release
-    - \c ChangeEventHeader.changedFields, \c nulledFields and \c diffFields are delivered as field
-      names.  The Pub/Sub API sends them as bitmaps over the channel's Avro schema field order --
-      an \c Account update arrives as \c "0x401002" -- so a mapper written against the older CometD
-      API, which sent names, would match nothing;
-      @ref SalesforcePubSubDataProvider::decode_change_event_fields() "decode_change_event_fields()"
-      resolves them against the schema the delivery path already holds, dotting nested fields as
-      \c "BillingAddress.City"
-    - everything runs on the async socket I/O controller: the \c Subscribe stream, and the REST
-      calls behind channel enumeration and Change Data Capture enablement, which are made on the
-      \c SalesforceRestClientIo held by \c SalesforceRestDataProviderBase.  A provider built from a
-      REST client rather than a connection can therefore subscribe like any other -- the async
-      client carries the access token and the instance URL that the Pub/Sub call metadata needs
-    - @ref SalesforcePubSubDataProvider::SalesforcePubSubEventsDataProvider
-      "SalesforcePubSubEventsDataProvider": events container attached to the Salesforce data
-      provider as the \c pubsub child, with channel enumeration from \c describeGlobal
-    - @ref SalesforcePubSubDataProvider::SalesforcePubSubEventDataProvider
-      "SalesforcePubSubEventDataProvider": observable provider per channel, with the event type
-      derived from the channel's Avro schema
-    - Change Data Capture change type filtering: the \c change_type option, and a child per change
-      type (@ref ChangeTypeChildMap) so that the provider path can carry the filter; gap events
-      satisfy the change type they stand in for and \c GAP_OVERFLOW is never filtered out
-    - named Change Data Capture actions \c new-record, \c updated-record, \c new-contact and
-      \c new-lead, registered against the Salesforce app alongside the generic \c pubsub-event
-      action
-    - subscriptions are rejected with an actionable error when the org reports that the channel
-      cannot be subscribed to, rather than opening a subscription that delivers nothing because
-      Change Data Capture was never enabled for the entity; the error names every way of fixing it
-    - Change Data Capture can be enabled from here rather than only diagnosed: the
-      \c enable-change-data-capture action enables an object once, and the \c enable_cdc
-      subscription option enables it on demand.  Neither happens implicitly -- enabling starts a
-      72-hour retention stream and changes org configuration, so it is never a side effect of
-      listening
-    - @ref SalesforcePubSubDataProvider::SalesforcePubSubCdc "SalesforcePubSubCdc": Change Data
-      Capture entity selection through the Tooling API's \c PlatformEventChannelMember, with the
-      \c CM_ChangeEvents_<Object> developer name convention that Setup itself uses
-    - @ref SalesforcePubSubDataProvider::SalesforcePubSubClient "SalesforcePubSubClient": Pub/Sub
-      service client with Salesforce call metadata and an Avro schema cache
-    - @ref SalesforcePubSubDataProvider::SalesforcePubSubSubscription
-      "SalesforcePubSubSubscription": subscription state machine with delivery-driven flow
-      control, keepalive handling, replay-ID tracking, token refresh and reconnection with backoff
 */
 
 #! Contains all public definitions in the SalesforcePubSubDataProvider module
