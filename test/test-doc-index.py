@@ -18,6 +18,7 @@ class Html(HTMLParser):
     def __init__(self):
         super().__init__()
         self.links = []
+        self.assets = []
         self.ids = set()
         self.tables = []
         self.table = None
@@ -30,6 +31,11 @@ class Html(HTMLParser):
             self.ids.add(attrs["id"])
         if tag == "a" and "href" in attrs:
             self.links.append(attrs["href"])
+        if tag in ("img", "script") and "src" in attrs:
+            self.assets.append(attrs["src"])
+        if tag == "link" and "href" in attrs and any(
+                rel in attrs.get("rel", "").split() for rel in ("stylesheet", "icon")):
+            self.assets.append(attrs["href"])
         if tag == "table":
             self.table = []
         elif tag == "tr" and self.table is not None:
@@ -99,13 +105,28 @@ class GrpcDocumentationTest(unittest.TestCase):
                 self.assertTrue(any(link.startswith(prefix) and ".html" in link for link in links), prefix)
 
     def test_protobuf_table_shape(self):
-        tables = html(BUILD / "docs/grpc/html/index.html").tables
+        tables = html(BUILD / "docs/grpc/html/grpctypemappingguide.html").tables
         selected = [table for table in tables if table and table[0] == ["Protobuf Type", "Qore Type", "Notes"]]
         self.assertEqual(1, len(selected))
         self.assertGreater(len(selected[0]), 10)
         for row in selected[0]:
             self.assertEqual(3, len(row), row)
             self.assertTrue(all(row), row)
+
+    def test_theme_and_footer_assets(self):
+        pages = list((BUILD / "docs").glob("*/html/*.html"))
+        self.assertTrue(pages)
+        for page in pages:
+            if page.name == "doxygen_crawl.html":
+                continue
+            with self.subTest(page=page):
+                assets = html(page).assets
+                for asset in ("dox_qore.css", "Qore-Q.ico", "qore-logo-55x151-white.png", "doxygen.svg"):
+                    self.assertIn(asset, assets)
+                for asset in assets:
+                    url = urlsplit(asset)
+                    if not url.scheme and not url.netloc:
+                        self.assertTrue((page.parent / unquote(url.path)).is_file(), asset)
 
     def test_factory_option_tables(self):
         for module, rows in (("GrpcDataProvider", 9), ("ArrowFlightDataProvider", 5)):
