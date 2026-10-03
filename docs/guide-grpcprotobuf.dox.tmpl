@@ -1,0 +1,36 @@
+/* Copyright (C) 2026 Qore Technologies, s.r.o. */
+
+/** @page grpcprotobufguide Standalone Protobuf
+
+    @tableofcontents
+
+    The @ref Qore::Protobuf::ProtobufSchema class can be used independently for protobuf
+    encoding/decoding without gRPC:
+
+    @code{.py}
+%requires grpc
+
+# Load from file
+ProtobufSchema schema("./proto/", "messages.proto");
+
+# Or from string
+string proto_content = "syntax = \"proto3\";\n"
+    + "message Event { string type = 1; int64 timestamp = 2; }";
+ProtobufSchema schema(proto_content);
+
+# Encode
+binary data = schema.encode("Event", {"type": "click", "timestamp": 1234567890});
+
+# Decode
+hash<auto> event = schema.decode("Event", data);
+
+# JSON conversion
+string json = schema.toJson("Event", {"type": "click", "timestamp": 1234567890});
+hash<auto> parsed = schema.fromJson("Event", json);
+
+# Service and type introspection
+list<hash<GrpcServiceInfo>> services = schema.services();
+list<string> types = schema.messageTypes();
+hash<auto> defaults = schema.defaultMessage("Event");
+    @endcode
+*/

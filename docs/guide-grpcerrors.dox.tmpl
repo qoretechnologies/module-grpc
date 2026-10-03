@@ -1,0 +1,65 @@
+/* Copyright (C) 2026 Qore Technologies, s.r.o. */
+
+/** @page grpcerrorsguide Error Handling
+
+    @tableofcontents
+
+    gRPC uses status codes for error communication via HTTP/2 trailers. The standard status
+    codes are defined as constants:
+
+    |!Constant|!Value|!Description
+    |@ref Qore::GRPC_STATUS_OK|0|Success
+    |@ref Qore::GRPC_STATUS_CANCELLED|1|Operation cancelled
+    |@ref Qore::GRPC_STATUS_UNKNOWN|2|Unknown error
+    |@ref Qore::GRPC_STATUS_INVALID_ARGUMENT|3|Invalid argument
+    |@ref Qore::GRPC_STATUS_DEADLINE_EXCEEDED|4|Deadline expired
+    |@ref Qore::GRPC_STATUS_NOT_FOUND|5|Entity not found
+    |@ref Qore::GRPC_STATUS_ALREADY_EXISTS|6|Entity already exists
+    |@ref Qore::GRPC_STATUS_PERMISSION_DENIED|7|Permission denied
+    |@ref Qore::GRPC_STATUS_RESOURCE_EXHAUSTED|8|Resource exhausted
+    |@ref Qore::GRPC_STATUS_FAILED_PRECONDITION|9|Invalid state
+    |@ref Qore::GRPC_STATUS_ABORTED|10|Operation aborted
+    |@ref Qore::GRPC_STATUS_OUT_OF_RANGE|11|Out of range
+    |@ref Qore::GRPC_STATUS_UNIMPLEMENTED|12|Not implemented
+    |@ref Qore::GRPC_STATUS_INTERNAL|13|Internal error
+    |@ref Qore::GRPC_STATUS_UNAVAILABLE|14|Service unavailable
+    |@ref Qore::GRPC_STATUS_DATA_LOSS|15|Data loss
+    |@ref Qore::GRPC_STATUS_UNAUTHENTICATED|16|Unauthenticated
+
+    Server handler exceptions are automatically caught and returned with the exception message as the status
+    message.  The status code is derived from the exception code: \c GRPC-CANCELLED, \c GRPC-NOT-FOUND,
+    \c GRPC-INVALID-ARGUMENT, \c GRPC-UNAUTHENTICATED, \c GRPC-PERMISSION-DENIED, \c GRPC-UNIMPLEMENTED,
+    and \c GRPC-RESOURCE-EXHAUSTED map to the corresponding status, \c GRPC-TIMEOUT and \c FUTURE-TIMEOUT map to
+    @ref Qore::GRPC_STATUS_DEADLINE_EXCEEDED, \c HTTP-BODY-TOO-LARGE maps to
+    @ref Qore::GRPC_STATUS_RESOURCE_EXHAUSTED (see @ref grpclimits), and any other exception is returned as
+    @ref Qore::GRPC_STATUS_INTERNAL.
+
+    In a client-streaming or bidirectional call, the server can finish the call before the client has sent every
+    message, for example by rejecting it.  A later @ref Grpc::GrpcClientStream::write() "write()" then raises
+    \c GRPC-STREAM-ERROR, and @ref Grpc::GrpcClientStream::finish() "finish()" returns the status the server sent.
+    @ref Grpc::GrpcClientStream::finish() "finish()" always returns a result: if the stream ends without a status from
+    the server, such as when the server or a proxy resets the stream, the status is derived from the error; a reset is
+    mapped by its HTTP/2 error code as in the gRPC protocol (\c REFUSED_STREAM to
+    @ref Qore::GRPC_STATUS_UNAVAILABLE, \c CANCEL to @ref Qore::GRPC_STATUS_CANCELLED,
+    \c ENHANCE_YOUR_CALM to @ref Qore::GRPC_STATUS_RESOURCE_EXHAUSTED, \c INADEQUATE_SECURITY to
+    @ref Qore::GRPC_STATUS_PERMISSION_DENIED, and any other code to @ref Qore::GRPC_STATUS_INTERNAL).
+    A unary call whose stream is reset raises \c GRPC-ERROR.
+
+    @code{.py}
+GrpcClientStream stream = client.clientStream("Upload");
+try {
+    foreach hash<auto> record in (records) {
+        stream.write(record);
+    }
+} catch (hash<ExceptionInfo> ex) {
+    if (ex.err != "GRPC-STREAM-ERROR") {
+        rethrow;
+    }
+    # the server finished the call early; finish() returns its status
+}
+hash<GrpcCallResult> result = stream.finish();
+if (result.status_code != GRPC_STATUS_OK) {
+    printf("upload failed: %d: %s\n", result.status_code, result.status_message);
+}
+    @endcode
+*/

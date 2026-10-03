@@ -1,0 +1,76 @@
+/* Copyright (C) 2026 Qore Technologies, s.r.o. */
+
+/** @page grpcstreamingguide Streaming
+
+    @tableofcontents
+
+    The module supports all four gRPC streaming patterns.
+
+    @section grpcserverstream Server Streaming
+
+    The client sends a single request and reads a stream of responses.
+
+    @code{.py}
+# Client
+GrpcClientStream stream = client.serverStream("ListItems", {"category": "books"});
+while (*hash<auto> item = stream.read(5s)) {
+    printf("Item: %y\n", item);
+}
+hash<GrpcCallResult> result = stream.finish();
+
+# Server handler
+server.registerHandler("MyService", "ListItems",
+    sub(hash<auto> request, GrpcServerStream stream, hash<string, string> metadata) {
+        list<hash<auto>> items = getItems(request.category);
+        for (int i = 0; i < items.size(); ++i) {
+            stream.write(items[i]);
+        }
+    });
+    @endcode
+
+    @section grpcclientstream Client Streaming
+
+    The client sends a stream of messages and receives a single response.
+
+    @code{.py}
+# Client
+GrpcClientStream stream = client.clientStream("UploadData");
+stream.write({"chunk": "data1"});
+stream.write({"chunk": "data2"});
+hash<GrpcCallResult> result = stream.finish();
+
+# Server handler
+server.registerHandler("MyService", "UploadData",
+    hash<auto> sub(GrpcServerStream stream, hash<string, string> metadata) {
+        list<string> chunks = ();
+        while (*hash<auto> msg = stream.read()) {
+            chunks += msg.chunk;
+        }
+        return {"total_chunks": chunks.size()};
+    });
+    @endcode
+
+    @section grpcbidi Bidirectional Streaming
+
+    Both client and server send streams of messages.
+
+    @code{.py}
+# Client
+GrpcClientStream stream = client.bidiStream("Chat");
+stream.write({"text": "Hello"});
+stream.write({"text": "How are you?"});
+stream.writesDone();
+while (*hash<auto> msg = stream.read(5s)) {
+    printf("Reply: %s\n", msg.text);
+}
+hash<GrpcCallResult> result = stream.finish();
+
+# Server handler
+server.registerHandler("MyService", "Chat",
+    sub(GrpcServerStream stream, hash<string, string> metadata) {
+        while (*hash<auto> msg = stream.read()) {
+            stream.write({"text": "Echo: " + msg.text});
+        }
+    });
+    @endcode
+*/

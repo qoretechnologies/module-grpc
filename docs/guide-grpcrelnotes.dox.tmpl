@@ -1,0 +1,97 @@
+/* Copyright (C) 2026 Qore Technologies, s.r.o. */
+
+/** @page grpcrelnotesguide Release Notes
+
+    @tableofcontents
+
+    Documentation builds support strict warning checks with \c QORE_GRPC_STRICT_DOCS.
+    API links cover the core protobuf and asynchronous I/O modules, and generated
+    references preserve cross-module links and three-column protobuf type tables.
+
+    @section grpc_v1_0 grpc Module Version 1.0
+
+    <b>Dependencies</b>: Apache Arrow development libraries and Qore with the built-in
+    \c protobuf module and HTTP/2 support. Fedora/RHEL use \c libarrow-devel.
+    The module implements the gRPC protocol in Qore and does not require \c libgrpc++.
+
+    <b>Features</b>:
+    - initial release
+    - dynamic protobuf schema loading (file and string) and serialized descriptor loading
+    - protobuf encoding/decoding for all field types
+    - protobuf message schema introspection (\c messageSchema(), \c enumValues())
+    - file descriptor lookup by symbol and filename (\c serializeFileDescriptorForSymbol(),
+      \c serializeFileDescriptorByName())
+    - JSON conversion via protobuf
+    - gRPC client with unary, server streaming, client streaming, bidirectional streaming
+    - gRPC server with handler registration and async I/O
+    - TLS/SSL support on client and server
+    - custom metadata (request, initial response, trailing)
+    - timeout/deadline enforcement
+    - connection pooling via HttpClientConnectionManager
+    - gRPC status codes and error handling
+    - \c GrpcDataProvider module for data provider API integration
+    - \c GrpcConnection with \c grpc:// and \c grpcs:// connection schemes
+    - \c GrpcDataProviderFactory for factory-based creation
+    - \c GrpcTypeHelper for protobuf-to-DataProvider type mapping
+    - \c GrpcReflectionClient for gRPC server reflection protocol (client)
+    - @ref Grpc::GrpcReflectionService "GrpcReflectionService" for built-in gRPC server
+      reflection (\c grpc.reflection.v1) — enables clients to discover services without
+      local \c .proto files; also available via the \c enable_reflection
+      @ref Qore::Grpc::GrpcServerOptions "GrpcServerOptions" flag
+    - <b>Arrow IPC support</b> (optional, requires Apache Arrow):
+      - @ref Qore::Grpc::ArrowSchema for schema definition, introspection, and IPC serialization
+      - @ref Qore::Grpc::ArrowRecordBatch for columnar data with row/column construction and conversion
+      - @ref Qore::Grpc::ArrowIpc static utility class for IPC serialization / deserialization
+      - support for all Arrow primitive types, nested types (struct, list, large_list, map),
+        decimal128/256, timestamps with timezones, durations, half-float, and field/schema metadata
+      - when built with qore Arrow C Data interop, supported \c ColumnarResult
+        conversions use libqore's zero-copy Arrow C Data bridge before falling
+        back to Arrow builders for types not yet covered by the bridge; builds
+        with qore temporal-buffer support keep microsecond timestamp and
+        duration columns as dense \c buffer<int64> data while preserving Arrow
+        temporal schema
+      - IPC data_header + data_body split compatible with Arrow Flight wire format
+    - <b>Arrow Flight protocol</b> (optional, requires Apache Arrow):
+      - @ref Grpc::ArrowFlightClient "ArrowFlightClient" for Flight RPCs (ListFlights,
+        GetFlightInfo, DoGet, DoPut, DoExchange, DoAction)
+      - @ref Grpc::ArrowFlightServer "ArrowFlightServer" with dataset and action registration
+      - @ref Grpc::ArrowFlightStreamReader "ArrowFlightStreamReader",
+        @ref Grpc::ArrowFlightStreamWriter "ArrowFlightStreamWriter", and
+        @ref Grpc::ArrowFlightExchangeStream "ArrowFlightExchangeStream" for typed streaming
+      - @ref Grpc::ArrowFlightDatasetHandler "ArrowFlightDatasetHandler" abstract base for
+        user-implemented Flight datasets
+      - @ref Grpc::ArrowFlightHelper "ArrowFlightHelper" for FlightData ↔ Arrow object conversion
+      - incoming Flight IPC \c data_header and \c data_body buffers are wrapped without copying
+        when decoding record batches
+      - @ref Grpc::FlightProto "FlightProto" embedded Flight protocol schema
+    - <b>ArrowFlightDataProvider module</b> (optional, requires Apache Arrow):
+      - @ref ArrowFlightDataProvider::ArrowFlightDataProvider "ArrowFlightDataProvider" root
+        provider with dataset discovery via ListFlights
+      - @ref ArrowFlightDataProvider::ArrowFlightDatasetDataProvider "ArrowFlightDatasetDataProvider"
+        per-dataset container provider
+      - @ref ArrowFlightDataProvider::ArrowFlightMethodDataProvider "ArrowFlightMethodDataProvider"
+        method-level provider supporting DoGet, DoPut, and DoExchange
+      - @ref ArrowFlightDataProvider::ArrowFlightStreamEventDataProvider "ArrowFlightStreamEventDataProvider"
+        observable event provider for streaming methods
+      - @ref ArrowFlightDataProvider::ArrowFlightConnection "ArrowFlightConnection" with
+        \c flight:// and \c flights:// connection schemes
+      - @ref ArrowFlightDataProvider::ArrowFlightTypeHelper "ArrowFlightTypeHelper" for
+        Arrow-to-DataProvider type mapping
+    - <b>SalesforcePubSubDataProvider module</b>: a Salesforce Pub/Sub API event source that
+      attaches itself to the Salesforce data provider in the %Qore library as its \c pubsub child,
+      so platform events, Change Data Capture events and custom channels drive Qore and Qorus logic
+      through the DataProvider observer API
+      - @ref SalesforcePubSubDataProvider::SalesforcePubSubEventsDataProvider
+        "SalesforcePubSubEventsDataProvider" events container, with one child provider per
+        subscribable channel in the org
+      - @ref SalesforcePubSubDataProvider::SalesforcePubSubEventDataProvider
+        "SalesforcePubSubEventDataProvider" observable provider per channel, with the event type
+        derived from the channel's Avro schema
+      - @ref SalesforcePubSubDataProvider::SalesforcePubSubClient "SalesforcePubSubClient" for the
+        \c eventbus.v1.PubSub service, with the Salesforce call metadata and an Avro schema cache
+      - @ref SalesforcePubSubDataProvider::SalesforcePubSubSubscription
+        "SalesforcePubSubSubscription" subscription state machine: delivery-driven flow control,
+        keepalive handling, replay-ID tracking, token refresh and reconnection with backoff
+      - @ref SalesforcePubSubDataProvider::SalesforcePubSubProto "SalesforcePubSubProto", the
+        vendored \c pubsub_api.proto as a cached \c ProtobufSchema
+*/

@@ -1,0 +1,49 @@
+/* Copyright (C) 2026 Qore Technologies, s.r.o. */
+
+/** @page grpcquickstartguide Quick Start
+
+    @tableofcontents
+
+    @section grpcunary Unary Call
+
+    @code{.py}
+#!/usr/bin/env qore
+
+%modern
+%requires grpc
+%requires GrpcUtil
+
+# Load a .proto schema
+ProtobufSchema schema("./proto/", "service.proto");
+
+# Create a channel and client
+GrpcChannel channel("http://localhost:50051");
+GrpcClient client(channel, schema, "MyService");
+
+# Make a unary call
+hash<GrpcCallResult> result = client.call("SayHello", {"name": "World"});
+printf("Response: %y\n", result.body);
+printf("Status: %d %s\n", result.status_code, result.status_message);
+
+# Clean up
+channel.shutdown();
+    @endcode
+
+    @section grpcserver Server
+
+    @code{.py}
+ProtobufSchema schema("./proto/", "service.proto");
+GrpcServer server(schema);
+
+# Register a unary handler
+server.registerHandler("MyService", "SayHello",
+    hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+        return {"message": "Hello, " + request.name, "status": 0};
+    });
+
+int port = server.addInsecurePort("localhost:0");
+server.start();
+printf("Server listening on port %d\n", port);
+server.wait();
+    @endcode
+*/

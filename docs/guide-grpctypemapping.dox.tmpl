@@ -1,0 +1,20 @@
+/* Copyright (C) 2026 Qore Technologies, s.r.o. */
+
+/** @page grpctypemappingguide Protobuf Type Mapping
+
+    @tableofcontents
+
+    |!Protobuf Type|!Qore Type|!Notes
+    |double, float|\c float|Not applicable
+    |int32, sint32, sfixed32|\c int|Not applicable
+    |int64, sint64, sfixed64|\c int|Not applicable
+    |uint32, fixed32|\c int|Not applicable
+    |uint64, fixed64|\c int|Large values may overflow signed int64
+    |bool|\c bool|Not applicable
+    |string|\c string|Not applicable
+    |bytes|\c binary|Not applicable
+    |enum|\c int|Numeric value
+    |message|\c hash<auto>|Recursive
+    |repeated T|\c list<auto>|Not applicable
+    |map<K,V>|\c hash<auto>|Not applicable
+*/

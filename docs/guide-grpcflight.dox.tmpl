@@ -1,0 +1,180 @@
+/* Copyright (C) 2026 Qore Technologies, s.r.o. */
+
+/** @page grpcflightguide Arrow Flight Protocol
+
+    @tableofcontents
+
+    The Arrow Flight protocol is a high-performance data transport built on gRPC for
+    exchanging columnar Arrow data.  When built with Apache Arrow, the \c GrpcUtil module
+    provides Arrow Flight client and server classes, and the
+    @ref arrowflightdataproviderintro "ArrowFlightDataProvider" module
+    integrates Flight services into the data provider framework.
+
+    @section grpcflightarch Flight Architecture
+
+    @verbatim
+GrpcUtil Module                         ArrowFlightDataProvider Module
+┌───────────────────────────────┐       ┌─────────────────────────────────────┐
+│ ArrowFlightClient             │       │ ArrowFlightDataProvider (root)      │
+│   listFlights(), doGet(),     │       │   └─ ArrowFlightDatasetDataProvider │
+│   doPut(), doExchange()       │       │        ├─ get  (doGet)             │
+│                               │       │        ├─ put  (doPut)             │
+│ ArrowFlightServer             │       │        └─ exchange (doExchange)    │
+│   registerDataset(),          │       │              └─ events (observable) │
+│   registerAction()            │       │                                     │
+│                               │       │ ArrowFlightConnection               │
+│ ArrowFlightStreamReader       │       │   flight://, flights://             │
+│ ArrowFlightStreamWriter       │       │                                     │
+│ ArrowFlightExchangeStream     │       │ ArrowFlightDataProviderFactory      │
+│ ArrowFlightDatasetHandler     │       │   name: "flight"                    │
+│ ArrowFlightHelper             │       └─────────────────────────────────────┘
+└───────────────────────────────┘
+    @endverbatim
+
+    @section grpcflightserver Flight Server
+
+    @code{.py}
+%modern
+%requires grpc
+%requires GrpcUtil
+
+class SalesHandler inherits ArrowFlightDatasetHandler {
+    ArrowSchema getSchema() {
+        return new ArrowSchema((
+            {"name": "id", "type": "int64"},
+            {"name": "product", "type": "utf8"},
+            {"name": "price", "type": "float64"},
+        ));
+    }
+
+    hash<auto> getFlightInfo(hash<auto> descriptor) {
+        return {
+            "schema": ArrowIpc::writeSchema(getSchema()),
+            "flight_descriptor": descriptor,
+            "total_records": 3,
+            "total_bytes": -1,
+        };
+    }
+
+    nothing doGet(hash<auto> ticket, GrpcServerStream stream) {
+        ArrowSchema sch = getSchema();
+        stream.write(ArrowFlightHelper::schemaToFlightData(sch));
+
+        ArrowRecordBatch batch(sch, (
+            {"id": 1, "product": "Widget", "price": 9.99},
+            {"id": 2, "product": "Gadget", "price": 24.99},
+        ));
+        stream.write(ArrowFlightHelper::batchToFlightData(batch));
+    }
+}
+
+ArrowFlightServer server();
+server.registerDataset("sales", new SalesHandler());
+
+int port = server.addInsecurePort("localhost:0");
+server.start();
+printf("Flight server on port %d\n", port);
+server.wait();
+    @endcode
+
+    @section grpcflightclient Flight Client
+
+    @code{.py}
+%modern
+%requires grpc
+%requires GrpcUtil
+
+GrpcChannel channel("http://localhost:8815");
+ArrowFlightClient client(channel);
+
+# List available datasets
+list<hash<auto>> flights = client.listFlights();
+printf("Datasets: %y\n", flights);
+
+# Read data via DoGet
+hash<auto> ticket = {"ticket": binary("sales")};
+ArrowFlightStreamReader reader = client.doGet(ticket);
+ArrowSchema schema = reader.schema();
+while (*ArrowRecordBatch batch = reader.read(5s)) {
+    list<hash<auto>> rows = batch.toRows();
+    printf("Received %d rows\n", rows.size());
+}
+reader.finish();
+
+# Write data via DoPut
+ArrowSchema write_schema((
+    {"name": "key", "type": "utf8"},
+    {"name": "value", "type": "int64"},
+));
+hash<auto> descriptor = ArrowFlightHelper::pathDescriptor("my-dataset");
+ArrowFlightStreamWriter writer = client.doPut(descriptor, write_schema);
+ArrowRecordBatch batch(write_schema, (
+    {"key": "alpha", "value": 100},
+    {"key": "beta", "value": 200},
+));
+writer.write(batch);
+writer.finish();
+
+channel.shutdown();
+    @endcode
+
+    @section grpcflightdataprovider Flight Data Provider
+
+    The @ref ArrowFlightDataProvider::ArrowFlightDataProvider "ArrowFlightDataProvider"
+    module integrates Arrow Flight into Qore's data provider framework.
+
+    @par Navigate datasets and read data
+    @code{.py}
+%modern
+%requires ArrowFlightDataProvider
+
+ArrowFlightDataProvider provider({"url": "http://localhost:8815"});
+
+# List datasets
+map printf("Dataset: %s\n", $1), provider.getChildProviderNames();
+
+# Read data via doRequest
+auto rows = provider.getChildProvider("sales")
+    .getChildProvider("get")
+    .doRequest(NOTHING);
+printf("Got %d rows\n", rows.size());
+    @endcode
+
+    @par Write data
+    @code{.py}
+list<hash<auto>> rows = (
+    {"key": "alpha", "value": 100},
+    {"key": "beta", "value": 200},
+);
+provider.getChildProvider("writable")
+    .getChildProvider("put")
+    .doRequest({"rows": rows});
+    @endcode
+
+    @par Observable streaming events
+    @code{.py}
+ArrowFlightStreamEventDataProvider events =
+    cast<ArrowFlightStreamEventDataProvider>(
+        provider.getChildProvider("sales")
+            .getChildProvider("get")
+            .getChildProvider("events"));
+events.registerObserver(my_observer);
+events.observersReady();
+    @endcode
+
+    @par Using named connections
+    @verbatim qdp 'flight{url=http://localhost:8815}/sales/get' dor
+    @endverbatim
+
+    @par Connection schemes
+    |!Scheme|!Transport|!Example URL
+    |\c flight://|Plaintext HTTP/2|\c flight://localhost:8815
+    |\c flights://|TLS HTTPS|\c flights://flight.example.com:443
+
+    Connection options:
+    - \c timeout_ms: default call timeout in milliseconds (default: 30000)
+    - \c max_message_size: maximum size in bytes of a response message received (default: 0, no limit; see
+      @ref grpclimits)
+    - \c max_response_body_size: maximum size in bytes of a unary response body received into memory (default: 0,
+      no limit; see @ref grpclimits)
+*/

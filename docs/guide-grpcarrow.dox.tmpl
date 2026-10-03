@@ -1,0 +1,142 @@
+/* Copyright (C) 2026 Qore Technologies, s.r.o. */
+
+/** @page grpcarrowguide Arrow IPC Support
+
+    @tableofcontents
+
+    When built with Apache Arrow (\c -DArrow_DIR=...), the module provides classes for
+    creating, inspecting, and serializing Apache Arrow columnar data.  These are the
+    building blocks for Arrow Flight integration — the high-performance columnar data
+    transport protocol used in analytics, data lakehouse, and ETL pipelines.
+
+    @section grpcarrowclasses Arrow Classes
+
+    |!Class|!Description
+    |@ref Qore::Grpc::ArrowSchema|Defines column names, types, nullability, and metadata
+    |@ref Qore::Grpc::ArrowRecordBatch|Holds columnar data (rows × columns) in Arrow format
+    |@ref Qore::Grpc::ArrowIpc|Static utility methods for IPC serialization / deserialization
+
+    @section grpcarrowtypes Supported Arrow Type Strings
+
+    These strings are used in the @ref Qore::Grpc::ArrowFieldInfo \c "type" field when
+    defining schemas.
+
+    <b>Integer types</b>:
+    |!Type String|!Description|!Qore Type
+    |\c "int8"|Signed 8-bit integer|\c int
+    |\c "int16"|Signed 16-bit integer|\c int
+    |\c "int32"|Signed 32-bit integer|\c int
+    |\c "int64"|Signed 64-bit integer|\c int
+    |\c "uint8"|Unsigned 8-bit integer|\c int
+    |\c "uint16"|Unsigned 16-bit integer|\c int
+    |\c "uint32"|Unsigned 32-bit integer|\c int
+    |\c "uint64"|Unsigned 64-bit integer|\c int or \c number (values > 2^63)
+
+    <b>Floating-point types</b>:
+    |!Type String|!Description|!Qore Type
+    |\c "float16" / \c "half_float"|IEEE 754 half-precision|\c float
+    |\c "float32" / \c "float"|IEEE 754 single-precision|\c float
+    |\c "float64" / \c "double"|IEEE 754 double-precision|\c float
+
+    <b>Decimal types</b>:
+    |!Type String|!Description|!Qore Type
+    |\c "decimal128(P, S)"|128-bit decimal with precision P, scale S|\c number
+    |\c "decimal256(P, S)"|256-bit decimal with precision P, scale S|\c number
+
+    <b>String and binary types</b>:
+    |!Type String|!Description|!Qore Type
+    |\c "utf8"|UTF-8 string (up to 2 GB)|\c string
+    |\c "large_utf8"|UTF-8 string (up to 2^63 bytes)|\c string
+    |\c "binary"|Binary data (up to 2 GB)|\c binary
+    |\c "large_binary"|Binary data (up to 2^63 bytes)|\c binary
+    |\c "fixed_size_binary[N]"|Fixed-length binary of N bytes|\c binary
+
+    <b>Boolean</b>:
+    |!Type String|!Description|!Qore Type
+    |\c "bool"|Boolean true/false|\c bool
+
+    <b>Date and time types</b>:
+    |!Type String|!Description|!Qore Type
+    |\c "date32"|Days since epoch|\c date
+    |\c "date64"|Milliseconds since epoch|\c date
+    |\c "timestamp[s]", \c "timestamp[ms]", \c "timestamp[us]", \c "timestamp[ns]"|Timestamp with unit|\c date
+    |\c "timestamp[us, tz=UTC]"|Timestamp with timezone|\c date
+    |\c "time32[s]", \c "time32[ms]"|Time of day (second/millisecond)|\c date
+    |\c "time64[us]", \c "time64[ns]"|Time of day (microsecond/nanosecond)|\c date
+    |\c "duration[s]", \c "duration[ms]", \c "duration[us]", \c "duration[ns]"|Duration with unit|\c date
+
+    <b>Nested types</b>:
+    |!Type String|!Children|!Qore Type
+    |\c "struct"|One child per struct field|\c hash
+    |\c "list"|One child named \c "item"|\c list
+    |\c "large_list"|One child named \c "item"|\c list
+    |\c "map"|Two children: \c "key" and \c "value"|\c hash
+
+    @section grpcarrowworkflow Arrow Flight Workflow
+
+    A typical Arrow Flight data exchange follows this pattern:
+
+    @par Sender: Schema + RecordBatch → IPC bytes
+    @code{.py}
+%requires grpc
+
+# 1. Define the schema
+ArrowSchema schema((
+    {"name": "trade_id",  "type": "int64",             "nullable": False},
+    {"name": "symbol",    "type": "utf8",              "nullable": False},
+    {"name": "price",     "type": "decimal128(18, 4)", "nullable": False},
+    {"name": "quantity",  "type": "int32",             "nullable": False},
+    {"name": "exec_time", "type": "timestamp[us, tz=UTC]", "nullable": False},
+));
+
+# 2. Build a record batch from data
+ArrowRecordBatch batch(schema, {
+    "trade_id":  (10001, 10002, 10003),
+    "symbol":    ("AAPL", "GOOG", "MSFT"),
+    "price":     (182.5025n, 141.2500n, 378.9075n),
+    "quantity":  (100, 50, 200),
+    "exec_time": (2026-03-04T14:30:00.123456Z, 2026-03-04T14:30:01.234567Z,
+                  2026-03-04T14:30:02.345678Z),
+});
+
+# 3. Serialize for transport
+binary schema_ipc = schema.toIpc();
+hash<ArrowIpcData> batch_ipc = batch.toIpc();
+# Send schema_ipc, batch_ipc.data_header, batch_ipc.data_body via Flight
+    @endcode
+
+    @par Receiver: IPC bytes → Schema + RecordBatch → Qore data
+    @code{.py}
+# 1. Deserialize the schema
+ArrowSchema schema(schema_ipc);
+
+# 2. Deserialize the record batch
+ArrowRecordBatch batch(schema, data_header, data_body);
+
+# 3. Access data — columnar for analytics
+hash<auto> cols = batch.toColumns();
+number total_value = 0n;
+for (int i = 0; i < batch.numRows(); ++i) {
+    total_value += cols.price[i] * cols.quantity[i];
+}
+printf("Total notional: %n\n", total_value);
+
+# 3b. Or row-oriented for per-record processing
+list<hash<auto>> trades = batch.toRows();
+for (hash<auto> trade in trades) {
+    printf("Trade %d: %s %d @ %n at %y\n",
+        trade.trade_id, trade.symbol, trade.quantity, trade.price, trade.exec_time);
+}
+    @endcode
+
+    @section grpcarrowerrors Arrow Error Handling
+
+    Arrow operations raise Qore exceptions with the following error codes:
+
+    |!Exception|!Cause
+    |\c ARROW-IPC-ERROR|IPC deserialization failed (corrupt or invalid binary data)
+    |\c ARROW-SCHEMA-ERROR|Schema definition invalid, or column data does not match the schema
+    |\c ARROW-BUILD-ERROR|Data cannot be converted to the declared Arrow type
+    |\c ARROW-TYPE-ERROR|Unknown or unsupported Arrow type string
+    |\c ARROW-COLUMN-ERROR|Column name not found or index out of range
+*/

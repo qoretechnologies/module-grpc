@@ -1,0 +1,19 @@
+/* Copyright (C) 2026 Qore Technologies, s.r.o. */
+
+/** @page grpctimeoutsguide Timeouts and Deadlines
+
+    @tableofcontents
+
+    The client can set a timeout for gRPC calls. The server enforces the deadline — if the
+    handler exceeds it, the server returns @ref Qore::GRPC_STATUS_DEADLINE_EXCEEDED.
+
+    @code{.py}
+hash<GrpcCallOptions> opts = <GrpcCallOptions>{
+    "timeout_ms": 5000,  # 5 second deadline
+};
+hash<GrpcCallResult> result = client.call("Method", request, opts);
+if (result.status_code == GRPC_STATUS_DEADLINE_EXCEEDED) {
+    printf("Call timed out\n");
+}
+    @endcode
+*/

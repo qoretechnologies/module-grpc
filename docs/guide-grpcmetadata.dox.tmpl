@@ -1,0 +1,51 @@
+/* Copyright (C) 2026 Qore Technologies, s.r.o. */
+
+/** @page grpcmetadataguide Metadata
+
+    @tableofcontents
+
+    Metadata (key-value pairs) can be passed between client and server via HTTP/2 headers
+    and trailers.
+
+    @section grpcreqmeta Request Metadata (Client to Server)
+
+    @code{.py}
+# Client sends metadata
+hash<GrpcCallOptions> opts = <GrpcCallOptions>{
+    "metadata": {
+        "x-request-id": "abc-123",
+        "authorization": "Bearer token",
+    },
+};
+hash<GrpcCallResult> result = client.call("Method", request, opts);
+
+# Server receives metadata
+server.registerHandler("Service", "Method",
+    hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+        string req_id = metadata."x-request-id";
+        # ...
+    });
+    @endcode
+
+    @section grpcrespmeta Response Metadata (Server to Client)
+
+    @code{.py}
+# Server sends initial metadata (streaming only)
+server.registerHandler("Service", "ServerStream",
+    sub(hash<auto> request, GrpcServerStream stream, hash<string, string> metadata) {
+        stream.sendInitialMetadata({"x-server-version": "1.0"});
+        # ...
+    });
+
+# Server sets trailing metadata (streaming only)
+server.registerHandler("Service", "ServerStream",
+    sub(hash<auto> request, GrpcServerStream stream, hash<string, string> metadata) {
+        stream.setTrailingMetadata({"x-request-count": "42"});
+        stream.write({"message": "data"});
+    });
+
+# Client receives metadata
+hash<GrpcCallResult> result = client.call("Method", request);
+hash<string, string> trailing = result.trailing_metadata;
+    @endcode
+*/

@@ -1,0 +1,15 @@
+/* Copyright (C) 2026 Qore Technologies, s.r.o. */
+
+/** @page grpcarchguide Architecture
+
+    @tableofcontents
+
+    The module combines three components:
+
+    - <b>Binary module (\c grpc)</b>: C++ bindings for Arrow schemas, record batches, and IPC.
+    - <b>Core module (\c protobuf)</b>: Schema loading and message encoding/decoding through
+      the @ref Qore::Protobuf::ProtobufSchema class.
+    - <b>Qore module (\c GrpcUtil)</b>: Pure %Qore implementing the gRPC protocol on top of
+      %Qore's HTTP/2 stack. Provides @ref Grpc::GrpcClient, @ref Grpc::GrpcServer,
+      @ref Grpc::GrpcChannel, and streaming classes.
+*/

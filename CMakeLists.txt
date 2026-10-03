@@ -200,6 +200,21 @@ set(QMOD
 
 set(QORE_DOX_TMPL_SRC
     docs/mainpage.dox.tmpl
+    docs/guide-grpcarch.dox.tmpl
+    docs/guide-grpcarrow.dox.tmpl
+    docs/guide-grpcdataprovider.dox.tmpl
+    docs/guide-grpcerrors.dox.tmpl
+    docs/guide-grpcflight.dox.tmpl
+    docs/guide-grpclimits.dox.tmpl
+    docs/guide-grpcmetadata.dox.tmpl
+    docs/guide-grpcprotobuf.dox.tmpl
+    docs/guide-grpcquickstart.dox.tmpl
+    docs/guide-grpcreflection.dox.tmpl
+    docs/guide-grpcrelnotes.dox.tmpl
+    docs/guide-grpcstreaming.dox.tmpl
+    docs/guide-grpctimeouts.dox.tmpl
+    docs/guide-grpctls.dox.tmpl
+    docs/guide-grpctypemapping.dox.tmpl
 )
 
 add_library(${module_name} MODULE ${CPP_SRC} ${QPP_SOURCES})
@@ -225,6 +240,27 @@ if (DEFINED ENV{DOXYGEN_EXECUTABLE})
     set(DOXYGEN_EXECUTABLE $ENV{DOXYGEN_EXECUTABLE})
 endif()
 
+list(APPEND MODULE_DOX_INPUT
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-grpcarch.dox
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-grpcarrow.dox
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-grpcdataprovider.dox
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-grpcerrors.dox
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-grpcflight.dox
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-grpclimits.dox
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-grpcmetadata.dox
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-grpcprotobuf.dox
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-grpcquickstart.dox
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-grpcreflection.dox
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-grpcrelnotes.dox
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-grpcstreaming.dox
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-grpctimeouts.dox
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-grpctls.dox
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-grpctypemapping.dox
+)
+set(QORE_DOXYGEN_IMAGES
+    "${CMAKE_SOURCE_DIR}/qlib/ArrowFlightDataProvider/arrow-flight-logo.svg"
+    "${CMAKE_SOURCE_DIR}/qlib/GrpcDataProvider/grpc-logo.svg"
+)
 qore_external_binary_module(${module_name} ${PROJECT_VERSION})
 
 qore_dist(${PROJECT_VERSION})
