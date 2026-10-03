@@ -31,7 +31,7 @@
     \c GRPC-INVALID-ARGUMENT, \c GRPC-UNAUTHENTICATED, \c GRPC-PERMISSION-DENIED, \c GRPC-UNIMPLEMENTED,
     and \c GRPC-RESOURCE-EXHAUSTED map to the corresponding status, \c GRPC-TIMEOUT and \c FUTURE-TIMEOUT map to
     @ref Qore::GRPC_STATUS_DEADLINE_EXCEEDED, \c HTTP-BODY-TOO-LARGE maps to
-    @ref Qore::GRPC_STATUS_RESOURCE_EXHAUSTED (see @ref grpclimits), and any other exception is returned as
+    @ref Qore::GRPC_STATUS_RESOURCE_EXHAUSTED (see @ref grpclimitsguide), and any other exception is returned as
     @ref Qore::GRPC_STATUS_INTERNAL.
 
     In a client-streaming or bidirectional call, the server can finish the call before the client has sent every

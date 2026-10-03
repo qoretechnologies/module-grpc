@@ -85,9 +85,9 @@ list<auto> results = provider
     - \c use_reflection: use gRPC server reflection for schema discovery
     - \c timeout_ms: default call timeout in milliseconds (default: 30000)
     - \c max_message_size: maximum size in bytes of a response message received (default: 0, no limit; see
-      @ref grpclimits)
+      @ref grpclimitsguide)
     - \c max_response_body_size: maximum size in bytes of a unary response body received into memory (default: 0,
-      no limit; see @ref grpclimits)
+      no limit; see @ref grpclimitsguide)
 
     @section grpcdptypes Protobuf to DataProvider Type Mapping
 
@@ -106,7 +106,7 @@ list<auto> results = provider
 
     The module includes a gRPC server reflection client that can dynamically discover services
     and schemas from a running server. The server must have
-    @ref grpcreflection "GrpcReflectionService" enabled for this to work.
+    @ref grpcreflectionguide "GrpcReflectionService" enabled for this to work.
 
     @code{.py}
 # Auto-discover services via reflection (no .proto files needed)
