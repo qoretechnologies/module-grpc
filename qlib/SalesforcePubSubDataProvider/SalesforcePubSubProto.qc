@@ -86,7 +86,7 @@ public class SalesforcePubSubProto {
     }
 
     #! Returns the wire value of a \c ReplayPreset enum name
-    /** The protobuf encoder accepts only integers for an enum field: given the enum's **name** it
+    /** The protobuf encoder accepts only integers for an enum field: given the enum's <b>name</b> it
         silently encodes \c 0 instead of raising an error, which for \c ReplayPreset would turn a
         \c CUSTOM replay position into \c LATEST and lose the replay resume without any diagnostic.
         Every preset therefore has to be resolved to its wire value before encoding, and it is

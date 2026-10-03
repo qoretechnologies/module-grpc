@@ -156,7 +156,7 @@ class SalesforcePubSubDelay inherits Qore::AbstractPollOperation<auto> {
     the credit remaining as \c pending_num_requested.  Once that reaches zero the server closes
     the stream unless a new \c FetchRequest arrives within 60 seconds.
 
-    Replenishment here is **driven by delivery**: the request goes out from the response handler
+    Replenishment here is <b>driven by delivery</b>: the request goes out from the response handler
     as soon as the reported credit falls to @ref low_water_mark, not when a timer notices.  The
     60 second window is a backstop armed on the controller's timeout heap only while the client
     believes it has no credit left, so a healthy subscription arms no timer at all.

@@ -27,10 +27,10 @@ public namespace GrpcDataProvider {
 
 #! Method-level data provider for making gRPC calls
 /** Represents a single RPC method in a gRPC service. Supports all four RPC patterns:
-    - **Unary**: single request, single response
-    - **Server streaming**: single request, multiple responses (returned as list)
-    - **Client streaming**: multiple requests (sent from `messages` list), single response
-    - **Bidirectional streaming**: multiple requests, multiple responses
+    - <b>Unary</b>: single request, single response
+    - <b>Server streaming</b>: single request, multiple responses (returned as list)
+    - <b>Client streaming</b>: multiple requests (sent from <tt>messages</tt> list), single response
+    - <b>Bidirectional streaming</b>: multiple requests, multiple responses
 */
 public class GrpcMethodDataProvider inherits AbstractDataProvider {
     public {

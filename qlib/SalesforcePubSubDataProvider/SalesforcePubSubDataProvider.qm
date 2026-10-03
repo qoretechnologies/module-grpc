@@ -308,7 +308,7 @@ module SalesforcePubSubDataProvider {
     that silently delivers nothing.
 
     Two rules keep a filter from hiding data loss:
-    - a **gap event** — one that reports a change Salesforce could not deliver in full — satisfies
+    - a <b>gap event</b> — one that reports a change Salesforce could not deliver in full — satisfies
       the change type it stands in for, so \c GAP_CREATE reaches a subscriber that asked for
       \c CREATE
     - \c GAP_OVERFLOW, which reports that an unknown number of changes were lost, is delivered
