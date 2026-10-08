@@ -13,7 +13,7 @@
 %global _find_debuginfo_dwz_opts %{nil}
 Name: qore-grpc-module
 Version: 1.0.0
-Release: 2%{?dist}
+Release: 3%{?dist}
 Summary: gRPC, Arrow Flight and Salesforce Pub/Sub for Qore
 License: MIT AND Apache-2.0 AND CC0-1.0
 URL: https://github.com/qoretechnologies/module-grpc
@@ -99,6 +99,7 @@ hardlink -t -O %{buildroot}%{_docdir}/%{name}-doc
 %if %{with tests}
 . %{_rpmconfigdir}/qore/module-env.sh
 python3 -B -W error test/test-rpm-dependencies.py -v
+python3 -B -W error test/test_uninstall.py -v
 python3 -B -W error debian/tests/test_aot_metadata.py
 %if %{with docs}
 python3 -B -W error test/test-doc-index.py --build-dir build -v
@@ -141,6 +142,10 @@ qore-data-provider-i18n --no-color --check-source-tree --require-standard-locale
 %doc %{_docdir}/%{name}-doc/
 %endif
 %changelog
+* Thu Oct 08 2026 David Nichols <david@qore.org> - 1.0.0-3
+- Provide source-uninstall support and test staged, repeated and invalid manifests.
+- Declare the tested CMake policy range for normalized installation paths.
+
 * Thu Oct 08 2026 David Nichols <david@qore.org> - 1.0.0-2
 - Resolve the Python interoperability fixtures through openSUSE's package aliases.
 - Retain Fedora and Enterprise Linux Python distribution capabilities.
