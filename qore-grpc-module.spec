@@ -13,11 +13,12 @@
 %global _find_debuginfo_dwz_opts %{nil}
 Name: qore-grpc-module
 Version: 1.0.0
-Release: 4%{?dist}
-Summary: gRPC, Arrow Flight and Salesforce Pub/Sub for Qore
+Release: 5%{?dist}
+Summary: Qore bindings for gRPC, Arrow Flight and Salesforce Pub/Sub
 License: MIT AND Apache-2.0 AND CC0-1.0
 URL: https://github.com/qoretechnologies/module-grpc
-Source0: %{name}-%{version}.tar.xz
+# Reproducible archive from the pinned Git revision in source-manifest.json.
+Source0: https://api.opensuse.org/public/source/home:davidnichols:qore:testing/%{name}/%{name}-%{version}.tar.xz
 BuildRequires: cmake >= 3.21
 BuildRequires: make
 BuildRequires: gcc-c++
@@ -43,11 +44,11 @@ BuildRequires: qore-misc-tools >= 3.0.0~
 %endif
 %if %{with docs}
 BuildRequires: doxygen
+%endif
 %if 0%{?suse_version}
 BuildRequires: util-linux
 %else
 BuildRequires: util-linux-core
-%endif
 %endif
 
 %description
@@ -89,16 +90,31 @@ cmake --build build --target docs -- %{?_smp_mflags}
 DESTDIR=%{buildroot} cmake --install build
 %qore_install_aot_sources qlib
 chmod 755 %{buildroot}%{_libdir}/qore-modules/grpc-api-*.qmod
+install -d %{buildroot}%{_licensedir}/%{name}
+install -m644 LICENSE COPYING.MIT debian/copyright rpm/licenses/*.txt %{buildroot}%{_licensedir}/%{name}/
+hardlink -t -O %{buildroot}%{_licensedir}/%{name} %{buildroot}%{_datadir}/qore/metadata
 %if %{with docs}
 install -d %{buildroot}%{_docdir}/%{name}-doc
 cp -a build/docs %{buildroot}%{_docdir}/%{name}-doc/
-cp -a test %{buildroot}%{_docdir}/%{name}-doc/examples
-hardlink -t -O %{buildroot}%{_docdir}/%{name}-doc
+install -d %{buildroot}%{_docdir}/%{name}-doc/examples/interop
+cp -a test/*.qtest test/*.proto test/certs %{buildroot}%{_docdir}/%{name}-doc/examples/
+cp -a test/pyarrow_flight_client.py test/pyarrow_flight_server.py %{buildroot}%{_docdir}/%{name}-doc/examples/
+cp -a test/interop/interop_server.py %{buildroot}%{_docdir}/%{name}-doc/examples/interop/
+# Installed examples resolve the distribution interpreters independently of PATH.
+sed -i '1s|^#!/usr/bin/env qore$|#!/usr/bin/qore|' %{buildroot}%{_docdir}/%{name}-doc/examples/*.qtest
+sed -i '1s|^#!/usr/bin/env python3$|#!/usr/bin/python3|' \
+  %{buildroot}%{_docdir}/%{name}-doc/examples/*.py \
+  %{buildroot}%{_docdir}/%{name}-doc/examples/interop/*.py
+install -d %{buildroot}%{_licensedir}/%{name}-doc
+install -m644 LICENSE COPYING.MIT debian/copyright rpm/licenses/*.txt %{buildroot}%{_licensedir}/%{name}-doc/
+hardlink -t -O %{buildroot}%{_docdir}/%{name}-doc %{buildroot}%{_licensedir}/%{name}-doc
 %endif
 %check
 %if %{with tests}
 . %{_rpmconfigdir}/qore/module-env.sh
 python3 -B -W error test/test-rpm-dependencies.py -v
+python3 -B -W error test/test-rpm-layout.py --root %{buildroot} \
+  --license-dir %{_licensedir} --data-dir %{_datadir} %{?with_docs:--doc-dir %{_docdir}} -v
 python3 -B -W error test/test_uninstall.py -v
 python3 -B -W error debian/tests/test_aot_metadata.py
 %if %{with docs}
@@ -129,7 +145,7 @@ qore-data-provider-i18n --no-color --check-source-tree --require-standard-locale
   --require-complete-locales --output "$PWD/qlib"
 %endif
 %files
-%license LICENSE COPYING.MIT debian/copyright rpm/licenses/*.txt
+%license %{_licensedir}/%{name}
 %doc README*
 %{_libdir}/qore-modules/*
 %{_datadir}/qore-modules/*
@@ -138,10 +154,17 @@ qore-data-provider-i18n --no-color --check-source-tree --require-standard-locale
 %{_datadir}/qore/i18n/.qore-catalog-manifests/%{name}.manifest
 %if %{with docs}
 %files doc
-%license LICENSE COPYING.MIT debian/copyright rpm/licenses/*.txt
+%license %{_licensedir}/%{name}-doc
 %doc %{_docdir}/%{name}-doc/
 %endif
 %changelog
+* Thu Oct 08 2026 David Nichols <david@qore.org> - 1.0.0-5
+- Fix Salesforce Pub/Sub credit accounting during callbacks and concurrent replenishment.
+- Install runnable protocol examples with distribution interpreter paths and no version-control files.
+- Deduplicate identical licenses and metadata while preserving every installed path.
+- Use a capitalized package summary and verify the staged package layout.
+- Identify the generated source archive's OBS download location.
+
 * Thu Oct 08 2026 David Nichols <david@qore.org> - 1.0.0-4
 - Isolate simulated distribution macros in dependency tests under layered OBS configuration.
 - Check all distribution branches with tests enabled and disabled under inherited macros.

@@ -708,6 +708,7 @@ public class SalesforcePubSubTest inherits QUnit::Test {
         addTestCase("delivery-driven flow control", \testFlowControlReplenishment());
         addTestCase("flow control backstop", \testFlowControlBackstop());
         addTestCase("manual replenishment", \testManualReplenishment());
+        addTestCase("manual credit during event delivery", \testCreditDuringDelivery());
         addTestCase("replay resume on reconnect", \testReplayResumeOnReconnect());
         addTestCase("corrupt replay ID recovery", \testCorruptReplayIdRecovery());
         addTestCase("token refresh on unauthenticated", \testTokenRefresh());
@@ -1258,6 +1259,92 @@ public class SalesforcePubSubTest inherits QUnit::Test {
         assertEq(10, subscr.getStats().outstanding);
         # and once it is full there is nothing left to grant
         assertFalse(subscr.replenish(), "a full window sends nothing");
+    }
+
+    #! Credit is current while an event callback is running, and grants survive callback completion
+    testCreditDuringDelivery() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+        srv.script.addScript((
+            {"send": {"events": makeEvents(1, 1), "pending": 2}},
+            {"expect_request": True},
+            {"expect_request": True},
+            {"park": True},
+        ));
+
+        EventSink sink();
+        Counter entered(1);
+        Counter release(1);
+        SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        SalesforcePubSubSubscription subscr = client.subscribe(TestTopic, sink.getOptions() + {
+            "num_requested": 10,
+            "auto_replenish": False,
+            "on_event": sub (hash<auto> event) {
+                entered.dec();
+                if (release.waitForZero(30s)) {
+                    throw "TEST-DELIVERY-TIMEOUT", "event callback was not released";
+                }
+                sink.onEvent(event);
+            },
+        });
+        on_exit subscr.stop();
+        bool released = False;
+        on_exit {
+            if (!released) {
+                release.dec();
+            }
+        }
+        subscr.start();
+        assertEq(0, entered.waitForZero(30s), "the event callback is held at a deterministic barrier");
+        assertEq(2, subscr.getStats().outstanding, "server credit is visible before delivery returns");
+        assertTrue(subscr.replenish(5));
+        assertEq(7, subscr.getStats().outstanding);
+        Counter ready(8);
+        Counter grant(1);
+        Counter done(8);
+        Queue<hash<auto>> results();
+        bool granting = False;
+        on_exit {
+            if (!granting) {
+                grant.dec();
+            }
+        }
+        for (int i = 0; i < 8; ++i) {
+            background sub () {
+                on_exit done.dec();
+                ready.dec();
+                try {
+                    if (grant.waitForZero(30s)) {
+                        throw "TEST-GRANT-TIMEOUT", "concurrent grant was not released";
+                    }
+                    results.push({"sent": subscr.replenish()});
+                } catch (hash<ExceptionInfo> ex) {
+                    results.push({"error": ex});
+                }
+            }();
+        }
+        assertEq(0, ready.waitForZero(30s), "all concurrent callers are ready");
+        grant.dec();
+        granting = True;
+        assertEq(0, done.waitForZero(30s), "all concurrent grants finished");
+        int sent = 0;
+        for (int i = 0; i < 8; ++i) {
+            hash<auto> result = results.get(-1);
+            assertFalse(exists result.error, "a concurrent replenishment did not throw");
+            sent += result.sent ? 1 : 0;
+        }
+        assertEq(1, sent, "exactly one concurrent caller grants the remaining deficit");
+        assertFalse(subscr.replenish(), "the full window is not granted twice");
+        assertTrue(srv.script.waitForRequests(3));
+        list<hash<auto>> requests = srv.script.getRequests();
+        assertEq((10, 5, 3), map $1.num_requested, requests);
+        release.dec();
+        released = True;
+        assertTrue(subscr.waitForEvents(1));
+        assertEq(10, subscr.getStats().outstanding, "delivery completion preserves manual grants");
+        subscr.stop();
+        assertFalse(subscr.replenish(1), "a stopped subscription cannot grant credit");
+        assertEq(10, subscr.getStats().outstanding, "an unsent grant does not change credit");
     }
 
     #! A failed stream is re-established from the last event delivered, not restarted

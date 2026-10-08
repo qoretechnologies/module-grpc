@@ -531,6 +531,9 @@ public class SalesforcePubSubSubscription {
         @param count the credit to grant; defaults to topping the window back up to
         \c num_requested
 
+        @note May be called during event delivery. The server's reported credit is already
+        available to the callback; concurrent default grants share the same remaining deficit.
+
         @return @ref True if a request was sent
 
         @throw SALESFORCE-PUBSUB-ERROR \a count is out of range
@@ -540,15 +543,7 @@ public class SalesforcePubSubSubscription {
             throw "SALESFORCE-PUBSUB-ERROR", sprintf("the requested count must be between 1 and "
                 "%d; got %y", MaxNumRequested, count);
         }
-        int req;
-        {
-            AutoLock al(m);
-            req = count ?? (num_requested - outstanding);
-            if (req < 1) {
-                return False;
-            }
-        }
-        return sendFetchRequest(req);
+        return sendFetchRequest(count);
     }
 
     #! Blocks until the subscription is connected
@@ -690,23 +685,31 @@ public class SalesforcePubSubSubscription {
     }
 
     #! Builds and sends a \c FetchRequest
-    /** @param count the credit to grant
+    /** @param count the credit to grant, or NOTHING to fill the remaining window
         @param opening if True, this is the first request of the stream and carries the topic
         name and the replay position
 
         @return True if the request was sent
     */
-    private bool sendFetchRequest(int count, bool opening = False) {
+    private bool sendFetchRequest(*int count, bool opening = False) {
+        # A write queues transport data without waiting for the response callback. Keep the
+        # subscription lock through that enqueue and accounting, so a fast response cannot
+        # overwrite the credit before this request has been counted. Calculate default grants
+        # under the same lock so concurrent replenishments cannot both claim one deficit.
+        AutoLock al(m);
         *GrpcAsyncClientStream s;
         # hash<auto!> rather than hash<auto>: the latter narrows its value type from the first
         # entry, so adding a string key to a hash whose first value is an int is a runtime error
         hash<auto!> req;
         {
-            AutoLock al(m);
             if (stopping || !connected) {
                 return False;
             }
             s = stream;
+            count = count ?? (num_requested - outstanding);
+            if (count < 1) {
+                return False;
+            }
             req = {"num_requested": count};
             if (opening) {
                 req.topic_name = topic_name;
@@ -729,7 +732,6 @@ public class SalesforcePubSubSubscription {
         }
         s.write(req);
         {
-            AutoLock al(m);
             ++fetch_request_count;
             # credit the request optimistically: the server accumulates num_requested, and every
             # response resynchronizes this with what the server actually holds.  Without this the
@@ -749,6 +751,9 @@ public class SalesforcePubSubSubscription {
     private handleResponse(hash<auto> resp) {
         {
             AutoLock al(m);
+            # Publish the server's credit before exposing its events to consumers. A consumer
+            # can replenish from its callback or another thread as soon as delivery begins.
+            outstanding = resp.pending_num_requested ?? 0;
             if (!stream_healthy) {
                 # the server has answered, so this stream is a working subscription and the
                 # reconnect budget starts again from here
@@ -789,7 +794,7 @@ public class SalesforcePubSubSubscription {
             }
         }
 
-        applyFlowControl(resp.pending_num_requested ?? 0);
+        applyFlowControl();
     }
 
     #! Decodes one event and notifies the consumer
@@ -864,7 +869,7 @@ public class SalesforcePubSubSubscription {
     }
 
     #! Replenishes flow-control credit and arms the backstop if credit has run out
-    private applyFlowControl(int pending) {
+    private applyFlowControl() {
         bool arm;
         bool top_up;
         *GrpcAsyncClientStream s;
@@ -873,9 +878,8 @@ public class SalesforcePubSubSubscription {
             if (stopping || !connected) {
                 return;
             }
-            # the server's report is authoritative; it supersedes the optimistic accounting in
-            # sendFetchRequest()
-            outstanding = pending;
+            # The report was applied before delivery; preserve grants made by the consumer
+            # during delivery when deciding whether more credit is needed.
             s = stream;
             top_up = auto_replenish && outstanding <= low_water_mark
                 && outstanding < num_requested;

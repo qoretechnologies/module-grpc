@@ -27,6 +27,24 @@ configuration defines the same macro repeatedly. The regression compares all
 requirements with tests enabled and disabled under one, two and four inherited
 macro layers for each family.
 
+Installed examples and licenses
+-------------------------------
+
+The documentation RPM contains all thirteen protocol suites, their two protocol
+definitions, three Python peers and public TLS test identities. Only these
+runtime fixtures are installed as examples; source-build tests and version-control
+configuration stay in the source archive. Example scripts use ``/usr/bin/qore``
+and ``/usr/bin/python3``. Their contents otherwise match the source fixtures.
+
+Identical license and compiler-metadata files share storage through hard links;
+all license texts and metadata paths remain present. Three staged-layout tests
+verify exact example contents, interpreter paths, complete license copies and
+metadata deduplication during the RPM build.
+
+``Source0`` points to the generated archive on OBS. Its exact Git revision and
+SHA-256 digest are recorded in ``source-manifest.json``; qualification verifies
+the public download against that digest after upload.
+
 Source installation and removal
 -------------------------------
 
