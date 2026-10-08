@@ -13,7 +13,7 @@
 %global _find_debuginfo_dwz_opts %{nil}
 Name: qore-grpc-module
 Version: 1.0.0
-Release: 3%{?dist}
+Release: 4%{?dist}
 Summary: gRPC, Arrow Flight and Salesforce Pub/Sub for Qore
 License: MIT AND Apache-2.0 AND CC0-1.0
 URL: https://github.com/qoretechnologies/module-grpc
@@ -142,6 +142,10 @@ qore-data-provider-i18n --no-color --check-source-tree --require-standard-locale
 %doc %{_docdir}/%{name}-doc/
 %endif
 %changelog
+* Thu Oct 08 2026 David Nichols <david@qore.org> - 1.0.0-4
+- Isolate simulated distribution macros in dependency tests under layered OBS configuration.
+- Check all distribution branches with tests enabled and disabled under inherited macros.
+
 * Thu Oct 08 2026 David Nichols <david@qore.org> - 1.0.0-3
 - Provide source-uninstall support and test staged, repeated and invalid manifests.
 - Declare the tested CMake policy range for normalized installation paths.

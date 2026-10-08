@@ -12,10 +12,15 @@ PACKAGES = {'python3-grpcio', 'python3-grpcio-tools', 'python3-pyarrow'}
 CAPABILITIES = {'python3dist(grpcio)', 'python3dist(grpcio-tools)', 'python3dist(pyarrow)'}
 
 
-def requirements(family: str, tests: bool = True) -> set[str]:
+def requirements(family: str, tests: bool = True, *, inherited_macros: tuple[str, ...] = ()) -> set[str]:
     command = ['rpmspec', '-q', '--buildrequires']
+    for definition in inherited_macros:
+        command += ['--define', definition]
+    # RPM macros form a stack: --undefine exposes an earlier definition.
+    # OBS may supply the same distribution macro in several inherited layers.
+    # Explicit zero values isolate the numeric conditionals in this spec.
     for name in ('suse_version', 'fedora', 'rhel'):
-        command += ['--undefine', name]
+        command += ['--define', name + ' 0']
     command += ['--define', {'suse': 'suse_version 1600', 'fedora': 'fedora 44', 'el': 'rhel 10'}[family]]
     command += ['--define', 'dist ' + {'suse': '.lp160', 'fedora': '.fc44', 'el': '.el10'}[family]]
     if not tests:
@@ -27,6 +32,15 @@ def requirements(family: str, tests: bool = True) -> set[str]:
 
 
 class RpmFixtureDependencies(unittest.TestCase):
+    def test_inherited_distribution_layers_do_not_change_requirements(self):
+        for family in ('suse', 'fedora', 'el'):
+            for tests in (True, False):
+                expected = requirements(family, tests)
+                for depth in (1, 2, 4):
+                    with self.subTest(family=family, tests=tests, depth=depth):
+                        inherited = ('suse_version 1600', 'fedora 44', 'rhel 10') * depth
+                        self.assertEqual(expected, requirements(family, tests, inherited_macros=inherited))
+
     def test_suse_uses_available_package_aliases(self):
         actual = requirements('suse')
         self.assertTrue(PACKAGES <= actual, actual)

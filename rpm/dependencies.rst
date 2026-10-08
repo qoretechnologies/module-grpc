@@ -20,6 +20,13 @@ actual RPM parser for all three distribution branches and the disabled-test
 configuration. The same regression runs during the RPM's normal checks.
 All gRPC and Arrow Flight interoperability suites remain enabled.
 
+The parser tests explicitly set inactive distribution macros to zero before
+selecting the target family. RPM's ``--undefine`` removes just one definition
+from a macro's stack, so it cannot isolate a family when inherited OBS
+configuration defines the same macro repeatedly. The regression compares all
+requirements with tests enabled and disabled under one, two and four inherited
+macro layers for each family.
+
 Source installation and removal
 -------------------------------
 
