@@ -32,6 +32,7 @@ public class GrpcUnaryTest inherits QUnit::Test {
 
         addTestCase("unary call success", \testUnaryCallSuccess());
         addTestCase("unary call error from handler", \testUnaryCallHandlerError());
+        addTestCase("unary call error with line breaks in the message", \testUnaryCallErrorMessageEncoding());
         addTestCase("unary call unimplemented method", \testUnaryCallUnimplemented());
         addTestCase("gRPC framing round-trip", \testGrpcFraming());
         addTestCase("gRPC framing empty message", \testGrpcFramingEmpty());
@@ -99,6 +100,33 @@ public class GrpcUnaryTest inherits QUnit::Test {
         assertEq(GRPC_STATUS_INTERNAL, result.status_code, "should be INTERNAL error");
         assertTrue(result.status_message.find("HANDLER-ERROR") >= 0,
             "error message should contain exception info");
+    }
+
+    #! the status message is percent-encoded in the grpc-message trailer and decoded by the client, so a message with
+    #! line breaks, a percent sign, non-ASCII characters or a NUL character reaches the client as it was
+    testUnaryCallErrorMessageEncoding() {
+        ProtobufSchema schema(test_dir, "test.proto");
+
+        string desc = "line one\r\nline two: 100% é\x00end";
+        GrpcServer server(schema);
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                throw "HANDLER-ERROR", desc;
+            });
+        int port = server.addSecurePort("localhost:0",
+            <GrpcSslOptions>{"server_cert": CertPem, "server_key": KeyPem});
+        server.start();
+
+        on_exit server.shutdown();
+
+        GrpcChannel channel(sprintf("https://localhost:%d", port));
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+
+        hash<GrpcCallResult> result = client.call("UnaryCall", {"name": "error"});
+
+        assertEq(GRPC_STATUS_INTERNAL, result.status_code, "INTERNAL error");
+        assertEq("HANDLER-ERROR: " + desc, result.status_message, "the message reaches the client as it was");
     }
 
     testUnaryCallUnimplemented() {

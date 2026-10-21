@@ -1,0 +1,61 @@
+#!/usr/bin/env qore
+# -*- mode: qore; indent-tabs-mode: nil -*-
+
+/*
+    Copyright (C) 2026 Qore Technologies, s.r.o., all rights reserved
+
+    gRPC status message encoding test suite: the grpc-message trailer carries the status message percent-encoded
+*/
+
+%modern
+
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+
+%requires QUnit
+
+%requires protobuf
+%requires grpc
+%requires GrpcUtil
+
+%exec-class GrpcStatusMessageTest
+
+public class GrpcStatusMessageTest inherits QUnit::Test {
+    constructor() : Test("GrpcStatusMessageTest", "1.0") {
+        addTestCase("encoding", \testEncode());
+        addTestCase("decoding", \testDecode());
+        addTestCase("call status", \testParseCallStatus());
+        set_return_value(main());
+    }
+
+    testEncode() {
+        assertEq("OK", GrpcHelper::encodeStatusMessage("OK"));
+        assertEq("not found: order 17", GrpcHelper::encodeStatusMessage("not found: order 17"));
+        # line breaks, the percent sign, non-ASCII characters and a NUL character are percent-encoded
+        assertEq("a%0D%0Ab", GrpcHelper::encodeStatusMessage("a\r\nb"));
+        assertEq("100%25", GrpcHelper::encodeStatusMessage("100%"));
+        assertEq("%C3%A9", GrpcHelper::encodeStatusMessage("é"));
+        assertEq("a%00b", GrpcHelper::encodeStatusMessage("a\x00b"));
+        # a message in another encoding is encoded as UTF-8
+        assertEq("%C3%A9", GrpcHelper::encodeStatusMessage(convert_encoding("é", "ISO-8859-1")));
+    }
+
+    testDecode() {
+        foreach string msg in ("OK", "a\r\nb", "100%", "é", "a\x00b", "a+b") {
+            assertEq(msg, GrpcHelper::decodeStatusMessage(GrpcHelper::encodeStatusMessage(msg)), msg);
+        }
+        # a value that cannot be decoded is returned as it was received
+        assertEq("%zz%", GrpcHelper::decodeStatusMessage("%zz%"));
+        assertEq("%FF%FE", GrpcHelper::decodeStatusMessage("%FF%FE"));
+        assertEq("a+b", GrpcHelper::decodeStatusMessage("a+b"));
+    }
+
+    testParseCallStatus() {
+        hash<GrpcCallResult> result = GrpcHelper::parseCallStatus({
+            "status_code": 200,
+            "headers": {},
+            "trailers": {"grpc-status": "13", "grpc-message": "bad%0Arequest"},
+        });
+        assertEq(GRPC_STATUS_INTERNAL, result.status_code);
+        assertEq("bad\nrequest", result.status_message);
+    }
+}

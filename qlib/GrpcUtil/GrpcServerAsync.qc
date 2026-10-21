@@ -573,7 +573,7 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
         stream.ensureHeadersSent();
         hash<string, string> trailers = stream.getTrailingMetadata();
         trailers."grpc-status" = string(status_code);
-        trailers."grpc-message" = status_message;
+        trailers."grpc-message" = GrpcHelper::encodeStatusMessage(status_message);
         client.sendHttp2Trailers(stream_id, trailers);
         if (io_wake) {
             io_wake();
@@ -693,7 +693,7 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
         stream.ensureHeadersSent();
         hash<string, string> trailers = stream.getTrailingMetadata();
         trailers."grpc-status" = string(status_code);
-        trailers."grpc-message" = status_message;
+        trailers."grpc-message" = GrpcHelper::encodeStatusMessage(status_message);
         client.sendHttp2Trailers(stream_id, trailers);
         if (io_wake) {
             io_wake();
@@ -751,7 +751,7 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
             {"content-type": "application/grpc+proto"});
         client.sendHttp2Trailers(stream_id, {
             "grpc-status": string(status_code),
-            "grpc-message": message,
+            "grpc-message": GrpcHelper::encodeStatusMessage(message),
         });
         if (io_wake) {
             io_wake();

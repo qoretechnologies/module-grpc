@@ -222,6 +222,62 @@ public class GrpcHelper {
         return GRPC_STATUS_INTERNAL;
     }
 
+    #! Returns a status message encoded for the \c grpc-message trailer
+    /** The gRPC protocol carries the status message percent-encoded: the UTF-8 bytes of the message other than the
+        printable ASCII characters (space to \c "~") and the percent sign itself are written as \c "%XX".  A message
+        with a line break or a NUL character, such as an exception description, can therefore be sent in the trailer.
+
+        @param msg the status message
+
+        @return the message encoded for the \c grpc-message trailer
+
+        @par Example:
+        @code{.py}
+# "order 17 not found%0Ain warehouse W1"
+string value = GrpcHelper::encodeStatusMessage("order 17 not found\nin warehouse W1");
+        @endcode
+
+        @see decodeStatusMessage()
+    */
+    static string encodeStatusMessage(string msg) {
+        binary data = binary(convert_encoding(msg, "UTF-8"));
+        string rv = "";
+        for (int i = 0; i < data.size(); ++i) {
+            int c = data[i];
+            if (c >= 0x20 && c <= 0x7e && c != 0x25) {
+                rv += chr(c);
+            } else {
+                rv += sprintf("%%%02X", c);
+            }
+        }
+        return rv;
+    }
+
+    #! Returns the status message decoded from the value of a \c grpc-message trailer
+    /** The value is percent-decoded as the gRPC protocol requires.  A value that cannot be decoded, because a
+        percent-encoded sequence is not valid UTF-8, is returned as it was received, as the protocol requires: a
+        status message is never refused.
+
+        @param value the value of the \c grpc-message trailer
+
+        @return the decoded status message
+
+        @see encodeStatusMessage()
+    */
+    static string decodeStatusMessage(string value) {
+        if (!value.contains("%")) {
+            return value;
+        }
+        try {
+            return decode_url(value);
+        } catch (hash<ExceptionInfo> ex) {
+            if (ex.err != "URL-ENCODING-ERROR") {
+                rethrow;
+            }
+        }
+        return value;
+    }
+
     #! Extract the gRPC call status and metadata from an HTTP response
     /** Handles the three ways a gRPC peer can report the outcome of a call:
         - the normal case, where \c grpc-status is in the response trailers;
@@ -264,7 +320,8 @@ public class GrpcHelper {
             } else {
                 status_code = raw_status.toInt();
                 if (status_source."grpc-message".val()) {
-                    status_message = status_source."grpc-message";
+                    # the status message is percent-encoded
+                    status_message = GrpcHelper::decodeStatusMessage(status_source."grpc-message".toString());
                 } else if (status_code != GRPC_STATUS_OK) {
                     status_message = sprintf("gRPC status %d", status_code);
                 }
