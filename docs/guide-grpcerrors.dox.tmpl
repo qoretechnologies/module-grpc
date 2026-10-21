@@ -34,6 +34,12 @@
     @ref Qore::GRPC_STATUS_RESOURCE_EXHAUSTED (see @ref grpclimitsguide), and any other exception is returned as
     @ref Qore::GRPC_STATUS_INTERNAL.
 
+    The status message is sent in the \c grpc-message trailer percent-encoded, as the gRPC protocol requires (see
+    @ref Grpc::GrpcHelper::encodeStatusMessage() "GrpcHelper::encodeStatusMessage()"), so a message with line breaks
+    or non-ASCII characters, such as an exception description, reaches the client as it was; the client decodes it
+    into the \c status_message of the result, and a value that is not valid percent-encoded UTF-8 is returned as it
+    was received.
+
     In a client-streaming or bidirectional call, the server can finish the call before the client has sent every
     message, for example by rejecting it.  A later @ref Grpc::GrpcClientStream::write() "write()" then raises
     \c GRPC-STREAM-ERROR, and @ref Grpc::GrpcClientStream::finish() "finish()" returns the status the server sent.
