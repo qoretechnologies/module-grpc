@@ -25,26 +25,28 @@ echo "export QORE_GID=1000" >> ${ENV_FILE}
 
 export MAKE_JOBS=4
 
-# install interop test dependencies
-pip3 install --break-system-packages grpcio grpcio-tools 2>/dev/null \
-    || pip3 install grpcio grpcio-tools || true
-# pyarrow: only install from binary wheel (no source build on Alpine/musl);
-# interop tests gracefully skip if pyarrow is unavailable
-pip3 install --break-system-packages --only-binary :all: pyarrow 2>/dev/null \
-    || pip3 install --only-binary :all: pyarrow || true
+# The interop tests run against Python gRPC (test/grpc-interop.qtest, with server stubs that grpc_tools generates)
+# and PyArrow Flight (test/arrow-flight-interop.qtest), which the qore-test-base image provides.  The tests skip their
+# interop cases without them, so a job without them would pass without running those cases: it fails instead.  Each
+# check runs in its own interpreter, as the tests do: on Alpine, one process cannot load both grpc and pyarrow.flight.
+if ! python3 -c 'import grpc, grpc_tools.protoc; from google.protobuf import descriptor'; then
+    echo "ERROR: Python gRPC (grpcio, grpcio-tools, protobuf) is missing from the image; test/grpc-interop.qtest" \
+        "cannot run its Python interop cases" >&2
+    exit 1
+fi
+if ! python3 -c 'import pyarrow.flight'; then
+    echo "ERROR: PyArrow Flight (pyarrow.flight) is missing from the image; test/arrow-flight-interop.qtest cannot" \
+        "run its interop cases" >&2
+    exit 1
+fi
 
-# install grpcurl for interop testing
-GRPCURL_VERSION=1.9.3
-ARCH=$(uname -m)
-if [ "$ARCH" = "x86_64" ]; then
-    GRPCURL_ARCH="linux_x86_64"
-elif [ "$ARCH" = "aarch64" ]; then
-    GRPCURL_ARCH="linux_arm64"
+# test/grpc-interop.qtest runs grpcurl, which the qore-test-base image provides, against the module's server, and
+# skips those cases without it
+if ! command -v grpcurl > /dev/null 2>&1; then
+    echo "ERROR: grpcurl is missing from the image; test/grpc-interop.qtest cannot run its grpcurl cases" >&2
+    exit 1
 fi
-if [ -n "$GRPCURL_ARCH" ]; then
-    curl -sL "https://github.com/fullstorydev/grpcurl/releases/download/v${GRPCURL_VERSION}/grpcurl_${GRPCURL_VERSION}_${GRPCURL_ARCH}.tar.gz" \
-        | tar xz -C /tmp grpcurl && chmod +x /tmp/grpcurl || true
-fi
+grpcurl -version
 
 # build module and install
 echo && echo "-- building module --"
