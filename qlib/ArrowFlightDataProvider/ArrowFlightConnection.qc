@@ -33,7 +33,8 @@ public namespace ArrowFlightDataProvider {
 public class ArrowFlightConnection inherits ConnectionProvider::AbstractConnectionWithInfo {
     public {
         #! Connection scheme info
-        const ConnectionScheme = <ConnectionSchemeInfo>{
+        const ConnectionScheme = ConnectionProvider::connection_scheme_presentation("ArrowFlightDataProvider",
+            "ArrowFlightConnection", "en", <ConnectionSchemeInfo>{
             "display_name": "Arrow Flight Connection",
             "short_desc": "A connection to an Arrow Flight server",
             "desc": "A connection to an Arrow Flight server for high-performance columnar "
@@ -74,7 +75,7 @@ public class ArrowFlightConnection inherits ConnectionProvider::AbstractConnecti
                     "default_value": 30000,
                 },
             },
-        };
+        });
     }
 
     #! Creates the ArrowFlightConnection object

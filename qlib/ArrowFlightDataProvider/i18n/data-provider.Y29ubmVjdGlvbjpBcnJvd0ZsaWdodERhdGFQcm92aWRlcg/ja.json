@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "locales": {
+    "ja": {
+      "messages": {
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.desc": {
+          "source": "A connection to an Arrow Flight server for high-performance columnar data exchange using Apache Arrow IPC format",
+          "message": "Apache Arrow IPC形式を使用した高性能カラム形式データ交換のためのArrow Flightサーバーへの接続"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.display_name": {
+          "source": "Arrow Flight Connection",
+          "message": "Arrow Flight接続"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.desc": {
+          "source": "The maximum size in bytes of one response message received from the server; `0` (the default) means no limit.\n\nA larger message ends the call with the `RESOURCE_EXHAUSTED` status, so a huge message cannot exhaust memory; this limit also applies to streaming calls.",
+          "message": "サーバーから受信する1つの応答メッセージの最大サイズ（バイト単位）；`0`（デフォルト）は制限なしを意味する。\n\n大きなメッセージは `RESOURCE_EXHAUSTED` 状態で呼び出しを終了するため、メモリが枯渇することはない。この制限はストリーミング呼び出しにも適用される。"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.display_name": {
+          "source": "Max Message Size",
+          "message": "最大メッセージサイズ"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.short_desc": {
+          "source": "The maximum size of a response message received",
+          "message": "受信する応答メッセージの最大サイズ"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.desc": {
+          "source": "The maximum size in bytes of the response body of a unary call, which is received into memory completely before it is decoded; `0` (the default) means no limit.\n\nA larger response ends the call with the `RESOURCE_EXHAUSTED` status.  The response of a streaming call is received one message at a time and is limited by `max_message_size` instead.",
+          "message": "ユニアリー呼び出しの応答本文の最大サイズ（バイト単位）；受信後、完全にメモリに読み込まれてからデコードされる。`0`（デフォルト）は制限なしを意味する。\n\n大きな応答は `RESOURCE_EXHAUSTED` 状態で呼び出しを終了する。ストリーミング呼び出しの応答は1メッセージずつ受信され、`max_message_size` で制限される。"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.display_name": {
+          "source": "Max Response Body Size",
+          "message": "最大レスポンス本文サイズ"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.short_desc": {
+          "source": "The maximum size of a unary response body received into memory",
+          "message": "メモリに読み込まれるユニアリー応答本文の最大サイズ"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.dGltZW91dF9tcw.desc": {
+          "source": "The default timeout for Arrow Flight calls in milliseconds",
+          "message": "Arrow Flight呼び出しのデフォルトタイムアウト（ミリ秒単位）"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.dGltZW91dF9tcw.display_name": {
+          "source": "Timeout",
+          "message": "タイムアウト"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.dGltZW91dF9tcw.short_desc": {
+          "source": "Default call timeout in milliseconds",
+          "message": "デフォルトの呼び出しタイムアウト（ミリ秒単位）"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.short_desc": {
+          "source": "A connection to an Arrow Flight server",
+          "message": "Arrow Flightサーバーへの接続"
+        }
+      }
+    }
+  }
+}

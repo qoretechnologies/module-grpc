@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "locales": {
+    "pl": {
+      "messages": {
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.desc": {
+          "source": "A connection to an Arrow Flight server for high-performance columnar data exchange using Apache Arrow IPC format",
+          "message": "Połączenie z serwerem Arrow Flight do wydajnej wymiany danych kolumnowych przy użyciu formatu Apache Arrow IPC"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.display_name": {
+          "source": "Arrow Flight Connection",
+          "message": "Połączenie Arrow Flight"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.desc": {
+          "source": "The maximum size in bytes of one response message received from the server; `0` (the default) means no limit.\n\nA larger message ends the call with the `RESOURCE_EXHAUSTED` status, so a huge message cannot exhaust memory; this limit also applies to streaming calls.",
+          "message": "Maksymalny rozmiar w bajtach pojedynczej odpowiedzi otrzymanej od serwera; `0` (domyślnie) oznacza brak limitu.\n\nOdpowiedź o większym rozmiarze kończy wywołanie stanem `RESOURCE_EXHAUSTED`, więc ogromna odpowiedź nie może wyczerpać pamięci; ten limit dotyczy również wywołań strumieniowych."
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.display_name": {
+          "source": "Max Message Size",
+          "message": "Maksymalny rozmiar wiadomości"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.short_desc": {
+          "source": "The maximum size of a response message received",
+          "message": "Maksymalny rozmiar otrzymanej odpowiedzi"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.desc": {
+          "source": "The maximum size in bytes of the response body of a unary call, which is received into memory completely before it is decoded; `0` (the default) means no limit.\n\nA larger response ends the call with the `RESOURCE_EXHAUSTED` status.  The response of a streaming call is received one message at a time and is limited by `max_message_size` instead.",
+          "message": "Maksymalny rozmiar ciała odpowiedzi wywołania jednokrotnego, które jest całkowicie odczytywane do pamięci przed dekodowaniem; `0` (domyślnie) oznacza brak limitu.\n\nOdpowiedź o większym rozmiarze kończy wywołanie stanem `RESOURCE_EXHAUSTED`. Odpowiedź wywołania strumieniowego jest odbierana pojedynczo i ograniczona przez `max_message_size` zamiast tego."
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.display_name": {
+          "source": "Max Response Body Size",
+          "message": "Maksymalny rozmiar treści odpowiedzi"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.short_desc": {
+          "source": "The maximum size of a unary response body received into memory",
+          "message": "Maksymalny rozmiar ciała odpowiedzi jednokrotnej odczytanej do pamięci"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.dGltZW91dF9tcw.desc": {
+          "source": "The default timeout for Arrow Flight calls in milliseconds",
+          "message": "Domyślny czas oczekiwania na wywołania Arrow Flight w milisekundach"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.dGltZW91dF9tcw.display_name": {
+          "source": "Timeout",
+          "message": "Limit czasu"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.dGltZW91dF9tcw.short_desc": {
+          "source": "Default call timeout in milliseconds",
+          "message": "Domyślny czas wygaśnięcia wywołania w milisekundach"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.short_desc": {
+          "source": "A connection to an Arrow Flight server",
+          "message": "Połączenie z serwerem Arrow Flight"
+        }
+      }
+    }
+  }
+}

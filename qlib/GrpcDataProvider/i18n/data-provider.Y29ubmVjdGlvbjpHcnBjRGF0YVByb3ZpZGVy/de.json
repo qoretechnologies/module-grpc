@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "locales": {
+    "de": {
+      "messages": {
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.desc": {
+          "source": "A connection to a gRPC server supporting protobuf serialization and all four RPC patterns (unary, server streaming, client streaming, and bidirectional streaming)",
+          "message": "Eine Verbindung zu einem gRPC-Server, der Protobuf-Serienisierung und alle vier RPC-Muster (einfach, Server-Streaming, Client-Streaming und bidirektionales Streaming) unterstützt"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.display_name": {
+          "source": "gRPC Connection",
+          "message": "gRPC-Verbindung"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X21lc3NhZ2Vfc2l6ZQ.desc": {
+          "source": "The maximum size in bytes of one response message received from the server; `0` (the default) means no limit.\n\nA larger message ends the call with the `RESOURCE_EXHAUSTED` status, so a huge message cannot exhaust memory; this limit also applies to streaming calls.",
+          "message": "Die maximale Größe in Bytes einer Antwortnachricht, die vom Server empfangen wird; `0` (der Standard) bedeutet keine Begrenzung.\n\nEine größere Nachricht beendet den Aufruf mit dem `RESOURCE_EXHAUSTED`-Status, sodass Speicher nicht erschöpft werden kann; diese Begrenzung gilt auch für Streaming-Aufrufe."
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X21lc3NhZ2Vfc2l6ZQ.display_name": {
+          "source": "Max Message Size",
+          "message": "Maximale Nachrichtengröße"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X21lc3NhZ2Vfc2l6ZQ.short_desc": {
+          "source": "The maximum size of a response message received",
+          "message": "Die maximale Größe einer empfangenen Antwortnachricht"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.desc": {
+          "source": "The maximum size in bytes of the response body of a unary call, which is received into memory completely before it is decoded; `0` (the default) means no limit.\n\nA larger response ends the call with the `RESOURCE_EXHAUSTED` status.  The response of a streaming call is received one message at a time and is limited by `max_message_size` instead.",
+          "message": "Die maximale Größe in Bytes des Antwortkörpers eines einzeiligen Aufrufs, der vollständig in den Speicher geladen wird, bevor er decodiert wird; `0` (der Standard) bedeutet keine Begrenzung.\n\nEine größere Antwort beendet den Aufruf mit dem `RESOURCE_EXHAUSTED`-Status. Die Antwort eines Streaming-Aufrufs wird jeweils eine Nachricht zu einer Zeit empfangen und ist stattdessen durch `max_message_size` begrenzt."
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.display_name": {
+          "source": "Max Response Body Size",
+          "message": "Maximale Größe des Antworttexts"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.short_desc": {
+          "source": "The maximum size of a unary response body received into memory",
+          "message": "Die maximale Größe eines in den Speicher geladenen einzeiligen Antwortkörpers"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fY29udGVudA.desc": {
+          "source": "Inline protobuf schema definition as a string; use this when the schema is not available as a file",
+          "message": "Inline-Protobuf-Schemadefinition als Zeichenkette; verwenden Sie dies, wenn das Schema nicht als Datei verfügbar ist"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fY29udGVudA.display_name": {
+          "source": "Proto Content",
+          "message": "Proto-Inhalt"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fY29udGVudA.short_desc": {
+          "source": "Inline .proto definition as a string",
+          "message": "Inline-.proto-Definition als Zeichenkette"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fZmlsZQ.desc": {
+          "source": "The `.proto` file name within the `proto_path` directory",
+          "message": "Der `.proto` Dateiname innerhalb des `proto_path` Verzeichnisses"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fZmlsZQ.display_name": {
+          "source": "Proto File Name",
+          "message": "Name der Protobuf-Datei"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fZmlsZQ.short_desc": {
+          "source": "Name of the .proto file to load",
+          "message": "Name der zu ladenden .proto-Datei"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fcGF0aA.desc": {
+          "source": "Filesystem path to the directory containing `.proto` files",
+          "message": "Dateisystempfad zum Verzeichnis, das `.proto`-Dateien enthält"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fcGF0aA.display_name": {
+          "source": "Proto File Path",
+          "message": "Pfad zur Protobuf-Datei"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fcGF0aA.short_desc": {
+          "source": "Path to directory containing .proto files",
+          "message": "Pfad zum Verzeichnis, das .proto-Dateien enthält"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.dGltZW91dF9tcw.desc": {
+          "source": "The default timeout for gRPC calls in milliseconds",
+          "message": "Der Standardtimeout für gRPC-Aufrufe in Millisekunden"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.dGltZW91dF9tcw.display_name": {
+          "source": "Timeout",
+          "message": "Timeout"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.dGltZW91dF9tcw.short_desc": {
+          "source": "Default call timeout in milliseconds",
+          "message": "Standardaufrufzeit in Millisekunden"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.dXNlX3JlZmxlY3Rpb24.desc": {
+          "source": "If `True`, the gRPC server reflection protocol will be used to discover available services and their schemas dynamically",
+          "message": "Wenn `True`, wird das gRPC-Server-Reflection-Protokoll verwendet, um verfügbare Dienste und ihre Schemata dynamisch zu entdecken"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.dXNlX3JlZmxlY3Rpb24.display_name": {
+          "source": "Use Reflection",
+          "message": "Reflexion verwenden"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.dXNlX3JlZmxlY3Rpb24.short_desc": {
+          "source": "Use gRPC server reflection for schema discovery",
+          "message": "Verwenden Sie gRPC-Server-Reflection zur Schema-Erkennung"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.short_desc": {
+          "source": "A connection to a gRPC server",
+          "message": "Eine Verbindung zu einem gRPC-Server"
+        }
+      }
+    }
+  }
+}

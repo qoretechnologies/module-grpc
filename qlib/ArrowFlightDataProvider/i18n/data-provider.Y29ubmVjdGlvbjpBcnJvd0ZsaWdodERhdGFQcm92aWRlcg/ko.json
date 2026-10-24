@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "locales": {
+    "ko": {
+      "messages": {
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.desc": {
+          "source": "A connection to an Arrow Flight server for high-performance columnar data exchange using Apache Arrow IPC format",
+          "message": "Apache Arrow IPC 형식을 사용하여 고성능 컬럼형 데이터 교환을 위한 Arrow Flight 서버에 대한 연결"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.display_name": {
+          "source": "Arrow Flight Connection",
+          "message": "Arrow Flight 연결"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.desc": {
+          "source": "The maximum size in bytes of one response message received from the server; `0` (the default) means no limit.\n\nA larger message ends the call with the `RESOURCE_EXHAUSTED` status, so a huge message cannot exhaust memory; this limit also applies to streaming calls.",
+          "message": "서버로부터 수신하는 하나의 응답 메시지의 최대 크기(바이트 단위); `0` (기본값)은 제한 없음을 의미함.\n\n더 큰 메시지는 `RESOURCE_EXHAUSTED` 상태로 호출을 종료하므로 메모리가 고갈되지 않음. 이 제한은 스트리밍 호출에도 적용됨."
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.display_name": {
+          "source": "Max Message Size",
+          "message": "최대 메시지 크기"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.short_desc": {
+          "source": "The maximum size of a response message received",
+          "message": "수신한 응답 메시지의 최대 크기"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.desc": {
+          "source": "The maximum size in bytes of the response body of a unary call, which is received into memory completely before it is decoded; `0` (the default) means no limit.\n\nA larger response ends the call with the `RESOURCE_EXHAUSTED` status.  The response of a streaming call is received one message at a time and is limited by `max_message_size` instead.",
+          "message": "일원 호출의 응답 본문 최대 크기(바이트 단위), 이는 디코딩 전에 메모리에 완전히 수신됨; `0` (기본값)은 제한 없음을 의미함.\n\n더 큰 응답은 `RESOURCE_EXHAUSTED` 상태로 호출을 종료함. 스트리밍 호출의 응답은 하나의 메시지씩 수신되며, `max_message_size`로 제한됨."
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.display_name": {
+          "source": "Max Response Body Size",
+          "message": "최대 응답 본문 크기"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.short_desc": {
+          "source": "The maximum size of a unary response body received into memory",
+          "message": "메모리에 수신되는 일원 응답 본문의 최대 크기"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.dGltZW91dF9tcw.desc": {
+          "source": "The default timeout for Arrow Flight calls in milliseconds",
+          "message": "Arrow Flight 호출의 기본 타임아웃(밀리초 단위)"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.dGltZW91dF9tcw.display_name": {
+          "source": "Timeout",
+          "message": "제한 시간"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.dGltZW91dF9tcw.short_desc": {
+          "source": "Default call timeout in milliseconds",
+          "message": "기본 호출 타임아웃(밀리초 단위)"
+        },
+        "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.short_desc": {
+          "source": "A connection to an Arrow Flight server",
+          "message": "Arrow Flight 서버에 대한 연결"
+        }
+      }
+    }
+  }
+}

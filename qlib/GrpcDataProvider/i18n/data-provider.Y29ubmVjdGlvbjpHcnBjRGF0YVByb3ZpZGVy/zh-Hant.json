@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "locales": {
+    "zh-Hant": {
+      "messages": {
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.desc": {
+          "source": "A connection to a gRPC server supporting protobuf serialization and all four RPC patterns (unary, server streaming, client streaming, and bidirectional streaming)",
+          "message": "支援 Protobuf 序列化及所有四種 RPC 模式（單一訊息、伺服器串流、客戶端串流與雙向串流）的 gRPC 伺服器連接"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.display_name": {
+          "source": "gRPC Connection",
+          "message": "gRPC 連接"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X21lc3NhZ2Vfc2l6ZQ.desc": {
+          "source": "The maximum size in bytes of one response message received from the server; `0` (the default) means no limit.\n\nA larger message ends the call with the `RESOURCE_EXHAUSTED` status, so a huge message cannot exhaust memory; this limit also applies to streaming calls.",
+          "message": "從伺服器接收的單一回應訊息的最大位元組大小；`0`（預設值）表示無限制。\n\n若訊息過大，會以 `RESOURCE_EXHAUSTED` 狀態結束呼叫，因此不會耗盡記憶體；此限制也適用於串流呼叫。"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X21lc3NhZ2Vfc2l6ZQ.display_name": {
+          "source": "Max Message Size",
+          "message": "最大訊息容量"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X21lc3NhZ2Vfc2l6ZQ.short_desc": {
+          "source": "The maximum size of a response message received",
+          "message": "接收的回應訊息最大大小"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.desc": {
+          "source": "The maximum size in bytes of the response body of a unary call, which is received into memory completely before it is decoded; `0` (the default) means no limit.\n\nA larger response ends the call with the `RESOURCE_EXHAUSTED` status.  The response of a streaming call is received one message at a time and is limited by `max_message_size` instead.",
+          "message": "單一呼叫的回應主體最大位元組大小，會完全載入記憶體後才進行解碼；`0`（預設值）表示無限制。\n\n若回應過大，會以 `RESOURCE_EXHAUSTED` 狀態結束呼叫。串流呼叫的回應是逐筆接收，其限制由 `max_message_size` 決定。"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.display_name": {
+          "source": "Max Response Body Size",
+          "message": "回應本文大小上限"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.short_desc": {
+          "source": "The maximum size of a unary response body received into memory",
+          "message": "載入記憶體的單一回應主體最大大小"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fY29udGVudA.desc": {
+          "source": "Inline protobuf schema definition as a string; use this when the schema is not available as a file",
+          "message": "以字串形式內嵌的 Protobuf 設計範本；當設計範本無法以檔案形式取得時使用"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fY29udGVudA.display_name": {
+          "source": "Proto Content",
+          "message": "Proto 內容"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fY29udGVudA.short_desc": {
+          "source": "Inline .proto definition as a string",
+          "message": "以字串形式內嵌的 .proto 定義"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fZmlsZQ.desc": {
+          "source": "The `.proto` file name within the `proto_path` directory",
+          "message": "`.proto` 目錄中的 `proto_path` 檔案名稱"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fZmlsZQ.display_name": {
+          "source": "Proto File Name",
+          "message": "Proto 檔案名稱"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fZmlsZQ.short_desc": {
+          "source": "Name of the .proto file to load",
+          "message": "要載入的 .proto 檔案名稱"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fcGF0aA.desc": {
+          "source": "Filesystem path to the directory containing `.proto` files",
+          "message": "包含 `.proto` 檔案的目錄路徑"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fcGF0aA.display_name": {
+          "source": "Proto File Path",
+          "message": "Proto 檔案路徑"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fcGF0aA.short_desc": {
+          "source": "Path to directory containing .proto files",
+          "message": "包含 .proto 檔案的目錄路徑"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.dGltZW91dF9tcw.desc": {
+          "source": "The default timeout for gRPC calls in milliseconds",
+          "message": "gRPC 呼叫的預設逾時時間（毫秒）"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.dGltZW91dF9tcw.display_name": {
+          "source": "Timeout",
+          "message": "逾時"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.dGltZW91dF9tcw.short_desc": {
+          "source": "Default call timeout in milliseconds",
+          "message": "預設呼叫逾時時間（毫秒）"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.dXNlX3JlZmxlY3Rpb24.desc": {
+          "source": "If `True`, the gRPC server reflection protocol will be used to discover available services and their schemas dynamically",
+          "message": "若 `True`，將使用 gRPC 伺服器反射協定動態發現可用服務及其結構"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.dXNlX3JlZmxlY3Rpb24.display_name": {
+          "source": "Use Reflection",
+          "message": "使用反射"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.dXNlX3JlZmxlY3Rpb24.short_desc": {
+          "source": "Use gRPC server reflection for schema discovery",
+          "message": "使用 gRPC 伺服器反射進行結構發現"
+        },
+        "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.short_desc": {
+          "source": "A connection to a gRPC server",
+          "message": "與 gRPC 伺服器的連接"
+        }
+      }
+    }
+  }
+}

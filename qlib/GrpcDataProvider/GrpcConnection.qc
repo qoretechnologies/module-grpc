@@ -33,7 +33,8 @@ public namespace GrpcDataProvider {
 public class GrpcConnection inherits ConnectionProvider::AbstractConnectionWithInfo {
     public {
         #! Connection scheme info
-        const ConnectionScheme = <ConnectionSchemeInfo>{
+        const ConnectionScheme = ConnectionProvider::connection_scheme_presentation("GrpcDataProvider",
+            "GrpcConnection", "en", <ConnectionSchemeInfo>{
             "display_name": "gRPC Connection",
             "short_desc": "A connection to a gRPC server",
             "desc": "A connection to a gRPC server supporting protobuf serialization "
@@ -102,7 +103,7 @@ public class GrpcConnection inherits ConnectionProvider::AbstractConnectionWithI
                     "default_value": 30000,
                 },
             },
-        };
+        });
     }
 
     #! Creates the GrpcConnection object
