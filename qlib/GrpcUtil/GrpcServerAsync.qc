@@ -130,15 +130,20 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
     }
 
     #! Add an insecure (plaintext h2c) listener
+    /** The listener socket is bound with \c SO_REUSEADDR, as servers are, so a server can bind the port again
+        while connections of an earlier server on the port, which bound it in the same way, are still in
+        \c TIME_WAIT or \c FIN_WAIT_2; a port that another socket listens on is still refused.  On Linux the
+        earlier server must have bound the port with \c SO_REUSEADDR as well; on macOS it need not.
+
+        @param addr the address to bind, as \c "host:port"; port \c 0 binds a port assigned by the system
+
+        @return the port bound
+
+        @throw GRPC-BIND-ERROR the address cannot be bound or the socket cannot listen; the message names the system
+        error and its error number
+    */
     int addInsecurePort(string addr) {
-        Socket sock();
-        try {
-            sock.bind(addr);
-            sock.listen();
-        } catch (hash<ExceptionInfo> ex) {
-            throw "GRPC-BIND-ERROR", sprintf("failed to bind '%s': %s: %s",
-                addr, ex.err, ex.desc);
-        }
+        Socket sock = bindListener(addr);
         int port = sock.getPort();
         m_listeners += sock;
         return port;
@@ -149,20 +154,35 @@ public class GrpcServerAsync inherits HttpServerAsyncIo::HttpAsyncTarget {
         at start() time rather than installed on the Socket here — the async
         controller performs the TLS handshake per accepted connection via its
         HttpAcceptPollOperation, which needs the cert/key at accept time.
+
+        The listener socket is bound as described for @ref addInsecurePort().
+
+        @throw GRPC-BIND-ERROR the address cannot be bound or the socket cannot listen; the message names the system
+        error and its error number
     */
     int addSecurePort(string addr, hash<GrpcSslOptions> ssl) {
-        Socket sock();
-        try {
-            sock.bind(addr);
-            sock.listen();
-        } catch (hash<ExceptionInfo> ex) {
-            throw "GRPC-BIND-ERROR", sprintf("failed to bind '%s': %s: %s",
-                addr, ex.err, ex.desc);
-        }
+        Socket sock = bindListener(addr);
         int port = sock.getPort();
         m_listeners += sock;
         m_ssl_configs += {"port": port, "ssl": ssl};
         return port;
+    }
+
+    #! Returns a socket bound to the given address and listening, or throws GRPC-BIND-ERROR naming the cause
+    /** Socket::bind() and Socket::listen() report a failure by their return value and errno(); without the check
+        a failed bind surfaced only as the SOCKET-NOT-OPEN exception of the listen() call that followed it.
+    */
+    private Socket bindListener(string addr) {
+        Socket sock();
+        if (sock.bind(addr, True)) {
+            int err = errno();
+            throw "GRPC-BIND-ERROR", sprintf("failed to bind '%s': %s (errno %d)", addr, strerror(err), err);
+        }
+        if (sock.listen()) {
+            int err = errno();
+            throw "GRPC-BIND-ERROR", sprintf("failed to listen on '%s': %s (errno %d)", addr, strerror(err), err);
+        }
+        return sock;
     }
 
     #! Start the server (non-blocking)

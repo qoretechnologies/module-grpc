@@ -1,0 +1,214 @@
+#!/usr/bin/env qore
+# -*- mode: qore; indent-tabs-mode: nil -*-
+
+/*
+    Copyright (C) 2026 Qore Technologies, s.r.o., all rights reserved
+
+    gRPC server listener bind test suite: a server binds a port again while connections of an earlier server on the
+    port are still closing, and a failed bind names its cause
+*/
+
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+
+%requires QUnit
+
+%requires protobuf
+%requires grpc
+%requires GrpcUtil
+
+%exec-class GrpcBindTest
+
+public class GrpcBindTest inherits QUnit::Test {
+    private {
+        string test_dir;
+        string CertPem;
+        string KeyPem;
+
+        #! client ends of connections kept open while a test runs
+        list<Socket> clients;
+    }
+
+    constructor() : Test("GrpcBindTest", "1.0") {
+        test_dir = get_script_dir();
+        CertPem = ReadOnlyFile::readTextFile(test_dir + "/certs/server.crt");
+        KeyPem = ReadOnlyFile::readTextFile(test_dir + "/certs/server.key");
+
+        addTestCase("insecure port rebound with a server connection in TIME_WAIT",
+            \testInsecureRebindTimeWait());
+        addTestCase("insecure port rebound with a server connection in FIN_WAIT_2",
+            \testInsecureRebindFinWait());
+        addTestCase("secure port rebound with a server connection in TIME_WAIT",
+            \testSecureRebindTimeWait());
+        addTestCase("bind refused while another socket listens on the port", \testBindListeningPort());
+        addTestCase("secure bind refused while another socket listens on the port",
+            \testSecureBindListeningPort());
+        addTestCase("bind of an address that is not local names the cause", \testBindNonLocalAddress());
+
+        set_return_value(main());
+    }
+
+    globalTearDown() {
+        map $1.close(), clients;
+        clients = ();
+    }
+
+    #! Returns a port on 127.0.0.1 that a closed server listened on; its server end of a connection is still closing
+    /** The server binds the port with SO_REUSEADDR, as a gRPC server does, which Linux requires of the earlier
+        server for a rebind of the port while its connections close.  It closes its end of the connection first (the
+        active close), so that end stays in FIN_WAIT_2 while the client keeps the connection, and goes to TIME_WAIT
+        when the client closes it too.  A plain bind of the port fails then, which the test checks, so that the test
+        proves the condition it is written for.
+    */
+    private int getClosingPort(bool client_keeps_connection) {
+        int port;
+        {
+            Socket srv();
+            assertEq(0, srv.bind("127.0.0.1:0", True), "initial bind");
+            assertEq(0, srv.listen(), "initial listen");
+            port = srv.getPort();
+            Socket cli();
+            cli.connect("127.0.0.1:" + port);
+            Socket acc = srv.accept(10s);
+            assertTrue(exists acc, "connection accepted");
+            acc.close();
+            srv.close();
+            if (client_keeps_connection) {
+                clients += cli;
+            } else {
+                # wait until the server's FIN has arrived, so the client's close completes the close sequence
+                try {
+                    cli.recv(1, 10s);
+                } catch (hash<ExceptionInfo> ex) {
+                    assertEq("SOCKET-CLOSED", ex.err, "client sees the server's close");
+                }
+                cli.close();
+            }
+        }
+
+        # precondition: without SO_REUSEADDR the port cannot be bound
+        Socket plain();
+        int rc = plain.bind("127.0.0.1:" + port);
+        plain.close();
+        assertEq(-1, rc, sprintf("a plain bind of port %d fails while the server connection closes", port));
+        return port;
+    }
+
+    private ProtobufSchema getSchema() {
+        return new ProtobufSchema(test_dir, "test.proto");
+    }
+
+    private registerEcho(GrpcServerAsync server) {
+        server.registerHandler("TestService", "UnaryCall",
+            hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+                return {
+                    "message": "Hello, " + request.name,
+                    "status": 0,
+                };
+            });
+    }
+
+    private checkCall(string url, ProtobufSchema schema) {
+        GrpcChannel channel(url);
+        on_exit channel.shutdown();
+        GrpcClient client(channel, schema, "TestService");
+        hash<GrpcCallResult> result = client.call("UnaryCall", {"name": "again", "id": 1});
+        assertEq(GRPC_STATUS_OK, result.status_code, "status");
+        assertEq("Hello, again", result.body.message, "response message");
+    }
+
+    private rebindInsecure(bool client_keeps_connection) {
+        int port = getClosingPort(client_keeps_connection);
+        ProtobufSchema schema = getSchema();
+        GrpcServer server(schema);
+        registerEcho(server);
+        assertEq(port, server.addInsecurePort("127.0.0.1:" + port), "port bound again");
+        server.start();
+        on_exit server.shutdown();
+        checkCall(sprintf("http://127.0.0.1:%d", port), schema);
+    }
+
+    testInsecureRebindTimeWait() {
+        rebindInsecure(False);
+    }
+
+    testInsecureRebindFinWait() {
+        rebindInsecure(True);
+    }
+
+    testSecureRebindTimeWait() {
+        int port = getClosingPort(False);
+        ProtobufSchema schema = getSchema();
+        GrpcServer server(schema);
+        registerEcho(server);
+        assertEq(port, server.addSecurePort("127.0.0.1:" + port,
+            <GrpcSslOptions>{"server_cert": CertPem, "server_key": KeyPem}), "port bound again");
+        server.start();
+        on_exit server.shutdown();
+        checkCall(sprintf("https://localhost:%d", port), schema);
+    }
+
+    #! Checks that the call raises GRPC-BIND-ERROR with exactly the given message
+    private checkBindError(code call, string expected) {
+        *hash<ExceptionInfo> caught;
+        try {
+            call();
+        } catch (hash<ExceptionInfo> ex) {
+            caught = ex;
+        }
+        assertEq("GRPC-BIND-ERROR", caught.err, "error code");
+        assertEq(expected, caught.desc, "error message");
+    }
+
+    #! Returns a listening socket on 127.0.0.1 and the message of the error that a bind of its port gives
+    private hash<auto> getListeningPort() {
+        Socket srv();
+        assertEq(0, srv.bind("127.0.0.1:0"), "listener bind");
+        assertEq(0, srv.listen(), "listener listen");
+        int port = srv.getPort();
+
+        Socket other();
+        int rc = other.bind("127.0.0.1:" + port, True);
+        int err = errno();
+        other.close();
+        assertEq(-1, rc, "a second bind of a listening port fails");
+        assertTrue(err > 0, "the failed bind sets errno");
+        return {
+            "srv": srv,
+            "port": port,
+            "expected": sprintf("failed to bind '127.0.0.1:%d': %s (errno %d)", port, strerror(err), err),
+        };
+    }
+
+    testBindListeningPort() {
+        hash<auto> l = getListeningPort();
+        on_exit l.srv.close();
+        GrpcServer server(getSchema());
+        checkBindError(sub () { server.addInsecurePort("127.0.0.1:" + l.port); }, l.expected);
+    }
+
+    testSecureBindListeningPort() {
+        hash<auto> l = getListeningPort();
+        on_exit l.srv.close();
+        GrpcServer server(getSchema());
+        checkBindError(sub () {
+            server.addSecurePort("127.0.0.1:" + l.port,
+                <GrpcSslOptions>{"server_cert": CertPem, "server_key": KeyPem});
+        }, l.expected);
+    }
+
+    testBindNonLocalAddress() {
+        # 192.0.2.1 is in TEST-NET-1 (RFC 5737), which is never an address of the local host
+        string addr = "192.0.2.1:0";
+        Socket plain();
+        int rc = plain.bind(addr, True);
+        int err = errno();
+        plain.close();
+        assertEq(-1, rc, "a bind of an address that is not local fails");
+        assertTrue(err > 0, "the failed bind sets errno");
+
+        GrpcServer server(getSchema());
+        checkBindError(sub () { server.addInsecurePort(addr); },
+            sprintf("failed to bind '%s': %s (errno %d)", addr, strerror(err), err));
+    }
+}
