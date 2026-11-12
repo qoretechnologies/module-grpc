@@ -34,6 +34,9 @@ static void grpc_module_init(QoreModuleInitContext& ctx, ExceptionSink& xsink);
 static void grpc_module_ns_init(QoreNamespace* rns, QoreNamespace* qns, ExceptionSink& xsink);
 static void grpc_module_delete();
 
+// the module's namespace; purged when the module is deleted (see QoreModuleInfo::ns)
+QoreNamespace GrpcNs("Qore::Grpc");
+
 extern "C" DLLEXPORT void grpc_qore_module_desc(QoreModuleInfo& mod_info) {
     mod_info.name = "grpc";
     mod_info.version = "1.0.0";
@@ -45,6 +48,10 @@ extern "C" DLLEXPORT void grpc_qore_module_desc(QoreModuleInfo& mod_info) {
     mod_info.init = grpc_module_init;
     mod_info.ns_init = grpc_module_ns_init;
     mod_info.del = grpc_module_delete;
+#ifdef QORE_HAS_MODULE_NS_PURGE
+    // the namespace is purged when the module is deleted, before the types are freed (see QoreModuleInfo::ns)
+    mod_info.ns = &GrpcNs;
+#endif
     mod_info.license = QL_MIT;
     mod_info.license_str = "MIT";
 }
@@ -61,8 +68,6 @@ const TypedHashDecl* hashdeclGrpcMethodInfo = nullptr;
 const TypedHashDecl* hashdeclArrowFieldInfo = nullptr;
 const TypedHashDecl* hashdeclArrowSchemaInfo = nullptr;
 const TypedHashDecl* hashdeclArrowIpcData = nullptr;
-
-QoreNamespace GrpcNs("Qore::Grpc");
 
 static void grpc_module_init(QoreModuleInitContext& ctx, ExceptionSink& xsink) {
     // Initialize gRPC constants (GRPC_STATUS_* etc., defined in qc_grpc_types.qpp)
