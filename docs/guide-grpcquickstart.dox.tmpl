@@ -31,6 +31,9 @@ channel.shutdown();
 
     @section grpcserver Server
 
+    The server classes are in the \c GrpcServerUtil module (\c "%requires GrpcServerUtil", which re-exports
+    \c GrpcUtil).
+
     @code{.py}
 ProtobufSchema schema("./proto/", "service.proto");
 GrpcServer server(schema);

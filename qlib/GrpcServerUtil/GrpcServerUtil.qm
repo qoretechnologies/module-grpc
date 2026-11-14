@@ -1,0 +1,155 @@
+# -*- mode: qore; indent-tabs-mode: nil -*-
+#! @file GrpcServerUtil.qm Qore gRPC server module
+
+/*  GrpcServerUtil.qm Copyright 2026 Qore Technologies, s.r.o.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+*/
+
+%modern
+
+%requires protobuf
+%requires grpc
+%requires AsyncSocketIo
+%requires HttpServerAsyncIo
+%requires(reexport) GrpcUtil
+
+module GrpcServerUtil {
+    version = "1.0";
+    desc = "Qore gRPC server module";
+    author = "Qore Technologies, s.r.o.";
+    url = "https://github.com/qoretechnologies/module-grpc";
+    license = "MIT";
+    # no functional domains are declared: the module serves requests on listeners and threads of its own (it requires
+    # HttpServerAsyncIo, a server module that is not meant for Programs restricted like a Qorus interface), so such a
+    # Program cannot load it; the client modules (GrpcUtil, GrpcDataProvider, ...) do not require it
+}
+
+/** @mainpage GrpcServerUtil Module
+
+    @tableofcontents
+
+    @section grpcserverutilintro GrpcServerUtil Module Introduction
+
+    The %GrpcServerUtil module serves gRPC requests: it provides the server side of the gRPC support that is built
+    on the @ref grpcutilintro "GrpcUtil module" (the client classes, which this module re-exports).  The module is
+    built on \c HttpServerAsyncIo, a server module that is not meant for Programs restricted like a Qorus interface
+    (\c PO_NO_PROCESS_CONTROL and \c PO_NO_THREAD_CONTROL), so such a Program cannot load it, while the client modules
+    can be loaded by it.
+
+    The following classes are provided by this module:
+    - @ref Grpc::GrpcServer "GrpcServer": serves gRPC requests with registered handlers
+    - @ref Grpc::GrpcServerAsync "GrpcServerAsync": the async-only implementation that GrpcServer aliases
+    - @ref Grpc::GrpcServerStream "GrpcServerStream": server-side streaming handle with read/write and metadata
+      support
+    - @ref Grpc::GrpcReflectionService "GrpcReflectionService": built-in gRPC server reflection
+      (grpc.reflection.v1) enabling clients to discover services without local \c .proto files
+    - @ref Grpc::ArrowFlightServer "ArrowFlightServer" and @ref Grpc::ArrowFlightDatasetHandler
+      "ArrowFlightDatasetHandler": the Arrow Flight server and its dataset handler
+
+    Code that used the server classes through \c %requires GrpcUtil must use \c %requires GrpcServerUtil instead.
+
+    @section grpcserverutil_server_usage Server Usage
+
+    @subsection grpcserverutil_server_basic Basic Server
+
+    @code{.py}
+%modern
+%requires grpc
+%requires GrpcServerUtil
+
+ProtobufSchema schema("./proto/", "helloworld.proto");
+GrpcServer server(schema);
+
+# Register a unary handler
+server.registerHandler("Greeter", "SayHello",
+    hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
+        return {"message": "Hello, " + request.name};
+    });
+
+int port = server.addInsecurePort("localhost:0");
+printf("Server listening on port %d\n", port);
+server.start();
+server.wait();
+    @endcode
+
+    @subsection grpcserverutil_server_streaming Server-Streaming Handler
+
+    @code{.py}
+server.registerHandler("Items", "ListItems",
+    sub(hash<auto> request, GrpcServerStream stream, hash<string, string> metadata) {
+        for (int i = 0; i < 10; ++i) {
+            stream.write({"name": sprintf("item-%d", i), "category": request.category});
+        }
+        stream.setTrailingMetadata({"x-count": "10"});
+    });
+    @endcode
+
+    @subsection grpcserverutil_server_bidi Bidirectional Streaming Handler
+
+    Bidirectional streaming handlers receive a @ref Grpc::GrpcServerStream "GrpcServerStream"
+    for interactive communication. The handler reads client messages incrementally
+    and writes responses immediately -- no pre-buffering of the client stream:
+
+    @code{.py}
+server.registerHandler("Chat", "Send",
+    sub(GrpcServerStream stream, hash<string, string> metadata) {
+        while (*hash<auto> msg = stream.read(30s)) {
+            # Process each message and respond immediately
+            stream.write({"text": "Echo: " + msg.text});
+        }
+    });
+    @endcode
+
+    @subsection grpcserverutil_server_clientstream Client Streaming Handler
+
+    Client streaming handlers also use @ref Grpc::GrpcServerStream "GrpcServerStream"
+    but return a response hash instead of writing to the stream:
+
+    @code{.py}
+server.registerHandler("Upload", "Send",
+    hash<auto> sub(GrpcServerStream stream, hash<string, string> metadata) {
+        int count = 0;
+        while (*hash<auto> msg = stream.read()) {
+            ++count;
+        }
+        return {"total": count};
+    });
+    @endcode
+
+    @subsection grpcserverutil_server_tls TLS Support
+
+    @code{.py}
+string cert = ReadOnlyFile::readTextFile("server.crt");
+string key = ReadOnlyFile::readTextFile("server.key");
+int port = server.addSecurePort("localhost:0", <GrpcSslOptions>{
+    "server_cert": cert,
+    "server_key": key,
+});
+server.start();
+
+# Client connects via HTTPS
+GrpcChannel channel("https://localhost:" + port);
+    @endcode
+
+    @section grpcserverutilrelnotes Release Notes
+
+    @subsection grpcserverutil_v1_0 GrpcServerUtil Module Version 1.0
+    - initial release; split from the GrpcUtil module so that the client modules do not require HttpServerAsyncIo
+*/

@@ -37,6 +37,7 @@ GrpcUtil Module                         ArrowFlightDataProvider Module
 %modern
 %requires grpc
 %requires GrpcUtil
+%requires GrpcServerUtil
 
 class SalesHandler inherits ArrowFlightDatasetHandler {
     ArrowSchema getSchema() {

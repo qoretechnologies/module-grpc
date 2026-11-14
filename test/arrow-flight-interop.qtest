@@ -39,6 +39,7 @@
 %endtry
 %requires grpc
 %requires GrpcUtil
+%requires GrpcServerUtil
 
 %exec-class ArrowFlightInteropTest
 

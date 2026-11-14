@@ -33,6 +33,7 @@
 
 %requires grpc
 %requires GrpcUtil
+%requires GrpcServerUtil
 %requires ArrowFlightDataProvider
 
 %exec-class ArrowFlightDataProviderTest

@@ -20,7 +20,10 @@ The module combines three components:
 
 - **Binary module (`grpc`)**: C++ bindings for Arrow schemas, record batches, and IPC using `libarrow`.
 - **Core module (`protobuf`)**: Dynamic schema loading and message encoding/decoding using `ProtobufSchema`.
-- **Qore module (`GrpcUtil`)**: Pure Qore implementing the gRPC protocol natively on Qore's HTTP/2 stack.
+- **Qore module (`GrpcUtil`)**: Pure Qore implementing the gRPC client protocol natively on Qore's HTTP/2 stack.
+- **Qore module (`GrpcServerUtil`)**: the gRPC server (`GrpcServer`, `GrpcServerStream`, reflection, the Arrow Flight
+  server) on `HttpServerAsyncIo`; it re-exports `GrpcUtil`.  `GrpcUtil` and the data provider modules do not require
+  `HttpServerAsyncIo`, so a Program restricted like a Qorus interface can load them; it cannot load `GrpcServerUtil`.
 
 Three data provider modules are built on top of it:
 
@@ -212,6 +215,7 @@ Just pass `enable_reflection: True` in the server options:
 %modern
 %requires grpc
 %requires GrpcUtil
+%requires GrpcServerUtil
 
 ProtobufSchema schema("./proto/", "service.proto");
 GrpcServer server(schema, <GrpcServerOptions>{"enable_reflection": True});

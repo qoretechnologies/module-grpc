@@ -28,7 +28,6 @@
 %requires grpc
 %requires HttpClientIo
 %requires AsyncSocketIo
-%requires HttpServerAsyncIo
 
 module GrpcUtil {
     version = "1.0";
@@ -56,9 +55,9 @@ public namespace Grpc {
     Google, Netflix, and Square, and is the default transport for many cloud-native
     APIs including Kubernetes, Envoy, and etcd.
 
-    This module enables Qore applications to act as both gRPC clients and servers
-    without any external gRPC library dependency (only \c libprotobuf is required
-    for message serialization). All four gRPC call patterns are supported:
+    This module enables Qore applications to make gRPC calls as clients; the server side is in the
+    @ref grpcserverutilintro "GrpcServerUtil module".  No external gRPC library is needed
+    (only \c libprotobuf is required for message serialization). All four gRPC call patterns are supported:
     - <b>Unary</b>: single request, single response (like a REST call)
     - <b>Server streaming</b>: single request, stream of responses (e.g., live
       data feeds, paginated results)
@@ -69,8 +68,6 @@ public namespace Grpc {
 
     The following classes are provided by this module:
     - @ref Grpc::GrpcClient "GrpcClient": makes gRPC calls to a remote service
-    - @ref Grpc::GrpcServer "GrpcServer": serves gRPC requests with registered
-      handlers
     - @ref Grpc::GrpcChannel "GrpcChannel": manages HTTP/2 connections with
       pooling via \c HttpClientConnectionManager
     - @ref Grpc::GrpcClientStream "GrpcClientStream": client-side streaming
@@ -81,13 +78,8 @@ public namespace Grpc {
       timeout heap
     - @ref Grpc::GrpcFrameBuffer "GrpcFrameBuffer": incremental deframer for the
       gRPC length-prefixed message framing
-    - @ref Grpc::GrpcServerStream "GrpcServerStream": server-side streaming
-      handle with read/write and metadata support
     - @ref Grpc::GrpcHelper "GrpcHelper": gRPC framing, header utilities, and
       timeout formatting
-    - @ref Grpc::GrpcReflectionService "GrpcReflectionService": built-in gRPC
-      server reflection (grpc.reflection.v1) enabling clients to discover
-      services without local \c .proto files
 
     For the data provider API integration (factory, connections, action catalog),
     see the @ref grpcdataproviderintro "GrpcDataProvider module".
@@ -251,86 +243,11 @@ hash<GrpcCallResult> result = client.call("GetOrder", {"id": 42}, opts);
 
     @section grpcutil_server_usage Server Usage
 
-    @subsection grpcutil_server_basic Basic Server
-
-    @code{.py}
-%modern
-%requires grpc
-%requires GrpcUtil
-
-ProtobufSchema schema("./proto/", "helloworld.proto");
-GrpcServer server(schema);
-
-# Register a unary handler
-server.registerHandler("Greeter", "SayHello",
-    hash<auto> sub(hash<auto> request, hash<string, string> metadata) {
-        return {"message": "Hello, " + request.name};
-    });
-
-int port = server.addInsecurePort("localhost:0");
-printf("Server listening on port %d\n", port);
-server.start();
-server.wait();
-    @endcode
-
-    @subsection grpcutil_server_streaming Server-Streaming Handler
-
-    @code{.py}
-server.registerHandler("Items", "ListItems",
-    sub(hash<auto> request, GrpcServerStream stream, hash<string, string> metadata) {
-        for (int i = 0; i < 10; ++i) {
-            stream.write({"name": sprintf("item-%d", i), "category": request.category});
-        }
-        stream.setTrailingMetadata({"x-count": "10"});
-    });
-    @endcode
-
-    @subsection grpcutil_server_bidi Bidirectional Streaming Handler
-
-    Bidirectional streaming handlers receive a @ref Grpc::GrpcServerStream "GrpcServerStream"
-    for interactive communication. The handler reads client messages incrementally
-    and writes responses immediately -- no pre-buffering of the client stream:
-
-    @code{.py}
-server.registerHandler("Chat", "Send",
-    sub(GrpcServerStream stream, hash<string, string> metadata) {
-        while (*hash<auto> msg = stream.read(30s)) {
-            # Process each message and respond immediately
-            stream.write({"text": "Echo: " + msg.text});
-        }
-    });
-    @endcode
-
-    @subsection grpcutil_server_clientstream Client Streaming Handler
-
-    Client streaming handlers also use @ref Grpc::GrpcServerStream "GrpcServerStream"
-    but return a response hash instead of writing to the stream:
-
-    @code{.py}
-server.registerHandler("Upload", "Send",
-    hash<auto> sub(GrpcServerStream stream, hash<string, string> metadata) {
-        int count = 0;
-        while (*hash<auto> msg = stream.read()) {
-            ++count;
-        }
-        return {"total": count};
-    });
-    @endcode
-
-    @subsection grpcutil_server_tls TLS Support
-
-    @code{.py}
-string cert = ReadOnlyFile::readTextFile("server.crt");
-string key = ReadOnlyFile::readTextFile("server.key");
-int port = server.addSecurePort("localhost:0", <GrpcSslOptions>{
-    "server_cert": cert,
-    "server_key": key,
-});
-server.start();
-
-# Client connects via HTTPS
-GrpcChannel channel("https://localhost:" + port);
-    @endcode
+    The gRPC server classes (@c GrpcServer, @c GrpcServerAsync, @c GrpcServerStream, @c GrpcReflectionService,
+    @c ArrowFlightServer and @c ArrowFlightDatasetHandler) are in the separate @ref grpcserverutilintro
+    "GrpcServerUtil module", which requires the \c HttpServerAsyncIo module.  This module has no server
+    dependencies, so a Program restricted like a Qorus interface can load it and the gRPC data providers.
+    Use \c %requires GrpcServerUtil to serve gRPC requests.
 
     @section grpcutil_protobuf Standalone Protobuf Usage
 
@@ -359,5 +276,5 @@ printf("Fields: %y\n", keys msg_schema.fields);
     @section grpcutilrelnotes Release Notes
 
     @subsection grpcutil_v1_0 GrpcUtil Module Version 1.0
-    - initial release
+    - initial release; the server classes are in the GrpcServerUtil module
 */

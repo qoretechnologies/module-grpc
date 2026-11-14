@@ -16,6 +16,7 @@
 %requires protobuf
 %requires grpc
 %requires GrpcUtil
+%requires GrpcServerUtil
 %requires AsyncSocketIo
 %requires HttpClientIo
 %requires HttpServer

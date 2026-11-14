@@ -193,6 +193,7 @@ set(module_name "grpc")
 
 set(QMOD
     qlib/GrpcUtil
+    qlib/GrpcServerUtil
     qlib/GrpcDataProvider
     qlib/ArrowFlightDataProvider
     qlib/SalesforcePubSubDataProvider
@@ -267,6 +268,8 @@ qore_dist(${PROJECT_VERSION})
 
 qore_user_modules("${QMOD}")
 qore_external_user_module("qlib/GrpcUtil" "")
+# the server classes require HttpServerAsyncIo and GrpcUtil (which they re-export), so GrpcUtil is compiled first
+qore_external_user_module("qlib/GrpcServerUtil" "GrpcUtil")
 # Resolve GrpcUtil from its compiled module consistently in parallel and serial
 # builds; these dependencies also order the documentation tag-file generation.
 qore_external_user_module("qlib/GrpcDataProvider" "GrpcUtil")
@@ -304,7 +307,7 @@ if (DOXYGEN_FOUND)
     add_dependencies(docs-module QORE_MOD_DOX_FILES)
 
     qore_binary_module_two_phase_docs(${module_name}
-        "GrpcUtil;GrpcDataProvider;ArrowFlightDataProvider;SalesforcePubSubDataProvider")
+        "GrpcUtil;GrpcServerUtil;GrpcDataProvider;ArrowFlightDataProvider;SalesforcePubSubDataProvider")
     if (QORE_GRPC_STRICT_DOCS)
         file(GLOB _grpc_doxyfiles "${CMAKE_BINARY_DIR}/doxygen/Doxyfile.*")
         list(APPEND _grpc_doxyfiles "${CMAKE_BINARY_DIR}/Doxyfile.final")
