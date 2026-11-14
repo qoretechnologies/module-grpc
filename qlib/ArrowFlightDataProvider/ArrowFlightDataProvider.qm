@@ -22,6 +22,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+%requires qore >= 3.0
 %modern
 %allow-weak-references
 
@@ -209,6 +210,10 @@ module ArrowFlightDataProvider {
         # infrastructure (ArrowFlightStreamEventDataProvider) is fully functional
         # and can be used programmatically via the data provider observer API.
     };
+    # THREAD_CONTROL: the module starts its own background tasks
+    # PROCESS_CONTROL: its init registers connection scheme and data provider factory (process-wide registrations)
+    # (a Program restricted like a Qorus interface can load the module only when it declares them; Qore #5803)
+    domains = "THREAD_CONTROL,PROCESS_CONTROL";
 }
 
 /** @mainpage ArrowFlightDataProvider Module
