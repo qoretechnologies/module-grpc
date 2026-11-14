@@ -193,6 +193,7 @@ set(module_name "grpc")
 
 set(QMOD
     qlib/GrpcUtil
+    qlib/GrpcServerUtil
     qlib/GrpcDataProvider
     qlib/ArrowFlightDataProvider
     qlib/SalesforcePubSubDataProvider
@@ -265,8 +266,22 @@ qore_external_binary_module(${module_name} ${PROJECT_VERSION})
 
 qore_dist(${PROJECT_VERSION})
 
+# The server classes moved from the GrpcUtil module to GrpcServerUtil.  An install over a previous install of this
+# module leaves the old copies in the GrpcUtil directory, and the module is made of every source file in its directory,
+# so GrpcUtil would still load them, and they require HttpServerAsyncIo, which GrpcUtil no longer requires.  Remove them
+# before the module files are installed (install() rules run in declaration order).  A package replaces the files of
+# the previous package, so this is needed only for a plain "make install" over an older install.
+install(CODE "
+    foreach(_moved GrpcServer GrpcServerAsync GrpcServerStream GrpcReflectionService ArrowFlightServer
+            ArrowFlightDatasetHandler)
+        file(REMOVE \"\$ENV{DESTDIR}${QORE_USER_MODULES_DIR}/GrpcUtil/\${_moved}.qc\")
+    endforeach()
+")
+
 qore_user_modules("${QMOD}")
 qore_external_user_module("qlib/GrpcUtil" "")
+# the server classes require HttpServerAsyncIo and GrpcUtil (which they re-export), so GrpcUtil is compiled first
+qore_external_user_module("qlib/GrpcServerUtil" "GrpcUtil")
 # Resolve GrpcUtil from its compiled module consistently in parallel and serial
 # builds; these dependencies also order the documentation tag-file generation.
 qore_external_user_module("qlib/GrpcDataProvider" "GrpcUtil")
@@ -304,7 +319,7 @@ if (DOXYGEN_FOUND)
     add_dependencies(docs-module QORE_MOD_DOX_FILES)
 
     qore_binary_module_two_phase_docs(${module_name}
-        "GrpcUtil;GrpcDataProvider;ArrowFlightDataProvider;SalesforcePubSubDataProvider")
+        "GrpcUtil;GrpcServerUtil;GrpcDataProvider;ArrowFlightDataProvider;SalesforcePubSubDataProvider")
     if (QORE_GRPC_STRICT_DOCS)
         file(GLOB _grpc_doxyfiles "${CMAKE_BINARY_DIR}/doxygen/Doxyfile.*")
         list(APPEND _grpc_doxyfiles "${CMAKE_BINARY_DIR}/Doxyfile.final")

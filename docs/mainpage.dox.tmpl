@@ -15,13 +15,15 @@
     support comes from Qore's built-in \c protobuf module.
 
     To use this module, use \c "%requires grpc" in your code for native Arrow support and
-    \c "%requires GrpcUtil" for the gRPC protocol layer.
+    \c "%requires GrpcUtil" for the gRPC protocol layer (clients); the server classes are in
+    \c "%requires GrpcServerUtil".
 
     @section grpcqlibmodules Qore User Modules
 
     - @ref arrowflightdataproviderintro "ArrowFlightDataProvider" — a data provider API for Arrow Flight services
     - @ref grpcdataproviderintro "GrpcDataProvider" — a data provider API for gRPC services
-    - @ref grpcutilintro "GrpcUtil" — Qore gRPC protocol module
+    - @ref grpcutilintro "GrpcUtil" — Qore gRPC protocol module (client)
+    - @ref grpcserverutilintro "GrpcServerUtil" — Qore gRPC server module (requires HttpServerAsyncIo)
     - @ref salesforcepubsubdataproviderintro "SalesforcePubSubDataProvider" — a Salesforce Pub/Sub API event data provider
 
     @section grpcdocumentation Documentation

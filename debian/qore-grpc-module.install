@@ -1,6 +1,8 @@
 usr/lib/*/qore-modules/grpc-api-*.qmod
 usr/lib/*/qore-modules/GrpcUtil/
 usr/share/qore-modules/GrpcUtil/
+usr/lib/*/qore-modules/GrpcServerUtil/
+usr/share/qore-modules/GrpcServerUtil/
 usr/lib/*/qore-modules/GrpcDataProvider/
 usr/share/qore-modules/GrpcDataProvider/
 usr/lib/*/qore-modules/ArrowFlightDataProvider/

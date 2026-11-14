@@ -33,6 +33,7 @@
 %requires protobuf
 %requires grpc
 %requires GrpcUtil
+%requires GrpcServerUtil
 %try-module process
 %define NO_PROCESS
 %endtry

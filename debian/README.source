@@ -8,7 +8,7 @@ Qore gRPC module packages
 
 This is a development snapshot for qore-testing, not a final release.
 The native Arrow schema/IPC/record-batch implementation links to distribution
-libarrow. GrpcUtil, GrpcDataProvider, ArrowFlightDataProvider and
+libarrow. GrpcUtil, GrpcServerUtil, GrpcDataProvider, ArrowFlightDataProvider and
 SalesforcePubSubDataProvider ship as source and AOT modules, with metadata,
 resources and all translation catalogs. The doc package contains five API
 references and complete test fixtures. Test TLS keys are PUBLIC TEST IDENTITIES
@@ -19,7 +19,7 @@ No network downloads are performed during builds. Arch-only, indep-only,
 nocheck and nodoc profiles are supported; cross builds require a separate
 host SDK and are rejected. Fixed qcc partitions and preserved AOT trailers
 support reproducible builds and fresh-process compilation. Provider build
-dependencies ensure GrpcUtil is compiled before its consumers.
+dependencies ensure GrpcUtil is compiled (and GrpcServerUtil after it) before its consumers.
 
 Tests use local Qore/Python servers and distribution grpcio, grpc-tools and
 PyArrow, plus the separately packaged Qore process module. Required test

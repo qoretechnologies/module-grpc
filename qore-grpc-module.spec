@@ -109,6 +109,7 @@ export QORE_GRPC_TEST_QMOD_DIR="$PWD/build/qlib-qmod"
     timeout 600 /usr/bin/qore -b --enable-debug \
       -l "$QORE_GRPC_TEST_MODULE_DIR/grpc-api-$(/usr/bin/qore --latest-module-api).qmod" \
       -l "$QORE_GRPC_TEST_QMOD_DIR/GrpcUtil/GrpcUtil.qmod" \
+      -l "$QORE_GRPC_TEST_QMOD_DIR/GrpcServerUtil/GrpcServerUtil.qmod" \
       -l "$QORE_GRPC_TEST_QMOD_DIR/GrpcDataProvider/GrpcDataProvider.qmod" \
       -l "$QORE_GRPC_TEST_QMOD_DIR/ArrowFlightDataProvider/ArrowFlightDataProvider.qmod" \
       -l "$QORE_GRPC_TEST_QMOD_DIR/SalesforcePubSubDataProvider/SalesforcePubSubDataProvider.qmod" \

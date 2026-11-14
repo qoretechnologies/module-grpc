@@ -9,6 +9,7 @@ cat > grpc-smoke.q <<'EOF'
 %requires grpc
 %requires DataProvider
 %requires GrpcUtil
+%requires GrpcServerUtil
 %requires GrpcDataProvider
 %requires ArrowFlightDataProvider
 %requires SalesforcePubSubDataProvider

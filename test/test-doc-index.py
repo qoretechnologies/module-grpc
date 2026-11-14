@@ -70,6 +70,7 @@ class GrpcDocumentationTest(unittest.TestCase):
         expected = {
             "grpc": "Qore::Grpc::ArrowSchema",
             "GrpcUtil": "Grpc::GrpcClient",
+            "GrpcServerUtil": "Grpc::GrpcServer",
             "GrpcDataProvider": "GrpcDataProvider::GrpcReflectionClient",
             "ArrowFlightDataProvider": "ArrowFlightDataProvider::ArrowFlightConnection",
             "SalesforcePubSubDataProvider": "SalesforcePubSubDataProvider::SalesforcePubSubClient",
@@ -83,7 +84,7 @@ class GrpcDocumentationTest(unittest.TestCase):
 
     def test_local_cross_module_links(self):
         count = 0
-        for module in ("grpc", "GrpcUtil"):
+        for module in ("grpc", "GrpcUtil", "GrpcServerUtil"):
             for page in (BUILD / "docs" / module / "html").glob("*.html"):
                 for href in html(page).links:
                     if not href.startswith("../../"):
@@ -97,12 +98,14 @@ class GrpcDocumentationTest(unittest.TestCase):
         self.assertGreater(count, 20)
 
     def test_external_api_links(self):
-        pages = list((BUILD / "docs/GrpcUtil/html").glob("*.html"))
-        links = {link for page in pages for link in html(page).links}
-        for module in ("protobuf", "AsyncSocketIo", "HttpClientIo", "HttpServerAsyncIo"):
-            with self.subTest(module=module):
-                prefix = "https://docs.qore.org/current/modules/" + module + "/html/"
-                self.assertTrue(any(link.startswith(prefix) and ".html" in link for link in links), prefix)
+        for doc, modules in (("GrpcUtil", ("protobuf", "AsyncSocketIo", "HttpClientIo")),
+                             ("GrpcServerUtil", ("HttpServerAsyncIo",))):
+            pages = list((BUILD / "docs" / doc / "html").glob("*.html"))
+            links = {link for page in pages for link in html(page).links}
+            for module in modules:
+                with self.subTest(doc=doc, module=module):
+                    prefix = "https://docs.qore.org/current/modules/" + module + "/html/"
+                    self.assertTrue(any(link.startswith(prefix) and ".html" in link for link in links), prefix)
 
     def test_protobuf_table_shape(self):
         tables = html(BUILD / "docs/grpc/html/grpctypemappingguide.html").tables

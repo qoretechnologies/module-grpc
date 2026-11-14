@@ -9,7 +9,9 @@
     - <b>Binary module (\c grpc)</b>: C++ bindings for Arrow schemas, record batches, and IPC.
     - <b>Core module (\c protobuf)</b>: Schema loading and message encoding/decoding through
       the @ref Qore::Protobuf::ProtobufSchema class.
-    - <b>Qore module (\c GrpcUtil)</b>: Pure %Qore implementing the gRPC protocol on top of
-      %Qore's HTTP/2 stack. Provides @ref Grpc::GrpcClient, @ref Grpc::GrpcServer,
-      @ref Grpc::GrpcChannel, and streaming classes.
+    - <b>Qore module (\c GrpcUtil)</b>: Pure %Qore implementing the gRPC client protocol on top of
+      %Qore's HTTP/2 stack. Provides @ref Grpc::GrpcClient, @ref Grpc::GrpcChannel, and streaming
+      classes.  It has no server dependencies, so Programs restricted like a Qorus interface can load it.
+    - <b>Qore module (\c GrpcServerUtil)</b>: the server side (@ref Grpc::GrpcServer, @ref Grpc::GrpcServerStream,
+      reflection and the Arrow Flight server), built on \c HttpServerAsyncIo.  It re-exports \c GrpcUtil.
 */

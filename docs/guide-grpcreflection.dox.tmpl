@@ -18,6 +18,7 @@
 %modern
 %requires grpc
 %requires GrpcUtil
+%requires GrpcServerUtil
 
 ProtobufSchema schema("./proto/", "service.proto");
 GrpcServer server(schema, <GrpcServerOptions>{"enable_reflection": True});

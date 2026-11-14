@@ -65,6 +65,7 @@
 %requires SalesforceRestClient
 %requires RestClientIo
 %requires GrpcUtil
+%requires GrpcServerUtil
 %requires SalesforcePubSubDataProvider
 
 %exec-class SalesforcePubSubTest
