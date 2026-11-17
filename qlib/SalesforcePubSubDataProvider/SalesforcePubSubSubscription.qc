@@ -847,12 +847,19 @@ public class SalesforcePubSubSubscription {
     }
 
     #! Decodes one event and notifies the consumer
-    /** @return @ref True if the event was accepted (or carried nothing to deliver), @ref False if the consumer
+    /** @param ev the event
+        @param held_stream the stream a redelivery of a held event runs on: the accepted event is taken off the held
+        list in the same locked step that counts it, so that no observer of the count (waitForEvents()) can see the
+        event both counted and still held (getStats().held); NOTHING for an event that was not held
+
+        @return @ref True if the event was accepted (or carried nothing to deliver), @ref False if the consumer
         refused it; the replay position advances only for an accepted event
     */
-    private bool deliverEvent(hash<auto> ev) {
+    private bool deliverEvent(hash<auto> ev, *GrpcAsyncClientStream held_stream) {
         *hash<auto> pe = ev.event;
         if (!pe) {
+            AutoLock al(m);
+            releaseHeldEvent(held_stream);
             return True;
         }
         # a schema cache miss costs one synchronous GetSchema round trip on this worker; schema IDs
@@ -895,8 +902,19 @@ public class SalesforcePubSubSubscription {
         if (ev.replay_id) {
             last_replay_id = ev.replay_id;
         }
+        releaseHeldEvent(held_stream);
         cond.broadcast();
         return True;
+    }
+
+    #! Takes the accepted event off the head of the held list; must be called with the lock held
+    /** @param held_stream the stream the redelivery runs on; nothing is taken off for NOTHING or when the held events
+        were dropped meanwhile (a stream failure or a reconnect)
+    */
+    private releaseHeldEvent(*GrpcAsyncClientStream held_stream) {
+        if (held_stream && held_events && held_stream == stream) {
+            shift held_events;
+        }
     }
 
     #! Holds the given events after a refusal of the first one and arms their redelivery
@@ -966,16 +984,10 @@ public class SalesforcePubSubSubscription {
                 }
                 ev = held_events[0];
             }
-            if (!deliverEvent(ev)) {
+            # the accepted event leaves the held list in the step that counts it (see deliverEvent())
+            if (!deliverEvent(ev, s)) {
                 armRedelivery();
                 return;
-            }
-            {
-                AutoLock al(m);
-                # dropped on a stream failure meanwhile
-                if (held_events && s == stream) {
-                    shift held_events;
-                }
             }
         }
         # the server's credit was not topped up while events were held
