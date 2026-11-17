@@ -729,10 +729,13 @@ public class SalesforcePubSubEventDataProvider inherits
     }
 
     #! Called by the subscription for each event received
-    /** Events excluded by the \c change_type filter are not delivered to observers.  The
-        subscription advances its replay position after this callback returns and does so
-        unconditionally, so filtering here cannot cause a reconnect to re-deliver or skip events;
-        that ordering is relied on and must be preserved.
+    /** Events excluded by the \c change_type filter are not delivered to observers; they are accepted, so the
+        subscription advances its replay position past them.  An observer that cannot handle an event refuses it by
+        throwing: the \c OBSERVER-NOTIFICATION-ERROR that @ref DataProvider::Observable::notifyObservers()
+        "notifyObservers()" raises then leaves this callback, and the subscription keeps its replay position at the
+        last accepted event and delivers the refused event again after a back-off (see
+        @ref salesforcepubsubsubscription_refusal), to every observer: an observer that accepted the event before
+        another one refused it sees it again.
     */
     private eventReceived(hash<auto> event) {
         *softlist<string> want;

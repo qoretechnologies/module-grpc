@@ -539,6 +539,86 @@ class EventSink {
     }
 }
 
+#! A sink that refuses the given events a number of times, as a consumer does by throwing (qore#6401)
+class RefusingSink inherits EventSink {
+    private {
+        SalesforcePubSubSubscription subscr;
+        #! replay ID (base64) -> refusals left
+        hash<string, int> refuse;
+        #! every call: the replay ID of the event and the subscription's position when it was called
+        list<hash<auto>> calls = ();
+        Mutex rm();
+        #! if set, the events in refuse are refused until the server has seen this many connections
+        *PubSubScript script;
+        int until_connections;
+        #! if set, the events in refuse are also refused until the subscription has received a keepalive
+        bool until_keepalive;
+    }
+
+    constructor(hash<string, int> refuse) {
+        self.refuse = refuse;
+    }
+
+    #! refuses the events in \a refuse at least the given number of times and until a keepalive was received
+    constructor(hash<string, int> refuse, bool until_keepalive) {
+        self.refuse = refuse;
+        self.until_keepalive = until_keepalive;
+    }
+
+    #! refuses the events in \a refuse until the server has seen \a connections connections
+    constructor(hash<string, int> refuse, PubSubScript script, int connections) {
+        self.refuse = refuse;
+        self.script = script;
+        until_connections = connections;
+    }
+
+    setSubscription(SalesforcePubSubSubscription subscr) {
+        self.subscr = subscr;
+    }
+
+    onEvent(hash<auto> event) {
+        string id = event.event.replayId;
+        {
+            AutoLock al(rm);
+            calls += {"id": id, "position": subscr ? subscr.getLastReplayId() : NOTHING};
+            if (script) {
+                if (refuse{id} && script.getConnectionCount() < until_connections) {
+                    throw "TEST-REFUSAL", sprintf("event %y refused", id);
+                }
+            } else if (exists refuse{id} && (refuse{id} > 0
+                    || (until_keepalive && subscr.getStats().keepalives < 1))) {
+                --refuse{id};
+                throw "TEST-REFUSAL", sprintf("event %y refused", id);
+            }
+        }
+        EventSink::onEvent(event);
+    }
+
+    list<hash<auto>> getCalls() {
+        AutoLock al(rm);
+        return calls;
+    }
+}
+
+#! An observer that refuses its first events, as an observer that cannot handle them does (qore#6401)
+class RefusingCollector inherits ChangeEventCollector {
+    private {
+        int refusals;
+    }
+
+    constructor(int refusals) {
+        self.refusals = refusals;
+    }
+
+    update(string event_id, hash<auto> data_) {
+        if (refusals > 0) {
+            --refusals;
+            throw "TEST-REFUSAL", "the observer cannot handle the event now";
+        }
+        ChangeEventCollector::update(event_id, data_);
+    }
+}
+
 #! A Pub/Sub client that records token refreshes instead of performing them
 /** The token acquisition itself belongs to \c RestClientIo and is covered by the
     \c SalesforceRestClient suite in the Qore repository; what has to be proven here is that the
@@ -716,6 +796,10 @@ public class SalesforcePubSubTest inherits QUnit::Test {
         addTestCase("idle timeout detects a dead stream", \testIdleTimeout());
         addTestCase("reconnect disabled", \testReconnectDisabled());
         addTestCase("reconnect attempt limit", \testReconnectAttemptLimit());
+        addTestCase("a refused event is redelivered", \testRefusedEventRedelivered());
+        addTestCase("a reconnect while events are held resumes after the last accepted event",
+            \testRefusedEventReconnect());
+        addTestCase("an observer refusal is redelivered by the provider", \testObserverRefusal());
         addTestCase("stop is idempotent and terminal", \testStop());
         addTestCase("subscription option validation", \testSubscriptionOptions());
         addTestCase("client option validation", \testClientOptions());
@@ -1304,6 +1388,132 @@ public class SalesforcePubSubTest inherits QUnit::Test {
         assertEq(3, stats.events);
         assertGt(0, stats.reconnects);
         assertEq(make_base64_string(binary("replay-0003")), stats.replay_id);
+    }
+
+    #! A refused event is held, with the events after it, and delivered again with back-off (qore#6401)
+    testRefusedEventRedelivered() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+
+        srv.script.addScript((
+            {"send": {"events": (
+                makeEvent(makePayload(), binary("refuse-1")),
+                makeEvent(makePayload(), binary("refuse-2")),
+                makeEvent(makePayload(), binary("refuse-3")),
+            ), "pending": 90}},
+            # a keepalive while the refused event is held must not move the position past it
+            {"send": {"events": (), "pending": 90, "latest": binary("refuse-9")}},
+            {"park": True},
+        ));
+
+        string r1 = make_base64_string(binary("refuse-1"));
+        string r2 = make_base64_string(binary("refuse-2"));
+        string r3 = make_base64_string(binary("refuse-3"));
+        # refused twice at least, and until the keepalive has arrived, so that it arrives while r2 is held
+        RefusingSink sink({r2: 2}, True);
+        SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        SalesforcePubSubSubscription subscr = client.subscribe(TestTopic, sink.getOptions() + {
+            "reconnect_delay_ms": 100,
+        });
+        sink.setSubscription(subscr);
+        subscr.start();
+        on_exit subscr.stop();
+
+        assertTrue(subscr.waitForEvents(3, 30s), "every event was accepted in the end");
+        assertEq((r1, r2, r3), (map $1.event.replayId, sink.getEvents()),
+            "each event was accepted once, in order");
+        # r2 was refused (at least twice) and then accepted; r3 waited for it
+        list<hash<auto>> calls = sink.getCalls();
+        int r2calls = calls.size() - 2;
+        assertGt(2, r2calls, "the refused event was delivered again");
+        assertEq((r1,) + (map r2, xrange(r2calls)) + (r3,), (map $1.id, calls), "the events were delivered in order");
+        assertEq((NOTHING,) + (map r1, xrange(r2calls)) + (r2,), (map $1.position, calls),
+            "the position advanced only past accepted events, not by the keepalive");
+        hash<auto> stats = subscr.getStats();
+        assertEq(3, stats.events);
+        assertEq(1, stats.keepalives, "the keepalive arrived while r2 was held");
+        assertEq(r2calls - 1, stats.refusals);
+        assertEq(0, stats.held);
+        assertTrue(stats.active, "a refusal does not stop the subscription");
+        assertEq(r3, stats.replay_id);
+        assertEq(1, srv.script.getConnectionCount(), "a refusal does not end the stream");
+        assertNothing(sink.getFailure());
+    }
+
+    #! A stream failure while events are held resumes after the last accepted event (qore#6401)
+    testRefusedEventReconnect() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+
+        srv.script.addScript((
+            {"send": {"events": (
+                makeEvent(makePayload(), binary("held-1")),
+                makeEvent(makePayload(), binary("held-2")),
+            ), "pending": 90}},
+            {"throw": {"err": "GRPC-INTERNAL", "desc": "the server went away"}},
+        ));
+        # the server delivers again what follows the position of the reconnect
+        srv.script.addScript((
+            {"send": {"events": (
+                makeEvent(makePayload(), binary("held-2")),
+                makeEvent(makePayload(), binary("held-3")),
+            ), "pending": 90}},
+            {"park": True},
+        ));
+
+        string h1 = make_base64_string(binary("held-1"));
+        string h2 = make_base64_string(binary("held-2"));
+        string h3 = make_base64_string(binary("held-3"));
+        # refused until the stream has failed and been re-established, so it is held when the stream fails
+        RefusingSink sink({h2: 1}, srv.script, 2);
+        SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        SalesforcePubSubSubscription subscr = client.subscribe(TestTopic, sink.getOptions() + {
+            "reconnect_delay_ms": 100,
+        });
+        sink.setSubscription(subscr);
+        subscr.start();
+        on_exit subscr.stop();
+
+        assertTrue(subscr.waitForEvents(3, 30s));
+        assertTrue(srv.script.waitForConnections(2), "the stream was re-established");
+        list<hash<auto>> reqs = srv.script.getRequests();
+        assertEq(PresetCustom, reqs[1].replay_preset);
+        assertEq(binary("held-1"), reqs[1].replay_id, "resumed after the last accepted event");
+        assertEq((h1, h2, h3), (map $1.event.replayId, sink.getEvents()), "each event was accepted once");
+        assertEq(h3, subscr.getLastReplayId());
+    }
+
+    #! An observer of the provider refuses an event: it is raised again (qore#6401)
+    testObserverRefusal() {
+        PubSubTestServer srv();
+        on_exit srv.stop();
+
+        srv.script.addScript((
+            {"send": {"events": (
+                makeEvent(makePayload(ChangeTypeCreate), binary("obs-1")),
+                makeEvent(makePayload(ChangeTypeUpdate), binary("obs-2")),
+            ), "pending": 90}},
+            {"park": True},
+        ));
+
+        SalesforceRestClient::SalesforceRestClientIo rest(TestRestOptions);
+        SalesforcePubSubClient client(TestMetadata, {"url": srv.getUrl()});
+        TestChannelProvider prov(rest, "AccountChangeEvent", client);
+
+        RefusingCollector collector(1);
+        cast<Observable>(prov).registerObserver(collector);
+        prov.observersReady();
+        on_exit prov.stopEvents();
+
+        *SalesforcePubSubSubscription subscr = prov.getSubscription();
+        assertTrue(exists subscr, "observersReady() opened the subscription");
+        assertTrue(subscr.waitForEvents(2, 30s), "both events were accepted in the end");
+        assertEq((ChangeTypeCreate, ChangeTypeUpdate), collector.getChangeTypes(),
+            "the refused event was raised again, before the next one");
+        hash<auto> stats = subscr.getStats();
+        assertEq(1, stats.refusals);
+        assertEq("OBSERVER-NOTIFICATION-ERROR", stats.last_error.err);
+        assertEq(make_base64_string(binary("obs-2")), stats.replay_id);
     }
 
     #! An expired replay ID is recovered from by falling back to a preset

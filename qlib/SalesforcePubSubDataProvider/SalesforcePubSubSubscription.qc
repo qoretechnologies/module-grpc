@@ -175,6 +175,24 @@ class SalesforcePubSubDelay inherits Qore::AbstractPollOperation<auto> {
     corrupt ID is reported as @ref ReplayIdCorruptedError, whose only recovery is to fall back to
     the configured starting preset.
 
+    @anchor salesforcepubsubsubscription_refusal
+    @par Refused events
+    The consumer refuses an event by throwing from \c on_event (an observer of a
+    @ref SalesforcePubSubDataProvider::SalesforcePubSubEventDataProvider "SalesforcePubSubEventDataProvider" does so
+    by throwing from its \c update() method, which reaches the provider as an \c OBSERVER-NOTIFICATION-ERROR).  A
+    refused event is not lost: the replay position stays at the last event that the consumer accepted, and the
+    stream stays open.  The refused event, and every event received after it, is held and delivered again, in
+    order, after a back-off that starts at \c reconnect_delay_ms and doubles with each consecutive refusal up to
+    \c max_reconnect_delay_ms; the first successful delivery resets the back-off.  While events are held, the
+    credit of the stream is not topped up, and the flow-control backstop grants a single event, so that the stream
+    stays alive without the held events growing by a window each time; a keepalive does not move the replay
+    position.  A redelivered event goes to the whole consumer again: an
+    @ref SalesforcePubSubDataProvider::SalesforcePubSubEventDataProvider "event provider" notifies every observer,
+    so an observer that accepted the event before another one refused it sees it again (at-least-once delivery).  A
+    refusal never stops the subscription.  If the stream fails while events are held, they are dropped and the
+    reconnect resumes after the last accepted event, so the server delivers them again; before any event has been
+    accepted, the reconnect starts at the configured starting position, as for any other stream failure.
+
     @par Example
     @code{.py}
 SalesforcePubSubSubscription subscr = client.subscribe("/data/AccountChangeEvent", {
@@ -198,8 +216,10 @@ on_exit subscr.stop();
     |\c flow_control_backstop_ms|\c int|@ref DefaultFlowControlBackstopMs|backstop deadline
     |\c idle_timeout_ms|\c int|@ref DefaultIdleTimeoutMs|inactivity bound
     |\c reconnect|\c bool|@ref True|reconnect after a stream failure
-    |\c reconnect_delay_ms|\c int|@ref DefaultReconnectDelayMs|initial backoff
-    |\c max_reconnect_delay_ms|\c int|@ref DefaultMaxReconnectDelayMs|backoff ceiling
+    |\c reconnect_delay_ms|\c int|@ref DefaultReconnectDelayMs|initial backoff of a reconnect and of the \
+redelivery of a refused event
+    |\c max_reconnect_delay_ms|\c int|@ref DefaultMaxReconnectDelayMs|backoff ceiling of a reconnect and of the \
+redelivery of a refused event
     |\c max_reconnect_attempts|\c int|\c 0|consecutive failures tolerated; \c 0 = unlimited
 */
 public class SalesforcePubSubSubscription {
@@ -319,6 +339,19 @@ public class SalesforcePubSubSubscription {
 
         #! The last error seen, whether recovered from or not
         *hash<auto> last_error;
+
+        #! Events received but not yet accepted by the consumer, in order; the first one was refused
+        /** see @ref salesforcepubsubsubscription_refusal */
+        list<hash<auto>> held_events = ();
+
+        #! Consecutive refusals; gives the back-off of the next redelivery
+        int refusal_attempts = 0;
+
+        #! Number of refused deliveries
+        int refusal_count = 0;
+
+        #! True while the redelivery timer is armed
+        bool redelivery_armed = False;
     }
 
     #! Creates the subscription
@@ -505,6 +538,8 @@ public class SalesforcePubSubSubscription {
         - \c outstanding: the client's view of the credit the server still holds
         - \c replay_id: the last delivered replay ID as base64, if any
         - \c last_error: the last error seen, if any
+        - \c refusals: number of deliveries that the consumer refused
+        - \c held: number of events held for redelivery after a refusal
     */
     hash<auto> getStats() {
         AutoLock al(m);
@@ -520,6 +555,8 @@ public class SalesforcePubSubSubscription {
             "outstanding": outstanding,
             "replay_id": last_replay_id ? make_base64_string(last_replay_id) : NOTHING,
             "last_error": last_error,
+            "refusals": refusal_count,
+            "held": held_events.size(),
         };
     }
 
@@ -656,6 +693,10 @@ public class SalesforcePubSubSubscription {
             outstanding = 0;
             backstop_armed = False;
             stream_healthy = False;
+            # a new stream starts at the last accepted event, so nothing is held
+            held_events = ();
+            redelivery_armed = False;
+            refusal_attempts = 0;
         }
 
         GrpcAsyncClientStream s = client.getGrpcClient().bidiStreamAsync("Subscribe",
@@ -759,8 +800,20 @@ public class SalesforcePubSubSubscription {
 
         list<auto> events = resp.events ?? ();
         if (events) {
+            {
+                AutoLock al(m);
+                if (held_events) {
+                    # an earlier event was refused: these follow it and wait for its redelivery, so that the
+                    # consumer sees the events in order
+                    held_events += events;
+                    events = ();
+                }
+            }
             foreach hash<auto> ev in (events) {
-                deliverEvent(ev);
+                if (!deliverEvent(ev)) {
+                    holdEvents(events[$#..]);
+                    break;
+                }
                 {
                     AutoLock al(m);
                     if (stopping) {
@@ -775,7 +828,8 @@ public class SalesforcePubSubSubscription {
             {
                 AutoLock al(m);
                 ++keepalive_count;
-                if (resp.latest_replay_id) {
+                # while events are held after a refusal, the position must stay at the last accepted event
+                if (resp.latest_replay_id && !held_events) {
                     last_replay_id = resp.latest_replay_id;
                 }
                 cond.broadcast();
@@ -793,10 +847,13 @@ public class SalesforcePubSubSubscription {
     }
 
     #! Decodes one event and notifies the consumer
-    private deliverEvent(hash<auto> ev) {
+    /** @return @ref True if the event was accepted (or carried nothing to deliver), @ref False if the consumer
+        refused it; the replay position advances only for an accepted event
+    */
+    private bool deliverEvent(hash<auto> ev) {
         *hash<auto> pe = ev.event;
         if (!pe) {
-            return;
+            return True;
         }
         # a schema cache miss costs one synchronous GetSchema round trip on this worker; schema IDs
         # repeat for every event on a channel, so this happens once per schema version
@@ -815,17 +872,125 @@ public class SalesforcePubSubSubscription {
         };
 
         if (on_event) {
-            on_event(event);
+            try {
+                on_event(event);
+            } catch (hash<ExceptionInfo> ex) {
+                # a refusal: the event is held for redelivery (see holdEvents())
+                AutoLock al(m);
+                ++refusal_count;
+                last_error = {
+                    "err": ex.err,
+                    "desc": sprintf("the consumer refused an event of Pub/Sub channel %y: %s", topic_name, ex.desc),
+                };
+                cond.broadcast();
+                return False;
+            }
         }
 
-        # the replay position advances only after the consumer has seen the event, so a reconnect
-        # cannot skip an event whose delivery failed
+        # the replay position advances only after the consumer has accepted the event, so neither a refusal nor a
+        # reconnect can skip it
         AutoLock al(m);
         ++event_count;
+        refusal_attempts = 0;
         if (ev.replay_id) {
             last_replay_id = ev.replay_id;
         }
         cond.broadcast();
+        return True;
+    }
+
+    #! Holds the given events after a refusal of the first one and arms their redelivery
+    /** see @ref salesforcepubsubsubscription_refusal
+    */
+    private holdEvents(list<auto> events) {
+        {
+            AutoLock al(m);
+            if (stopping || finished) {
+                return;
+            }
+            # events that arrived meanwhile follow the refused one
+            held_events = events + held_events;
+        }
+        armRedelivery();
+    }
+
+    #! Arms the redelivery of the held events after the back-off of the consecutive refusals
+    private armRedelivery() {
+        *GrpcAsyncClientStream s;
+        int delay_ms;
+        {
+            AutoLock al(m);
+            if (stopping || finished || !connected || redelivery_armed || !held_events) {
+                return;
+            }
+            s = stream;
+            if (!s) {
+                return;
+            }
+            ++refusal_attempts;
+            delay_ms = backoffMs(refusal_attempts);
+            redelivery_armed = True;
+        }
+        try {
+            s.armTimer("refused-event-redelivery", milliseconds(delay_ms), \redeliverHeldEvents());
+        } catch (hash<ExceptionInfo> ex) {
+            # the stream is failing; the reconnect resumes after the last accepted event
+            AutoLock al(m);
+            redelivery_armed = False;
+        }
+    }
+
+    #! Delivers the held events again, in order, when the redelivery back-off comes due
+    /** Runs on a callback worker.  Stops at the first event that is refused again and arms the next redelivery; once
+        every held event is accepted, the credit of the stream is topped up again.
+
+        @param s the stream the redelivery was armed on
+    */
+    private redeliverHeldEvents(GrpcAsyncClientStream s) {
+        {
+            AutoLock al(m);
+            redelivery_armed = False;
+            if (stopping || finished || !connected || s != stream) {
+                return;
+            }
+        }
+        while (True) {
+            hash<auto> ev;
+            {
+                AutoLock al(m);
+                if (stopping || finished || s != stream) {
+                    return;
+                }
+                if (!held_events) {
+                    break;
+                }
+                ev = held_events[0];
+            }
+            if (!deliverEvent(ev)) {
+                armRedelivery();
+                return;
+            }
+            {
+                AutoLock al(m);
+                # dropped on a stream failure meanwhile
+                if (held_events && s == stream) {
+                    shift held_events;
+                }
+            }
+        }
+        # the server's credit was not topped up while events were held
+        bool top_up;
+        {
+            AutoLock al(m);
+            top_up = auto_replenish && connected && !stopping && outstanding < num_requested;
+        }
+        if (top_up) {
+            try {
+                replenish();
+            } catch (hash<ExceptionInfo> ex) {
+                # the stream is failing; the terminal event handles reconnection
+            }
+        }
     }
 
     #! Replaces the Change Data Capture field bitmaps in a decoded payload with field names
@@ -877,7 +1042,9 @@ public class SalesforcePubSubSubscription {
             # sendFetchRequest()
             outstanding = pending;
             s = stream;
-            top_up = auto_replenish && outstanding <= low_water_mark
+            # while events are held after a refusal, the server is not given more credit (see
+            # @ref salesforcepubsubsubscription_refusal)
+            top_up = auto_replenish && !held_events && outstanding <= low_water_mark
                 && outstanding < num_requested;
             arm = !outstanding && !backstop_armed;
             if (arm) {
@@ -917,7 +1084,9 @@ public class SalesforcePubSubSubscription {
                 return;
             }
             ++backstop_count;
-            req = num_requested - outstanding;
+            # while events are held after a refusal, a single credit keeps the stream alive without the held events
+            # growing by a window each time (see @ref salesforcepubsubsubscription_refusal)
+            req = held_events ? 1 : num_requested - outstanding;
             if (req < 1) {
                 req = 1;
             }
@@ -965,6 +1134,9 @@ public class SalesforcePubSubSubscription {
             connected = False;
             remove stream;
             backstop_armed = False;
+            # the reconnect resumes after the last accepted event, so the server delivers the held events again
+            held_events = ();
+            redelivery_armed = False;
             last_error = error;
             cond.broadcast();
 
