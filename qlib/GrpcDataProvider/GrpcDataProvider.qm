@@ -139,6 +139,9 @@ module GrpcDataProvider {
       integrate with Qore's connection framework for centralized credential and
       endpoint management
 
+    @par Connection options
+    Connection option labels and descriptions are localized in all twelve standard locales.
+
     @subsection grpcdataprovider_hierarchy Provider Hierarchy
 
     gRPC services are navigated as a two-level hierarchy:
@@ -178,6 +181,17 @@ module GrpcDataProvider {
     - @ref GrpcDataProvider::GrpcReflectionClient "GrpcReflectionClient": gRPC
       server reflection protocol client
 
+    @section grpcdataproviderdocumentation Documentation
+
+    - @subpage grpcdataproviderfactoryguide
+    - @subpage grpcdataprovidercookbook
+    - @anchor grpcdataprovider_relnotes @subpage grpcdataproviderreleasenotes
+*/
+
+/** @page grpcdataproviderfactoryguide Configuring the Provider Factory
+
+    @tableofcontents
+
     @section grpcdataprovider_factory GrpcDataProvider Factory
 
     The name of the gRPC data provider factory is <b><tt>grpc</tt></b>.
@@ -198,6 +212,11 @@ module GrpcDataProvider {
 
     Exactly one schema source must be provided: \c proto_path + \c proto_file,
     \c proto_content, or \c use_reflection.
+*/
+
+/** @page grpcdataprovidercookbook RPC Examples and Service Discovery
+
+    @tableofcontents
 
     @section grpcdataprovider_examples GrpcDataProvider Examples
 
@@ -381,12 +400,11 @@ events.stopEvents();
 
     Connections require a schema source (\c proto_path + \c proto_file,
     \c proto_content, or \c use_reflection) configured as connection options.
+*/
 
-    @section grpcdataprovider_relnotes Release Notes
+/** @page grpcdataproviderreleasenotes GrpcDataProvider Release Notes
 
-    @subsection grpcdataprovider_v1_0 GrpcDataProvider v1.0
-    - added source-owned connection option catalogs in all twelve standard locales; unchanged inherited
-      presentation keeps its original producer identity, including HTTP/REST options and allowed values
+    @section grpcdataprovider_v1_0 GrpcDataProvider Module Version 1.0
     - initial release
 */
 

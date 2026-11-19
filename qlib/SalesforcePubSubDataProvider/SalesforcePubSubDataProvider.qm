@@ -437,9 +437,14 @@ subscr.start();
 
     The endpoint's TLS certificate is verified against the system CA store.
 
-    @section salesforcepubsubdataprovider_relnotes Release Notes
+    @anchor salesforcepubsubdataprovider_relnotes
 
-    @subsection salesforcepubsubdataprovider_v1_0 SalesforcePubSubDataProvider v1.0
+    @subpage salesforcepubsubdataproviderreleasenotes
+*/
+
+/** @page salesforcepubsubdataproviderreleasenotes SalesforcePubSubDataProvider Release Notes
+
+    @section salesforcepubsubdataprovider_v1_0 SalesforcePubSubDataProvider Module Version 1.0
     - initial release
 */
 

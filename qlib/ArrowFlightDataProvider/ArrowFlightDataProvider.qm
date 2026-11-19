@@ -247,6 +247,9 @@ module ArrowFlightDataProvider {
     - <b>Connection management</b>: \c flight:// and \c flights:// URL schemes integrate
       with Qore's connection framework
 
+    @par Connection options
+    Connection option labels and descriptions are localized in all twelve standard locales.
+
     @subsection arrowflightdataprovider_hierarchy Provider Hierarchy
 
     Arrow Flight datasets are navigated as a three-level hierarchy:
@@ -359,11 +362,14 @@ provider.getChildProvider("sales")
     - \c flight://host:port — plaintext HTTP/2 (h2c)
     - \c flights://host:port — TLS-encrypted HTTP/2
 
-    @section arrowflightdataprovider_relnotes Release Notes
+    @anchor arrowflightdataprovider_relnotes
 
-    @subsection arrowflightdataprovider_v1_0 ArrowFlightDataProvider v1.0
-    - added source-owned connection option catalogs in all twelve standard locales; unchanged inherited
-      presentation keeps its original producer identity, including HTTP/REST options and allowed values
+    @subpage arrowflightdataproviderreleasenotes
+*/
+
+/** @page arrowflightdataproviderreleasenotes ArrowFlightDataProvider Release Notes
+
+    @section arrowflightdataprovider_v1_0 ArrowFlightDataProvider Module Version 1.0
     - initial release
 */
 

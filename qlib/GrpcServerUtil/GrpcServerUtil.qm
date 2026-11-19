@@ -148,8 +148,13 @@ server.start();
 GrpcChannel channel("https://localhost:" + port);
     @endcode
 
-    @section grpcserverutilrelnotes Release Notes
+    @anchor grpcserverutilrelnotes
 
-    @subsection grpcserverutil_v1_0 GrpcServerUtil Module Version 1.0
-    - initial release; split from the GrpcUtil module so that the client modules do not require HttpServerAsyncIo
+    @subpage grpcserverutilreleasenotes
+*/
+
+/** @page grpcserverutilreleasenotes GrpcServerUtil Release Notes
+
+    @section grpcserverutil_v1_0 GrpcServerUtil Module Version 1.0
+    - initial release
 */
