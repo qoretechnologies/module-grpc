@@ -49,4 +49,7 @@ server.start();
 printf("Server listening on port %d\n", port);
 server.wait();
     @endcode
+
+    Load <tt>%requires GrpcServerUtil</tt> to implement a server. Client applications can use
+    GrpcUtil, GrpcDataProvider or either streaming provider without loading HttpServerAsyncIo.
 */

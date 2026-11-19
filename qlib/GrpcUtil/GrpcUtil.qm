@@ -84,6 +84,16 @@ public namespace Grpc {
     For the data provider API integration (factory, connections, action catalog),
     see the @ref grpcdataproviderintro "GrpcDataProvider module".
 
+    @section grpcutildocumentation Documentation
+
+    - @subpage grpcutilcookbook
+    - @anchor grpcutilrelnotes @subpage grpcutilreleasenotes
+*/
+
+/** @page grpcutilcookbook Client, Server and Protobuf Examples
+
+    @tableofcontents
+
     @section grpcutil_client_usage Client Usage
 
     @subsection grpcutil_client_unary Unary Calls
@@ -272,9 +282,10 @@ hash<auto> parsed = schema.fromJson("MyMessage", json);
 hash<auto> msg_schema = schema.messageSchema("MyMessage");
 printf("Fields: %y\n", keys msg_schema.fields);
     @endcode
+*/
 
-    @section grpcutilrelnotes Release Notes
+/** @page grpcutilreleasenotes GrpcUtil Release Notes
 
-    @subsection grpcutil_v1_0 GrpcUtil Module Version 1.0
-    - initial release; the server classes are in the GrpcServerUtil module
+    @section grpcutil_v1_0 GrpcUtil Module Version 1.0
+    - initial release
 */
