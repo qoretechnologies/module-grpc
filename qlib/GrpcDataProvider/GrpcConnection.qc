@@ -31,6 +31,13 @@ public namespace GrpcDataProvider {
     scheme for the underlying HTTP/2 transport.
 */
 public class GrpcConnection inherits ConnectionProvider::AbstractConnectionWithInfo {
+    #! Returns the functional domains of the connection's clients (qoretechnologies/qore#7095)
+    /** The clients connect to a gRPC server and read the \c .proto files of the \c proto_path option
+    */
+    private final int getConnectionDomainsImpl() {
+        return DOM_NETWORK | DOM_FILESYSTEM;
+    }
+
     public {
         #! Connection scheme info
         const ConnectionScheme = ConnectionProvider::connection_scheme_presentation("GrpcDataProvider",
