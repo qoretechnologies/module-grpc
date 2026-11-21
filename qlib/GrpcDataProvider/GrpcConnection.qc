@@ -32,7 +32,10 @@ public namespace GrpcDataProvider {
 */
 public class GrpcConnection inherits ConnectionProvider::AbstractConnectionWithInfo {
     #! Returns the functional domains of the connection's clients (qoretechnologies/qore#7095)
-    /** The clients connect to a gRPC server and read the \c .proto files of the \c proto_path option
+    /** The clients connect to a gRPC server and read the \c .proto files of the \c proto_path option.
+
+        The connection declares \c FILESYSTEM because \c proto_path may read files, so code restricted from the file
+        system cannot create a gRPC connection, even one that uses \c proto_content only.
     */
     private final int getConnectionDomainsImpl() {
         return DOM_NETWORK | DOM_FILESYSTEM;
