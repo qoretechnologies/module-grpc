@@ -31,6 +31,13 @@ public namespace ArrowFlightDataProvider {
     scheme for the underlying HTTP/2 transport.
 */
 public class ArrowFlightConnection inherits ConnectionProvider::AbstractConnectionWithInfo {
+    #! Returns the functional domains of the connection's clients (qoretechnologies/qore#7095)
+    /** The clients connect to an Arrow Flight server
+    */
+    private final int getConnectionDomainsImpl() {
+        return DOM_NETWORK;
+    }
+
     public {
         #! Connection scheme info
         const ConnectionScheme = ConnectionProvider::connection_scheme_presentation("ArrowFlightDataProvider",
