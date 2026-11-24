@@ -340,16 +340,34 @@ public class SalesforcePubSubClient {
             schema_cache_size = opts.schema_cache_size;
         }
 
-        hash<GrpcChannelOptions> chopts = opts.channel_options ?? <GrpcChannelOptions>{};
-        if (url =~ /^https:/ && !exists chopts.ssl.verify_mode) {
-            # the Pub/Sub endpoint is a public Salesforce host; its certificate must be verified
-            # against the system CA store.  GrpcChannel accepts all certificates by default,
-            # which is appropriate for a local test server but not for a production org
-            chopts.ssl.verify_mode = SSL_VERIFY_PEER;
-        }
-        channel = new GrpcChannel(url, chopts);
+        channel = new GrpcChannel(url, getChannelOptions(url, opts));
         client = new GrpcClient(channel, SalesforcePubSubProto::get(),
             SalesforcePubSubProto::ServiceName);
+    }
+
+    #! Returns the options of the gRPC channel of a client of the endpoint \a url
+    /** An \c https endpoint is a public Salesforce host, so its certificate is verified against
+        the system CA store unless the \c "channel_options" constructor option already names a
+        verification mode.  GrpcChannel accepts all certificates by default, which is appropriate
+        for a local test server but not for a production org.  The other options are kept as given.
+
+        @param url the endpoint of the channel
+        @param opts the constructor options; \c "channel_options" gives the options of the channel
+
+        @return the options of the channel
+
+        @note the \c ssl member of the options is an optional hash, which a store into one of its
+        members does not create (a typed hash is never created implicitly, qore#7366): it is built
+        first and assigned as a whole
+    */
+    private static hash<GrpcChannelOptions> getChannelOptions(string url, *hash<auto> opts) {
+        hash<GrpcChannelOptions> chopts = opts.channel_options ?? <GrpcChannelOptions>{};
+        if (url =~ /^https:/ && !exists chopts.ssl.verify_mode) {
+            hash<GrpcSslOptions> ssl = chopts.ssl ?? <GrpcSslOptions>{};
+            ssl.verify_mode = SSL_VERIFY_PEER;
+            chopts.ssl = ssl;
+        }
+        return chopts;
     }
 
     #! Builds the call metadata from a REST client
