@@ -634,6 +634,11 @@ class TestPubSubClient inherits SalesforcePubSubClient {
             : SalesforcePubSubClient(metadata, opts) {
     }
 
+    #! the options of the channel that a client of \a url with the constructor options \a opts gets
+    static hash<GrpcChannelOptions> channelOptions(string url, *hash<auto> opts) {
+        return SalesforcePubSubClient::getChannelOptions(url, opts);
+    }
+
     bool refreshToken() {
         refreshes.next();
         return True;
@@ -803,6 +808,7 @@ public class SalesforcePubSubTest inherits QUnit::Test {
         addTestCase("stop is idempotent and terminal", \testStop());
         addTestCase("subscription option validation", \testSubscriptionOptions());
         addTestCase("client option validation", \testClientOptions());
+        addTestCase("channel options verify the certificate of an https endpoint", \testChannelOptions());
         addTestCase("channel enumeration", \testChannelEnumeration());
         addTestCase("event provider types", \testEventProviderTypes());
         addTestCase("event provider registration", \testProviderRegistration());
@@ -1736,6 +1742,44 @@ public class SalesforcePubSubTest inherits QUnit::Test {
     }
 
     #! Client options are validated and the endpoint defaults to the global Pub/Sub host
+    testChannelOptions() {
+        # an https endpoint verifies the certificate; the optional ssl options are built when they are absent
+        # (a store into an absent optional hashdecl raises HASHDECL-IMPLICIT-CONSTRUCTION-ERROR, qore#7366)
+        hash<GrpcChannelOptions> chopts = TestPubSubClient::channelOptions(PubSubUrl);
+        assertEq(SSL_VERIFY_PEER, chopts.ssl.verify_mode, "the default endpoint verifies the certificate");
+        assertEq(SSL_VERIFY_PEER, TestPubSubClient::channelOptions("https://localhost:1").ssl.verify_mode);
+
+        # an explicit mode is kept, also none
+        chopts = TestPubSubClient::channelOptions(PubSubUrl, {
+            "channel_options": <GrpcChannelOptions>{"ssl": <GrpcSslOptions>{"verify_mode": SSL_VERIFY_NONE}},
+        });
+        assertEq(SSL_VERIFY_NONE, chopts.ssl.verify_mode, "an explicit verification mode is kept");
+
+        # the other ssl options and the other channel options are kept when the mode is added
+        chopts = TestPubSubClient::channelOptions(PubSubUrl, {
+            "channel_options": <GrpcChannelOptions>{
+                "ssl": <GrpcSslOptions>{"root_certs": "ROOTS"},
+                "max_message_size": 1234,
+            },
+        });
+        assertEq(SSL_VERIFY_PEER, chopts.ssl.verify_mode);
+        assertEq("ROOTS", chopts.ssl.root_certs, "the ssl options that are given are kept");
+        assertEq(1234, chopts.max_message_size, "the other channel options are kept");
+
+        # a plain endpoint gets no ssl options
+        chopts = TestPubSubClient::channelOptions("http://localhost:50051");
+        assertFalse(exists chopts.ssl, "an http endpoint has no ssl options");
+        chopts = TestPubSubClient::channelOptions("http://localhost:50051", {
+            "channel_options": <GrpcChannelOptions>{"max_message_size": 99},
+        });
+        assertFalse(exists chopts.ssl);
+        assertEq(99, chopts.max_message_size);
+
+        # the constructor creates the channel of the default https endpoint
+        SalesforcePubSubClient client(TestMetadata);
+        assertEq(PubSubUrl, client.getUrl());
+    }
+
     testClientOptions() {
         # the endpoint is one global host for production orgs and sandboxes alike; only the OAuth2
         # URLs are org-specific and the REST connection owns those
