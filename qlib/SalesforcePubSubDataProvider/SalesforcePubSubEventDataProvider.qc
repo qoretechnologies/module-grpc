@@ -58,6 +58,7 @@ public class SalesforcePubSubEventDataProvider inherits
             "type": "SalesforcePubSubEventDataProvider",
             "desc": "Observable data provider for a single Salesforce Pub/Sub event channel",
             "supports_observable": True,
+            "supports_refusal_redelivery": True,
             "supports_children": True,
             "children_can_support_observers": True,
             "children_can_support_apis": False,

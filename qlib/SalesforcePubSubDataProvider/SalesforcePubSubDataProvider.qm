@@ -27,7 +27,7 @@
 %allow-weak-references
 
 %requires(reexport) SalesforceRestDataProvider
-%requires(reexport) DataProvider
+%requires(reexport) DataProvider >= 3.13
 %requires AvroUtil
 %requires AsyncSocketIo
 %requires protobuf
