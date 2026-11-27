@@ -89,6 +89,27 @@ list<auto> results = provider
     - \c max_response_body_size: maximum size in bytes of a unary response body received into memory (default: 0,
       no limit; see @ref grpclimitsguide)
 
+    A ping of a connection (\c ping()) makes the HTTP/2 connection to the server and waits until it is ready (for at
+    most \c timeout_ms): it fails with the connection error, or with \c GRPC-PING-ERROR if the connection is not
+    ready in time, and marks the connection down, if the server cannot be reached.
+
+    @subsection grpcdplent Connections Lent to Restricted Code
+
+    A connection that a host creates and lends to restricted code creates its data provider, the channel of \c get()
+    and the channel of its ping from the URL and options that the host gave it, for code restricted from a
+    functional domain that the connection uses: the file system and the network for a
+    @ref GrpcDataProvider::GrpcConnection "GrpcConnection" (its proto files), the network for an
+    @ref ArrowFlightDataProvider::ArrowFlightConnection "ArrowFlightConnection".  Such code can change the
+    connection's public members (\c url, \c opts), but a data provider, channel or ping of a connection whose members
+    were changed is refused with \c PERMISSION-DENIED before any file is read or connection is made, so it cannot
+    read another proto file or reach another server through the connection.  Code that is not restricted from such a
+    domain (for example code restricted only from the file system that uses an Arrow Flight connection, which it
+    could create itself) uses the members that it sets.
+
+    Code restricted from the network (\c PO_NO_NETWORK) cannot create the HTTP/2 connection manager of a channel, so
+    it cannot use the data provider of a lent connection either, and its ping is refused without changing the state
+    of the connection (\c up and \c status).
+
     @section grpcdptypes Protobuf to DataProvider Type Mapping
 
     |!Protobuf Type|!DataProvider Type
