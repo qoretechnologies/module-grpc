@@ -1,0 +1,138 @@
+#!/usr/bin/env qore
+# -*- mode: qore; indent-tabs-mode: nil -*-
+
+/*
+    Copyright (C) 2026 Qore Technologies, s.r.o., all rights reserved
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+*/
+
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+
+%requires QUnit
+%requires DataProvider
+%requires ConnectionProvider
+%requires protobuf
+%requires grpc
+%requires GrpcUtil
+%requires GrpcDataProvider
+
+%exec-class CallerFileAccessTest
+
+#! Tests that a proto file path given by a restricted caller is refused before it is used (module-grpc#14)
+/** Library code runs with its own Program's options, so the gRPC data provider refuses the \c proto_path option of
+    code restricted from the file system: a Program with PO_NO_FILESYSTEM is refused with PERMISSION-DENIED before the
+    file is read, a Program whose sandbox denies the file system by default is refused by its file-system policy
+    (FILESYSTEM-ACCESS-DENIED).  The endpoint is unreachable, and no call is made.  Inline proto content is not a path
+    and stays usable for restricted code; the proto path of a connection that the host created is the host's and is
+    used for restricted code that it is lent to; an unrestricted caller uses its path.
+*/
+class CallerFileAccessTest inherits QUnit::Test {
+    private {
+        const Modes = {"ast": EM_AST, "ir": EM_IR, "jit": EM_JIT, "tiered": EM_TIERED};
+
+        #! an endpoint that refuses connections
+        const Url = "http://127.0.0.1:1";
+
+        const Source = "%modern
+%requires DataProvider
+%requires GrpcDataProvider
+
+# creates a gRPC data provider with the given options
+string sub create(hash<auto> opts) {
+    try {
+        new GrpcDataProvider(opts);
+        return \"ok\";
+    } catch (hash<ExceptionInfo> ex) {
+        return ex.err;
+    }
+}
+
+# gets the data provider of a connection that the host created
+string sub use_connection(AbstractConnection conn) {
+    try {
+        AbstractDataProvider dp = conn.getDataProvider();
+        return dp.getChildProviderNames().size() ? \"ok\" : \"no services\";
+    } catch (hash<ExceptionInfo> ex) {
+        return ex.err;
+    }
+}
+";
+    }
+
+    constructor() : QUnit::Test("CallerFileAccess", "1.0", \ARGV) {
+        foreach string mode in (keys Modes) {
+            string m = mode;
+            addTestCase("proto_path option, " + m, sub () { testProtoPath(m); });
+            addTestCase("lent connection, " + m, sub () { testLent(m); });
+        }
+        set_return_value(main());
+    }
+
+    private testProtoPath(string mode) {
+        # the test's proto file and a system file
+        foreach list<string> path in (((get_script_dir(), "test.proto"), ("/etc", "hostname"))) {
+            hash<auto> opts = {"url": Url, "proto_path": path[0], "proto_file": path[1]};
+            string desc = sprintf("%y %s", path, mode);
+            assertEq("PERMISSION-DENIED", getProgram("nofs", mode).callFunction("create", opts), "nofs " + desc);
+            # the sandbox refuses by its file-system policy when the file is read
+            assertEq("FILESYSTEM-ACCESS-DENIED", getProgram("sandbox", mode).callFunction("create", opts),
+                "sandbox " + desc);
+        }
+        hash<auto> opts = {"url": Url, "proto_path": get_script_dir(), "proto_file": "test.proto"};
+        assertEq("ok", getProgram("unrestricted", mode).callFunction("create", opts), "unrestricted " + mode);
+        # inline proto content is not a path
+        string content = "syntax = \"proto3\"; package t; message M { int32 x = 1; } "
+            "service S { rpc Call (M) returns (M); }";
+        foreach string kind in ("nofs", "sandbox") {
+            assertEq("ok", getProgram(kind, mode).callFunction("create", {"url": Url, "proto_content": content}),
+                sprintf("%s proto_content %s", kind, mode));
+        }
+    }
+
+    private testLent(string mode) {
+        GrpcConnection conn("t", "", "grpc://127.0.0.1:1", {"monitor": False},
+            {"proto_path": get_script_dir(), "proto_file": "test.proto"});
+        assertEq("ok", getProgram("nofs", mode).callFunction("use_connection", conn), "nofs lent connection " + mode);
+    }
+
+    #! returns a Program of the given kind
+    private Program getProgram(string kind, string mode) {
+        Program p;
+        switch (kind) {
+            case "nofs":
+                p = new Program(PO_NEW_STYLE | PO_NO_FILESYSTEM);
+                break;
+            case "sandbox": {
+                SandboxManager sm();
+                sm.setFilesystemDefaultPolicy(False);
+                p = new Program(PO_NEW_STYLE);
+                p.setSandboxManager(sm);
+                break;
+            }
+            default:
+                p = new Program(PO_NEW_STYLE);
+                break;
+        }
+        p.setExecMode(Modes{mode});
+        p.parse(Source, kind);
+        return p;
+    }
+}
