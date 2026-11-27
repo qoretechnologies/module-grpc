@@ -1,0 +1,136 @@
+#!/usr/bin/env qore
+# -*- mode: qore; indent-tabs-mode: nil -*-
+
+/*
+    Copyright (C) 2026 Qore Technologies, s.r.o., all rights reserved
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+*/
+
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+
+%requires QUnit
+%requires ConnectionProvider
+%requires protobuf
+%requires grpc
+%requires GrpcUtil
+%requires GrpcServerUtil
+%requires GrpcDataProvider
+%requires ArrowFlightDataProvider
+
+%exec-class ConnectionPingTest
+
+#! Tests the pings of GrpcConnection and ArrowFlightConnection objects
+/** A ping makes an HTTP/2 connection to the server: it succeeds and marks the connection up if the server accepts
+    the connection, and fails with the connection error and marks the connection down if not, also with
+    PF_THROW_EXCEPTION.  The ping of a connection that a host created succeeds for code restricted from the file system
+    that it is lent to; code restricted from the network cannot create the HTTP/2 connection manager of the ping's
+    channel and is refused.
+*/
+class ConnectionPingTest inherits QUnit::Test {
+    private {
+        const Modes = {"ast": EM_AST, "ir": EM_IR, "jit": EM_JIT, "tiered": EM_TIERED};
+
+        #! the results of the ping of a lent connection for restricted code, by its parse options
+        /** Code restricted from the network cannot create the HTTP/2 connection manager of a channel, also of a
+            channel that a lent connection creates for it
+        */
+        const LentResults = (
+            {"opts": PO_NO_FILESYSTEM, "result": "ok"},
+            {"opts": PO_NO_NETWORK, "result": "PERMISSION-DENIED"},
+        );
+
+        const Source = "%modern
+%requires ConnectionProvider
+
+# pings a lent connection; returns the result or the error
+string sub ping(AbstractConnection conn) {
+    try {
+        hash<PingInfo> info = conn.ping(PF_THROW_EXCEPTION);
+        return info.ok ? \"ok\" : \"not ok\";
+    } catch (hash<ExceptionInfo> ex) {
+        return ex.err;
+    }
+}
+";
+    }
+
+    constructor() : QUnit::Test("ConnectionPing", "1.0", \ARGV) {
+        addTestCase("grpc", \testGrpc());
+        addTestCase("flight", \testFlight());
+        set_return_value(main());
+    }
+
+    testGrpc() {
+        ProtobufSchema schema(get_script_dir(), "test.proto");
+        GrpcServer server(schema);
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        checkPings(new GrpcConnection("g", "", sprintf("grpc://localhost:%d", port), {"monitor": False}),
+            new GrpcConnection("u", "", "grpc://127.0.0.1:1", {"monitor": False}), "grpc");
+        foreach string mode in (keys Modes) {
+            foreach hash<auto> i in (LentResults) {
+                assertEq(i.result, getProgram(i.opts, mode).callFunction("ping", new GrpcConnection("g", "",
+                    sprintf("grpc://localhost:%d", port), {"monitor": False})), sprintf("grpc lent %d %s", i.opts, mode));
+            }
+        }
+    }
+
+    testFlight() {
+        ArrowFlightServer server();
+        int port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+
+        checkPings(new ArrowFlightConnection("f", "", sprintf("flight://localhost:%d", port), {"monitor": False}),
+            new ArrowFlightConnection("u", "", "flight://127.0.0.1:1", {"monitor": False}), "flight");
+        foreach string mode in (keys Modes) {
+            foreach hash<auto> i in (LentResults) {
+                assertEq(i.result, getProgram(i.opts, mode).callFunction("ping", new ArrowFlightConnection("f", "",
+                    sprintf("flight://localhost:%d", port), {"monitor": False})), sprintf("flight lent %d %s", i.opts,
+                    mode));
+            }
+        }
+    }
+
+    private checkPings(AbstractConnection conn, AbstractConnection unreachable, string desc) {
+        hash<PingInfo> info = conn.ping();
+        assertTrue(info.ok, desc + " ok");
+        assertEq("OK", info.info, desc + " info");
+        assertTrue(conn.up, desc + " up");
+
+        info = unreachable.ping();
+        assertFalse(info.ok, desc + " unreachable");
+        # the error of the connection, not of the ping's own code
+        assertRegex("CONNECT", info.info, desc + " unreachable info");
+        assertFalse(unreachable.up, desc + " unreachable up");
+        assertThrows("HTTPCLIENT-CONNECT-ERROR", \unreachable.ping(), PF_THROW_EXCEPTION);
+    }
+
+    #! returns a Program with the given restrictions
+    private Program getProgram(int opts, string mode) {
+        Program p(PO_NEW_STYLE | opts);
+        p.setExecMode(Modes{mode});
+        p.parse(Source, "ping");
+        return p;
+    }
+}

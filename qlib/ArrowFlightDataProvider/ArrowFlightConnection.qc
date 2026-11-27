@@ -140,23 +140,24 @@ public class ArrowFlightConnection inherits ConnectionProvider::AbstractConnecti
         return new GrpcChannel(getHttpUrl(), getChannelOptions());
     }
 
-    #! Returns a ping hash for the connection
-    private hash<PingInfo> pingImpl() {
-        hash<PingInfo> rv;
-        date start = now_us();
-        try {
-            GrpcChannel ch(getHttpUrl(), getChannelOptions());
-            on_exit ch.shutdown();
-            auto stream = ch.acquireStream();
-            rv.ok = True;
-            rv.time = now_us() - start;
-            rv.info = "OK";
-        } catch (hash<ExceptionInfo> ex) {
-            rv.ok = False;
-            rv.time = now_us() - start;
-            rv.info = sprintf("%s: %s", ex.err, ex.desc);
+    #! Pings the server: makes an HTTP/2 connection to it
+    /** A stream is acquired on a new channel, and the ping waits until its connection is ready for requests or
+        fails; an error is thrown, so that the ping reports it and marks the connection down
+
+        @throw HTTPCLIENT-CONNECT-ERROR the connection to the server cannot be made
+        @throw GRPC-PING-ERROR the connection was not ready within the timeout of the connection (\c timeout_ms)
+    */
+    private pingImpl() {
+        # the channel is created by get(): for restricted code that was lent the connection, from a private copy
+        # with its creator's members (module-grpc#17)
+        GrpcChannel ch = get(False);
+        on_exit ch.shutdown();
+        # acquiring a stream starts the connection; a connection error is raised when it is waited for
+        int timeout_ms = opts.timeout_ms ?? 30000;
+        if (!ch.acquireStream().getConnectionView().waitForReady(timeout_ms)) {
+            throw "GRPC-PING-ERROR", sprintf("the connection to %y was not ready within %d ms", ch.target(),
+                timeout_ms);
         }
-        return rv;
     }
 
     #! Returns the channel options for the size limits set in the connection options

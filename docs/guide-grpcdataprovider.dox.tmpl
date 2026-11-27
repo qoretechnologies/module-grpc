@@ -89,6 +89,9 @@ list<auto> results = provider
     - \c max_response_body_size: maximum size in bytes of a unary response body received into memory (default: 0,
       no limit; see @ref grpclimitsguide)
 
+    A ping of a connection (\c ping()) makes the HTTP/2 connection to the server and waits until it is ready: it
+    fails with the connection error, and marks the connection down, if the server cannot be reached.
+
     @section grpcdptypes Protobuf to DataProvider Type Mapping
 
     |!Protobuf Type|!DataProvider Type
