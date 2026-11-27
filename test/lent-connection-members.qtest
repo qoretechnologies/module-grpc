@@ -1,0 +1,261 @@
+#!/usr/bin/env qore
+# -*- mode: qore; indent-tabs-mode: nil -*-
+
+/*
+    Copyright (C) 2026 Qore Technologies, s.r.o., all rights reserved
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+*/
+
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+
+%requires QUnit
+%requires DataProvider
+%requires ConnectionProvider
+%requires FsUtil
+%requires protobuf
+%requires grpc
+%requires GrpcUtil
+%requires GrpcDataProvider
+%requires ArrowFlightDataProvider
+
+%exec-class LentConnectionMembersTest
+
+#! Tests that restricted code that a host-created connection is lent to cannot redirect it (module-grpc#16)
+/** A GrpcConnection or ArrowFlightConnection creates its data provider and the channel of its ping from its public
+    members (its URL and options), which the code that the connection is lent to can change.  Code restricted from the
+    file system (PO_NO_FILESYSTEM) that changed them is refused with PERMISSION-DENIED before the data provider is
+    created, so it can neither read another proto file nor reach another host; with the members that the host gave,
+    the connection works for it; the clients of an Arrow Flight connection use only the network, so it is not
+    confined for such code.  Code restricted from the network (PO_NO_NETWORK) is refused a changed connection, and
+    cannot create a channel of an unchanged one either; a sandbox's file-system policy applies to the files that the data provider reads.
+    Unrestricted code that is lent the connection uses the members that it set.  The endpoints are unreachable: no
+    call is made.
+*/
+class LentConnectionMembersTest inherits QUnit::Test {
+    private {
+        const Modes = {"ast": EM_AST, "ir": EM_IR, "jit": EM_JIT, "tiered": EM_TIERED};
+
+        #! an endpoint that refuses connections
+        const Url = "grpc://127.0.0.1:1";
+        #! another endpoint that refuses connections; the target that the borrower redirects the connection to
+        const OtherUrl = "grpc://127.0.0.2:1";
+        #! the Arrow Flight endpoint that the borrower redirects the connection to
+        const OtherFlightUrl = "flight://127.0.0.2:1";
+
+        #! the proto file that the borrower redirects the connection to: a service other than the host's
+        const OtherProto = "syntax = \"proto3\";
+package other;
+message Req { string s = 1; }
+service OtherService {
+    rpc Steal (Req) returns (Req);
+}
+";
+
+        const Source = "%modern
+%requires DataProvider
+%requires GrpcDataProvider
+%requires ArrowFlightDataProvider
+
+# returns the services of the data provider of a lent connection after changing the given options
+string sub get_services(AbstractConnection conn, *hash<auto> opts) {
+    try {
+        conn.opts += opts;
+        return conn.getDataProvider().getChildProviderNames().join(\",\");
+    } catch (hash<ExceptionInfo> ex) {
+        return ex.err;
+    }
+}
+
+# returns the display name of the data provider of a lent connection after changing its URL
+string sub get_display_name(AbstractConnection conn, *string url) {
+    try {
+        if (url) {
+            conn.url = url;
+        }
+        return conn.getDataProvider().getDisplayName();
+    } catch (hash<ExceptionInfo> ex) {
+        return ex.err;
+    }
+}
+
+# changes the URL of a lent connection and pings it; returns the error of a refused ping
+string sub ping(AbstractConnection conn, string url) {
+    conn.url = url;
+    try {
+        hash<PingInfo> info = conn.ping(PF_THROW_EXCEPTION);
+        return info.ok ? \"ok\" : info.info;
+    } catch (hash<ExceptionInfo> ex) {
+        return ex.err;
+    }
+}
+";
+        #! the directory of the borrower's proto file
+        string dir;
+    }
+
+    constructor() : QUnit::Test("LentConnectionMembers", "1.0", \ARGV) {
+        foreach string mode in (keys Modes) {
+            string m = mode;
+            addTestCase("proto path, " + m, sub () { testProtoPath(m); });
+            addTestCase("url, " + m, sub () { testUrl(m); });
+            addTestCase("arrow flight url, " + m, sub () { testFlightUrl(m); });
+            addTestCase("ping, " + m, sub () { testPing(m); });
+        }
+        set_return_value(main());
+    }
+
+    globalSetUp() {
+        dir = make_tmp_dir();
+        File f();
+        f.open2(dir + "/other.proto", O_CREAT | O_TRUNC | O_WRONLY);
+        f.write(OtherProto);
+        f.close();
+    }
+
+    globalTearDown() {
+        if (dir) {
+            remove_tree(dir);
+        }
+    }
+
+    private testProtoPath(string mode) {
+        hash<auto> redirect = {"proto_path": dir, "proto_file": "other.proto"};
+        string desc = "nofs " + mode;
+        # with the members that the host gave, the connection works for the borrower
+        assertEq("TestService", getProgram("nofs", mode).callFunction("get_services", getConnection()),
+            "host's proto " + desc);
+        # the borrower cannot read another proto file through the connection
+        GrpcConnection conn = getConnection();
+        assertEq("PERMISSION-DENIED", getProgram("nofs", mode).callFunction("get_services", conn, redirect),
+            "other proto " + desc);
+        # ... nor a system file
+        assertEq("PERMISSION-DENIED", getProgram("nofs", mode).callFunction("get_services", getConnection(),
+            {"proto_path": "/etc", "proto_file": "hostname"}), "system file " + desc);
+        # ... nor give it inline proto content of its own
+        assertEq("PERMISSION-DENIED", getProgram("nofs", mode).callFunction("get_services", getConnection(),
+            {"proto_path": NOTHING, "proto_content": OtherProto}), "proto content " + desc);
+        # ... nor change another option
+        assertEq("PERMISSION-DENIED", getProgram("nofs", mode).callFunction("get_services", getConnection(),
+            {"timeout_ms": 1}), "timeout " + desc);
+        # the connection keeps working for the host
+        conn.opts += {"proto_path": get_script_dir(), "proto_file": "test.proto"};
+        assertEq("TestService", conn.getDataProvider().getChildProviderNames().join(","), "host " + desc);
+        # and for the borrower once the host restored its members
+        assertEq("TestService", getProgram("nofs", mode).callFunction("get_services", conn), "restored " + desc);
+
+        # code restricted from the network cannot create the channel of the data provider, whatever its members
+        assertEq("PERMISSION-DENIED", getProgram("nonet", mode).callFunction("get_services", getConnection()),
+            "host's proto nonet " + mode);
+        assertEq("PERMISSION-DENIED", getProgram("nonet", mode).callFunction("get_services", getConnection(),
+            redirect), "other proto nonet " + mode);
+
+        # a sandbox whose file-system policy denies the files refuses the read
+        assertEq("FILESYSTEM-ACCESS-DENIED", getProgram("sandbox", mode).callFunction("get_services",
+            getConnection(), redirect), "sandbox " + mode);
+        # unrestricted code that is lent the connection uses the members that it set
+        assertEq("OtherService", getProgram("unrestricted", mode).callFunction("get_services", getConnection(),
+            redirect), "unrestricted " + mode);
+    }
+
+    private testUrl(string mode) {
+        string host_name = getConnection().getDataProvider().getDisplayName();
+        GrpcConnection other("o", "", OtherUrl, {"monitor": False},
+            {"proto_path": get_script_dir(), "proto_file": "test.proto"});
+        string other_name = other.getDataProvider().getDisplayName();
+        assertNeq(host_name, other_name);
+        assertEq(host_name, getProgram("nofs", mode).callFunction("get_display_name", getConnection()),
+            "host's URL nofs " + mode);
+        # the borrower cannot redirect the connection to another host
+        assertEq("PERMISSION-DENIED", getProgram("nofs", mode).callFunction("get_display_name", getConnection(),
+            OtherUrl), "other URL nofs " + mode);
+        assertEq("PERMISSION-DENIED", getProgram("nonet", mode).callFunction("get_display_name", getConnection(),
+            OtherUrl), "other URL nonet " + mode);
+        assertEq(other_name, getProgram("unrestricted", mode).callFunction("get_display_name", getConnection(),
+            OtherUrl), "unrestricted " + mode);
+    }
+
+    private testFlightUrl(string mode) {
+        string host_name = getFlightConnection().getDataProvider().getDisplayName();
+        ArrowFlightConnection other("o", "", OtherFlightUrl, {"monitor": False});
+        string other_name = other.getDataProvider().getDisplayName();
+        assertNeq(host_name, other_name);
+        assertEq(host_name, getProgram("nofs", mode).callFunction("get_display_name", getFlightConnection()),
+            "host's URL nofs " + mode);
+        # the clients of an Arrow Flight connection use only the network: code restricted from the file system can
+        # reach any host itself and is not confined to the host's target
+        assertEq(other_name, getProgram("nofs", mode).callFunction("get_display_name", getFlightConnection(),
+            OtherFlightUrl), "other URL nofs " + mode);
+        assertEq("PERMISSION-DENIED", getProgram("nonet", mode).callFunction("get_display_name",
+            getFlightConnection(), OtherFlightUrl), "other URL nonet " + mode);
+        assertEq(other_name, getProgram("unrestricted", mode).callFunction("get_display_name",
+            getFlightConnection(), OtherFlightUrl), "unrestricted " + mode);
+    }
+
+    private testPing(string mode) {
+        foreach string kind in ("nofs", "nonet") {
+            assertEq("PERMISSION-DENIED", getProgram(kind, mode).callFunction("ping", getConnection(), OtherUrl),
+                sprintf("grpc %s %s", kind, mode));
+        }
+        assertEq("PERMISSION-DENIED", getProgram("nonet", mode).callFunction("ping", getFlightConnection(),
+            OtherFlightUrl), "flight nonet " + mode);
+        # code restricted from the file system pings the host that it set: it is not confined for a connection whose
+        # clients use only the network
+        assertEq("HTTPCLIENT-CONNECT-ERROR", getProgram("nofs", mode).callFunction("ping", getFlightConnection(),
+            OtherFlightUrl), "flight nofs " + mode);
+    }
+
+    #! returns a gRPC connection that the host created
+    private GrpcConnection getConnection() {
+        return new GrpcConnection("t", "", Url, {"monitor": False},
+            {"proto_path": get_script_dir(), "proto_file": "test.proto"});
+    }
+
+    #! returns an Arrow Flight connection that the host created
+    private ArrowFlightConnection getFlightConnection() {
+        return new ArrowFlightConnection("f", "", "flight://127.0.0.1:1", {"monitor": False});
+    }
+
+    #! returns a Program of the given kind
+    private Program getProgram(string kind, string mode) {
+        Program p;
+        switch (kind) {
+            case "nofs":
+                p = new Program(PO_NEW_STYLE | PO_NO_FILESYSTEM);
+                break;
+            case "nonet":
+                p = new Program(PO_NEW_STYLE | PO_NO_NETWORK);
+                break;
+            case "sandbox": {
+                SandboxManager sm();
+                sm.setFilesystemDefaultPolicy(False);
+                p = new Program(PO_NEW_STYLE);
+                p.setSandboxManager(sm);
+                break;
+            }
+            default:
+                p = new Program(PO_NEW_STYLE);
+                break;
+        }
+        p.setExecMode(Modes{mode});
+        p.parse(Source, kind);
+        return p;
+    }
+}

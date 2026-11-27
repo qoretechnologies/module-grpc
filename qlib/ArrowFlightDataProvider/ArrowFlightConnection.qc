@@ -106,8 +106,20 @@ public class ArrowFlightConnection inherits ConnectionProvider::AbstractConnecti
 
     #! Returns an ArrowFlightDataProvider for this connection
     /** @return an ArrowFlightDataProvider configured with this connection's URL and options
+
+        @throw PERMISSION-DENIED the calling code was lent the connection and is restricted from a functional domain
+        of the connection, and the connection's URL or options are not the ones that its creator gave (see
+        @ref grpcdplent)
     */
     DataProvider::AbstractDataProvider getDataProvider() {
+        # the data provider is created from the connection's public members, which restricted code that was lent the
+        # connection can change: for such code, it is created from a private copy with its creator's members, once
+        # they were checked (module-grpc#16)
+        return cast<ArrowFlightConnection>(getLentDataProviderSource()).getDataProviderIntern();
+    }
+
+    #! Returns an ArrowFlightDataProvider created from the members of this object
+    private:internal ArrowFlightDataProvider getDataProviderIntern() {
         string http_url = getHttpUrl();
 
         hash<auto!> provider_opts({

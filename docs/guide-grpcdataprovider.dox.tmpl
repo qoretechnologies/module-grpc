@@ -92,6 +92,20 @@ list<auto> results = provider
     A ping of a connection (\c ping()) makes the HTTP/2 connection to the server and waits until it is ready: it
     fails with the connection error, and marks the connection down, if the server cannot be reached.
 
+    @subsection grpcdplent Connections Lent to Restricted Code
+
+    A @ref GrpcDataProvider::GrpcConnection "GrpcConnection" or
+    @ref ArrowFlightDataProvider::ArrowFlightConnection "ArrowFlightConnection" that a host creates and lends to
+    restricted code (a Program with \c PO_NO_FILESYSTEM, for example) creates its data provider, the channel of
+    \c get() and the channel of its ping from the URL and options that the host gave it: the restricted code can
+    change the connection's public members (\c url, \c opts), but a data provider, channel or ping of a connection
+    whose members were changed is refused with \c PERMISSION-DENIED before any file is read or connection is made,
+    so the code cannot read another proto file or reach another server through the connection.  Unrestricted code
+    that is lent the connection uses the members that it sets.
+
+    Code restricted from the network (\c PO_NO_NETWORK) cannot create the HTTP/2 connection manager of a channel, so
+    it cannot use the data provider or ping of a lent connection either.
+
     @section grpcdptypes Protobuf to DataProvider Type Mapping
 
     |!Protobuf Type|!DataProvider Type
