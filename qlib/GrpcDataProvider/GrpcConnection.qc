@@ -197,6 +197,25 @@ public class GrpcConnection inherits ConnectionProvider::AbstractConnectionWithI
     }
 
     #! Pings the server: makes an HTTP/2 connection to it
+    /** Code restricted from the \c NETWORK functional domain that was lent the connection cannot create the HTTP/2
+        connection manager of the ping's channel: it is refused before the ping, so that the refusal does not change
+        the state of the connection (\c up and \c status) for its other users
+
+        @param ping_flags see @ref ConnectionProvider::AbstractConnection::ping() "AbstractConnection::ping()"
+
+        @return see @ref ConnectionProvider::AbstractConnection::ping() "AbstractConnection::ping()"
+
+        @throw PERMISSION-DENIED the calling code is restricted from the \c NETWORK functional domain
+    */
+    hash<PingInfo> ping(int ping_flags = 0) {
+        if (SandboxManager::isLentToRestricted(DOM_NETWORK)) {
+            throw "PERMISSION-DENIED", sprintf("connection %y: the calling code is restricted from the NETWORK "
+                "functional domain and cannot create the HTTP/2 connection manager of a ping", name);
+        }
+        return AbstractConnectionWithInfo::ping(ping_flags);
+    }
+
+    #! Pings the server: makes an HTTP/2 connection to it
     /** A stream is acquired on a new channel, and the ping waits until its connection is ready for requests or
         fails; an error is thrown, so that the ping reports it and marks the connection down
 
@@ -209,7 +228,11 @@ public class GrpcConnection inherits ConnectionProvider::AbstractConnectionWithI
         GrpcChannel channel = get(False);
         on_exit channel.shutdown();
         # acquiring a stream starts the connection; a connection error is raised when it is waited for
-        int timeout_ms = opts.timeout_ms ?? 30000;
+        # the timeout of the connection's calls; 0 (or no valid value) is the default, as for the data provider
+        softint timeout_ms = opts.timeout_ms;
+        if (timeout_ms <= 0) {
+            timeout_ms = 30000;
+        }
         if (!channel.acquireStream().getConnectionView().waitForReady(timeout_ms)) {
             throw "GRPC-PING-ERROR", sprintf("the connection to %y was not ready within %d ms", channel.target(),
                 timeout_ms);

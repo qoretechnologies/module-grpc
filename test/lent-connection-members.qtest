@@ -41,13 +41,13 @@
 #! Tests that restricted code that a host-created connection is lent to cannot redirect it (module-grpc#16)
 /** A GrpcConnection or ArrowFlightConnection creates its data provider and the channel of its ping from its public
     members (its URL and options), which the code that the connection is lent to can change.  Code restricted from the
-    file system (PO_NO_FILESYSTEM) that changed them is refused with PERMISSION-DENIED before the data provider is
-    created, so it can neither read another proto file nor reach another host; with the members that the host gave,
-    the connection works for it; the clients of an Arrow Flight connection use only the network, so it is not
-    confined for such code.  Code restricted from the network (PO_NO_NETWORK) is refused a changed connection, and
-    cannot create a channel of an unchanged one either; a sandbox's file-system policy applies to the files that the data provider reads.
-    Unrestricted code that is lent the connection uses the members that it set.  The endpoints are unreachable: no
-    call is made.
+    file system (PO_NO_FILESYSTEM) that changed the members of a GrpcConnection is refused with PERMISSION-DENIED
+    before the data provider is created, so it can neither read another proto file nor reach another host; with the
+    members that the host gave, the connection works for it.  The clients of an Arrow Flight connection use only the
+    network, so such code is not confined for it.  Code restricted from the network (PO_NO_NETWORK) is refused a
+    changed connection, and cannot create a channel of an unchanged one either.  A sandbox's file-system policy
+    applies to the files that the data provider reads.  Unrestricted code that is lent the connection uses the
+    members that it set.  The endpoints are unreachable: no call is made.
 */
 class LentConnectionMembersTest inherits QUnit::Test {
     private {

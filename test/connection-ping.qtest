@@ -40,9 +40,10 @@
 #! Tests the pings of GrpcConnection and ArrowFlightConnection objects
 /** A ping makes an HTTP/2 connection to the server: it succeeds and marks the connection up if the server accepts
     the connection, and fails with the connection error and marks the connection down if not, also with
-    PF_THROW_EXCEPTION.  The ping of a connection that a host created succeeds for code restricted from the file system
-    that it is lent to; code restricted from the network cannot create the HTTP/2 connection manager of the ping's
-    channel and is refused.
+    PF_THROW_EXCEPTION, or with GRPC-PING-ERROR if the connection is not ready within its timeout.  The ping of a
+    connection that a host created succeeds for code restricted from the file system that it is lent to; code
+    restricted from the network cannot create the HTTP/2 connection manager of the ping's channel and is refused
+    without changing the state of the connection.
 */
 class ConnectionPingTest inherits QUnit::Test {
     private {
@@ -75,6 +76,7 @@ string sub ping(AbstractConnection conn) {
     constructor() : QUnit::Test("ConnectionPing", "1.0", \ARGV) {
         addTestCase("grpc", \testGrpc());
         addTestCase("flight", \testFlight());
+        addTestCase("timeout", \testTimeout());
         set_return_value(main());
     }
 
@@ -89,8 +91,13 @@ string sub ping(AbstractConnection conn) {
             new GrpcConnection("u", "", "grpc://127.0.0.1:1", {"monitor": False}), "grpc");
         foreach string mode in (keys Modes) {
             foreach hash<auto> i in (LentResults) {
-                assertEq(i.result, getProgram(i.opts, mode).callFunction("ping", new GrpcConnection("g", "",
-                    sprintf("grpc://localhost:%d", port), {"monitor": False})), sprintf("grpc lent %d %s", i.opts, mode));
+                GrpcConnection conn("g", "", sprintf("grpc://localhost:%d", port), {"monitor": False});
+                conn.ping();
+                string desc = sprintf("grpc lent %d %s", i.opts, mode);
+                assertEq(i.result, getProgram(i.opts, mode).callFunction("ping", conn), desc);
+                # a refused ping does not change the state of the connection for its other users
+                assertTrue(conn.up, desc + " up");
+                assertEq("OK", conn.status, desc + " status");
             }
         }
     }
@@ -105,11 +112,42 @@ string sub ping(AbstractConnection conn) {
             new ArrowFlightConnection("u", "", "flight://127.0.0.1:1", {"monitor": False}), "flight");
         foreach string mode in (keys Modes) {
             foreach hash<auto> i in (LentResults) {
-                assertEq(i.result, getProgram(i.opts, mode).callFunction("ping", new ArrowFlightConnection("f", "",
-                    sprintf("flight://localhost:%d", port), {"monitor": False})), sprintf("flight lent %d %s", i.opts,
-                    mode));
+                ArrowFlightConnection conn("f", "", sprintf("flight://localhost:%d", port), {"monitor": False});
+                conn.ping();
+                string desc = sprintf("flight lent %d %s", i.opts, mode);
+                assertEq(i.result, getProgram(i.opts, mode).callFunction("ping", conn), desc);
+                assertTrue(conn.up, desc + " up");
+                assertEq("OK", conn.status, desc + " status");
             }
         }
+    }
+
+    testTimeout() {
+        # a listener that accepts TCP connections in its backlog but never speaks HTTP/2
+        Socket sock();
+        sock.bind("127.0.0.1:0");
+        sock.listen();
+        on_exit sock.close();
+        int port = sock.getSocketInfo().port;
+        foreach AbstractConnection conn in (
+                new GrpcConnection("g", "", sprintf("grpc://127.0.0.1:%d", port), {"monitor": False},
+                    {"timeout_ms": 200}),
+                new ArrowFlightConnection("f", "", sprintf("flight://127.0.0.1:%d", port), {"monitor": False},
+                    {"timeout_ms": 200})) {
+            hash<PingInfo> info = conn.ping();
+            assertFalse(info.ok, conn.getType());
+            assertRegex("^GRPC-PING-ERROR", info.info, conn.getType());
+            assertFalse(conn.up, conn.getType() + " up");
+        }
+
+        # a timeout of 0 is the default timeout
+        ProtobufSchema schema(get_script_dir(), "test.proto");
+        GrpcServer server(schema);
+        port = server.addInsecurePort("localhost:0");
+        server.start();
+        on_exit server.shutdown();
+        GrpcConnection conn("g", "", sprintf("grpc://localhost:%d", port), {"monitor": False}, {"timeout_ms": 0});
+        assertTrue(conn.ping().ok, "timeout 0");
     }
 
     private checkPings(AbstractConnection conn, AbstractConnection unreachable, string desc) {
