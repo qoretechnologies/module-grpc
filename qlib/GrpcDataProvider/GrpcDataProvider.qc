@@ -158,6 +158,8 @@ public class GrpcDataProvider inherits AbstractDataProvider {
     /** @param options constructor options hash
 
         @throw CONSTRUCTOR-ERROR missing or invalid options
+        @throw PERMISSION-DENIED a \c proto_path is given and the creating code is restricted from the \c FILESYSTEM
+        functional domain
     */
     constructor(*hash<auto> options) {
         *hash<auto> copts = checkOptions("CONSTRUCTOR-ERROR", ConstructorOptions, options);
@@ -166,6 +168,13 @@ public class GrpcDataProvider inherits AbstractDataProvider {
         if (copts.schema) {
             proto_schema = copts.schema;
         } else if (copts.proto_path && copts.proto_file) {
+            # the path is the creator's: library code runs with its own Program's options, so the creating code is
+            # refused before the path is used if it is restricted from the file system; a provider that a lent
+            # connection creates with the host's path keeps it
+            if (SandboxManager::isCallerRestricted(DOM_FILESYSTEM)) {
+                throw "PERMISSION-DENIED", "the 'proto_path' option cannot be used: the calling code is restricted "
+                    "from the FILESYSTEM functional domain";
+            }
             proto_schema = new ProtobufSchema(copts.proto_path, copts.proto_file);
         } else if (copts.proto_content) {
             proto_schema = new ProtobufSchema(copts.proto_content);

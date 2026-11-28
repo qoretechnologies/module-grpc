@@ -6,4 +6,7 @@
 
     @section grpc_v1_0 grpc Module Version 1.0
     - initial release
+    - a connection that a host lends to restricted code creates its data provider, channels and pings from the members
+      that the host gave it (see @ref grpcdplent)
+    - a ping of a connection makes the HTTP/2 connection and reports its error (see @ref grpcdpconnection)
 */

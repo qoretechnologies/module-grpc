@@ -137,8 +137,20 @@ public class GrpcConnection inherits ConnectionProvider::AbstractConnectionWithI
 
     #! Returns a GrpcDataProvider for this connection
     /** @return a GrpcDataProvider configured with this connection's URL and options
+
+        @throw PERMISSION-DENIED the calling code was lent the connection and is restricted from a functional domain
+        of the connection, and the connection's URL or options are not the ones that its creator gave (see
+        @ref grpcdplent)
     */
     DataProvider::AbstractDataProvider getDataProvider() {
+        # the data provider is created from the connection's public members, which restricted code that was lent the
+        # connection can change: for such code, it is created from a private copy with its creator's members, once
+        # they were checked (module-grpc#16)
+        return cast<GrpcConnection>(getLentDataProviderSource()).getDataProviderIntern();
+    }
+
+    #! Returns a GrpcDataProvider created from the members of this object
+    private:internal GrpcDataProvider getDataProviderIntern() {
         # Convert grpc:// -> http:// and grpcs:// -> https://
         string http_url = getHttpUrl();
 
@@ -184,24 +196,47 @@ public class GrpcConnection inherits ConnectionProvider::AbstractConnectionWithI
         return new GrpcChannel(getHttpUrl(), getChannelOptions());
     }
 
-    #! Returns a ping hash for the connection
-    private hash<PingInfo> pingImpl() {
-        hash<PingInfo> rv;
-        date start = now_us();
-        try {
-            GrpcChannel channel(getHttpUrl(), getChannelOptions());
-            on_exit channel.shutdown();
-            # Acquiring a stream validates the HTTP/2 connection
-            auto stream = channel.acquireStream();
-            rv.ok = True;
-            rv.time = now_us() - start;
-            rv.info = "OK";
-        } catch (hash<ExceptionInfo> ex) {
-            rv.ok = False;
-            rv.time = now_us() - start;
-            rv.info = sprintf("%s: %s", ex.err, ex.desc);
+    #! Pings the server: makes an HTTP/2 connection to it
+    /** Code restricted from the \c NETWORK functional domain that was lent the connection cannot create the HTTP/2
+        connection manager of the ping's channel: it is refused before the ping, so that the refusal does not change
+        the state of the connection (\c up and \c status) for its other users
+
+        @param ping_flags see @ref ConnectionProvider::AbstractConnection::ping() "AbstractConnection::ping()"
+
+        @return see @ref ConnectionProvider::AbstractConnection::ping() "AbstractConnection::ping()"
+
+        @throw PERMISSION-DENIED the calling code is restricted from the \c NETWORK functional domain
+    */
+    hash<PingInfo> ping(int ping_flags = 0) {
+        if (SandboxManager::isLentToRestricted(DOM_NETWORK)) {
+            throw "PERMISSION-DENIED", sprintf("connection %y: the calling code is restricted from the NETWORK "
+                "functional domain and cannot create the HTTP/2 connection manager of a ping", name);
         }
-        return rv;
+        return AbstractConnectionWithInfo::ping(ping_flags);
+    }
+
+    #! Pings the server: makes an HTTP/2 connection to it
+    /** A stream is acquired on a new channel, and the ping waits until its connection is ready for requests or
+        fails; an error is thrown, so that the ping reports it and marks the connection down
+
+        @throw HTTPCLIENT-CONNECT-ERROR the connection to the server cannot be made
+        @throw GRPC-PING-ERROR the connection was not ready within the timeout of the connection (\c timeout_ms)
+    */
+    private pingImpl() {
+        # the channel is created by get(): for restricted code that was lent the connection, from a private copy
+        # with its creator's members (module-grpc#17)
+        GrpcChannel channel = get(False);
+        on_exit channel.shutdown();
+        # acquiring a stream starts the connection; a connection error is raised when it is waited for
+        # the timeout of the connection's calls; 0 (or no valid value) is the default, as for the data provider
+        softint timeout_ms = opts.timeout_ms;
+        if (timeout_ms <= 0) {
+            timeout_ms = 30000;
+        }
+        if (!channel.acquireStream().getConnectionView().waitForReady(timeout_ms)) {
+            throw "GRPC-PING-ERROR", sprintf("the connection to %y was not ready within %d ms", channel.target(),
+                timeout_ms);
+        }
     }
 
     #! Returns the channel options for the size limits set in the connection options
