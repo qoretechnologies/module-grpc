@@ -16,7 +16,7 @@
           "message": "從伺服器接收的單一回應訊息的最大位元組大小；`0`（預設值）表示無限制。\n\n若訊息過大，會以 `RESOURCE_EXHAUSTED` 狀態結束呼叫，因此不會耗盡記憶體；此限制也適用於串流呼叫。"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.display_name": {
-          "source": "Max Message Size",
+          "source": "Max message size",
           "message": "最大訊息容量"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.short_desc": {
@@ -28,7 +28,7 @@
           "message": "單一呼叫的回應主體最大位元組大小，會完全載入記憶體後才進行解碼；`0`（預設值）表示無限制。\n\n若回應過大，會以 `RESOURCE_EXHAUSTED` 狀態結束呼叫。串流呼叫的回應是逐筆接收，其限制由 `max_message_size` 決定。"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.display_name": {
-          "source": "Max Response Body Size",
+          "source": "Max response body size",
           "message": "回應本文大小上限"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.short_desc": {

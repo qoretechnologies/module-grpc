@@ -16,8 +16,8 @@
           "message": "Connect to [Apache Arrow Flight](https://arrow.apache.org/docs/format/Flight.html) services for high-performance columnar data exchange using Apache Arrow IPC format.\n\n**Supported operations**:\n- **DoGet**: streaming read of columnar data\n- **DoPut**: streaming write of columnar data\n- **DoExchange**: bidirectional streaming data transformation\n- **DoAction**: execute custom server actions\n- **ListFlights / GetFlightInfo**: dataset discovery and metadata"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.display_name": {
-          "source": "Get Flight Data",
-          "message": "Get Flight Data"
+          "source": "Get flight data",
+          "message": "Get flight data"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.short_desc": {
           "source": "Retrieve data from an Arrow Flight dataset",
@@ -52,8 +52,8 @@
           "message": "Optional flight ticket; defaults to the dataset path if not provided"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.display_name": {
-          "source": "Output Shape",
-          "message": "Output Shape"
+          "source": "Output shape",
+          "message": "Output shape"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.short_desc": {
           "source": "rows or columnar",
@@ -72,8 +72,8 @@
           "message": "Columnar"
         },
         "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.display_name": {
-          "source": "Put Flight Data",
-          "message": "Put Flight Data"
+          "source": "Put flight data",
+          "message": "Put flight data"
         },
         "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.short_desc": {
           "source": "Send data to an Arrow Flight dataset",
@@ -108,8 +108,8 @@
           "message": "A row list, hash-of-lists block, ColumnarResult, DataFrame, or ArrowRecordBatch to send as Arrow record batches"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.display_name": {
-          "source": "Exchange Flight Data",
-          "message": "Exchange Flight Data"
+          "source": "Exchange flight data",
+          "message": "Exchange flight data"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.short_desc": {
           "source": "Bidirectional data exchange on an Arrow Flight dataset",
@@ -144,8 +144,8 @@
           "message": "A row list, hash-of-lists block, ColumnarResult, DataFrame, or ArrowRecordBatch to send for bidirectional exchange"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.display_name": {
-          "source": "Output Shape",
-          "message": "Output Shape"
+          "source": "Output shape",
+          "message": "Output shape"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.short_desc": {
           "source": "rows or columnar",
@@ -164,8 +164,8 @@
           "message": "Columnar"
         },
         "app.QXJyb3dGbGlnaHQ.action.bGlzdC1mbGlnaHRz.display_name": {
-          "source": "List Flights",
-          "message": "List Flights"
+          "source": "List flights",
+          "message": "List flights"
         },
         "app.QXJyb3dGbGlnaHQ.action.bGlzdC1mbGlnaHRz.short_desc": {
           "source": "List available Arrow Flight datasets",
@@ -176,8 +176,8 @@
           "message": "Discovers available datasets on the Arrow Flight server via the ListFlights RPC; returns a list of FlightInfo hashes with dataset metadata"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.display_name": {
-          "source": "Get Flight Info",
-          "message": "Get Flight Info"
+          "source": "Get flight info",
+          "message": "Get flight info"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.short_desc": {
           "source": "Get metadata for an Arrow Flight dataset",
@@ -200,8 +200,8 @@
           "message": "The Arrow Flight dataset name as registered on the server"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.display_name": {
-          "source": "Execute Flight Action",
-          "message": "Execute Flight Action"
+          "source": "Execute flight action",
+          "message": "Execute flight action"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.short_desc": {
           "source": "Execute a custom action on the Arrow Flight server",
@@ -212,8 +212,8 @@
           "message": "Executes a custom server-side action via the DoAction RPC; the action type and optional binary body are sent to the server, which returns a list of binary results"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.display_name": {
-          "source": "Action Type",
-          "message": "Action Type"
+          "source": "Action type",
+          "message": "Action type"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.short_desc": {
           "source": "The action type to execute",
@@ -236,8 +236,8 @@
           "message": "Optional binary payload to send with the action request"
         },
         "app.QXJyb3dGbGlnaHQ.action.bGlzdC1hY3Rpb25z.display_name": {
-          "source": "List Flight Actions",
-          "message": "List Flight Actions"
+          "source": "List flight actions",
+          "message": "List flight actions"
         },
         "app.QXJyb3dGbGlnaHQ.action.bGlzdC1hY3Rpb25z.short_desc": {
           "source": "List available actions on the Arrow Flight server",

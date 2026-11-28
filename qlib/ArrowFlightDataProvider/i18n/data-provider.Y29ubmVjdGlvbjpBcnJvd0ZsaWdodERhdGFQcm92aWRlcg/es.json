@@ -16,7 +16,7 @@
           "message": "El tamaño máximo en bytes de un mensaje de respuesta recibido del servidor; `0` (el valor predeterminado) significa sin límite.\n\nUn mensaje más grande finaliza la llamada con el estado `RESOURCE_EXHAUSTED`, por lo que un mensaje enorme no puede agotar la memoria; este límite también se aplica a llamadas en streaming."
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.display_name": {
-          "source": "Max Message Size",
+          "source": "Max message size",
           "message": "Tamaño máximo de mensaje"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.short_desc": {
@@ -28,7 +28,7 @@
           "message": "El tamaño máximo en bytes del cuerpo de respuesta de una llamada unaria, que se recibe completamente en memoria antes de ser decodificado; `0` (el valor predeterminado) significa sin límite.\n\nUna respuesta más grande finaliza la llamada con el estado `RESOURCE_EXHAUSTED`. La respuesta de una llamada en streaming se recibe mensaje a mensaje y está limitada por `max_message_size` en su lugar."
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.display_name": {
-          "source": "Max Response Body Size",
+          "source": "Max response body size",
           "message": "Tamaño máximo del cuerpo de respuesta"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.short_desc": {

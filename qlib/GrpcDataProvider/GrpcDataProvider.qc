@@ -67,7 +67,7 @@ public class GrpcDataProvider inherits AbstractDataProvider {
                     "or `https://api.example.com:443`)",
             },
             "max_message_size": <DataProviderOptionInfo>{
-                "display_name": "Max Message Size",
+                "display_name": "Max message size",
                 "short_desc": "The maximum size of a response message received",
                 "type": AbstractDataProviderType::get(SoftIntType),
                 "desc": "The maximum size in bytes of one response message received from the server; `0` (the "
@@ -76,7 +76,7 @@ public class GrpcDataProvider inherits AbstractDataProvider {
                     "exhaust memory; this limit also applies to streaming calls.  Ignored when `grpcchannel` is set.",
             },
             "max_response_body_size": <DataProviderOptionInfo>{
-                "display_name": "Max Response Body Size",
+                "display_name": "Max response body size",
                 "short_desc": "The maximum size of a unary response body received into memory",
                 "type": AbstractDataProviderType::get(SoftIntType),
                 "desc": "The maximum size in bytes of the response body of a unary call, which is received into "
@@ -86,25 +86,25 @@ public class GrpcDataProvider inherits AbstractDataProvider {
                     "Ignored when `grpcchannel` is set.",
             },
             "proto_path": <DataProviderOptionInfo>{
-                "display_name": "Proto Path",
+                "display_name": "Proto path",
                 "short_desc": "Path to directory containing .proto files",
                 "type": AbstractDataProviderType::get(StringType),
                 "desc": "Filesystem path to the directory containing `.proto` files",
             },
             "proto_file": <DataProviderOptionInfo>{
-                "display_name": "Proto File",
+                "display_name": "Proto file",
                 "short_desc": "Name of the .proto file to load",
                 "type": AbstractDataProviderType::get(StringType),
                 "desc": "The `.proto` file name within the `proto_path` directory",
             },
             "proto_content": <DataProviderOptionInfo>{
-                "display_name": "Proto Content",
+                "display_name": "Proto content",
                 "short_desc": "Inline .proto definition as a string",
                 "type": AbstractDataProviderType::get(StringType),
                 "desc": "Inline protobuf schema definition as a string",
             },
             "use_reflection": <DataProviderOptionInfo>{
-                "display_name": "Use Reflection",
+                "display_name": "Use reflection",
                 "short_desc": "Use gRPC server reflection for schema discovery",
                 "type": AbstractDataProviderType::get(SoftBoolType),
                 "desc": "If `True`, uses the gRPC server reflection protocol to "
@@ -119,7 +119,7 @@ public class GrpcDataProvider inherits AbstractDataProvider {
                 "default_value": 30000,
             },
             "grpcchannel": <DataProviderOptionInfo>{
-                "display_name": "gRPC Channel",
+                "display_name": "gRPC channel",
                 "short_desc": "A pre-built GrpcChannel object",
                 "type": AbstractDataProviderType::get(new Type("GrpcChannel"), NOTHING, {
                     DTT_ClientOnly: True,

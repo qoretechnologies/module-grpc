@@ -8,7 +8,7 @@
           "message": "Recupera dati colonnari da un servizio Arrow Flight tramite l'RPC in streaming DoGet; restituisce tutti i record batch come hash di riga per impostazione predefinita, o batch ColumnarResult quando `output_shape` è `columnar`"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.display_name": {
-          "source": "Get Flight Data",
+          "source": "Get flight data",
           "message": "Ottieni dati Flight"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.desc": {
@@ -36,7 +36,7 @@
           "message": "Formato di output opzionale: `rows` restituisce un elenco di hash di riga; `columnar` restituisce un elenco di record batch ColumnarResult"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.display_name": {
-          "source": "Output Shape",
+          "source": "Output shape",
           "message": "Formato di output"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.short_desc": {
@@ -64,7 +64,7 @@
           "message": "Recupera metadati per uno specifico dataset tramite l'RPC GetFlightInfo, inclusi schema, conteggio dei record e informazioni sugli endpoint"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.display_name": {
-          "source": "Get Flight Info",
+          "source": "Get flight info",
           "message": "Ottieni informazioni Flight"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.option.ZGF0YXNldA.desc": {
@@ -88,7 +88,7 @@
           "message": "Esegue un'azione personalizzata lato server tramite l'RPC DoAction; il tipo di azione e il corpo binario opzionale vengono inviati al server, che restituisce un elenco di risultati binari"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.display_name": {
-          "source": "Execute Flight Action",
+          "source": "Execute flight action",
           "message": "Esegui azione Flight"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.desc": {
@@ -96,7 +96,7 @@
           "message": "La stringa del tipo di azione che identifica l'azione lato server da eseguire"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.display_name": {
-          "source": "Action Type",
+          "source": "Action type",
           "message": "Tipo di azione"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.short_desc": {
@@ -124,7 +124,7 @@
           "message": "Esegue uno scambio di dati bidirezionale tramite l'RPC in streaming DoExchange; invia righe di input o batch colonnari e riceve righe di output trasformate per impostazione predefinita, oppure batch ColumnarResult quando `output_shape` è `columnar`"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.display_name": {
-          "source": "Exchange Flight Data",
+          "source": "Exchange flight data",
           "message": "Scambia dati Flight"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.ZGF0YXNldA.desc": {
@@ -152,7 +152,7 @@
           "message": "Formato di risposta opzionale: `rows` restituisce un elenco di hash di riga; `columnar` restituisce un elenco di record batch ColumnarResult"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.display_name": {
-          "source": "Output Shape",
+          "source": "Output shape",
           "message": "Formato di output"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.short_desc": {
@@ -180,7 +180,7 @@
           "message": "Elenca le azioni personalizzate disponibili sul server Arrow Flight tramite l'RPC ListActions; ogni azione ha un identificatore di tipo e una descrizione"
         },
         "app.QXJyb3dGbGlnaHQ.action.bGlzdC1hY3Rpb25z.display_name": {
-          "source": "List Flight Actions",
+          "source": "List flight actions",
           "message": "Elenca azioni Flight"
         },
         "app.QXJyb3dGbGlnaHQ.action.bGlzdC1hY3Rpb25z.short_desc": {
@@ -192,7 +192,7 @@
           "message": "Individua i dataset disponibili sul server Arrow Flight tramite l'RPC ListFlights; restituisce un elenco di hash FlightInfo con i metadati del dataset"
         },
         "app.QXJyb3dGbGlnaHQ.action.bGlzdC1mbGlnaHRz.display_name": {
-          "source": "List Flights",
+          "source": "List flights",
           "message": "Elenca Flight"
         },
         "app.QXJyb3dGbGlnaHQ.action.bGlzdC1mbGlnaHRz.short_desc": {
@@ -204,7 +204,7 @@
           "message": "Invia dati colonnari a un servizio Arrow Flight tramite l'RPC in streaming DoPut; i dati vengono inviati sotto forma di uno o più record batch Arrow da elenchi di righe, blocchi hash-di-elenchi, oggetti ColumnarResult, DataFrame o oggetti ArrowRecordBatch"
         },
         "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.display_name": {
-          "source": "Put Flight Data",
+          "source": "Put flight data",
           "message": "Invia dati Flight"
         },
         "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.desc": {

@@ -8,7 +8,7 @@
           "message": "Effectue un appel gRPC à la méthode de service spécifiée"
         },
         "app.Z1JQQw.action.Y2FsbA.display_name": {
-          "source": "Call gRPC Method",
+          "source": "Call gRPC method",
           "message": "Appeler la méthode gRPC"
         },
         "app.Z1JQQw.action.Y2FsbA.option.bWV0aG9k.desc": {

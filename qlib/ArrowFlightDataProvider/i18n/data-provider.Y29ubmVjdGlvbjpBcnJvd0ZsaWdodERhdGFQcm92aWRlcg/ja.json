@@ -16,7 +16,7 @@
           "message": "サーバーから受信する1つの応答メッセージの最大サイズ（バイト単位）；`0`（デフォルト）は制限なしを意味する。\n\n大きなメッセージは `RESOURCE_EXHAUSTED` 状態で呼び出しを終了するため、メモリが枯渇することはない。この制限はストリーミング呼び出しにも適用される。"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.display_name": {
-          "source": "Max Message Size",
+          "source": "Max message size",
           "message": "最大メッセージサイズ"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.short_desc": {
@@ -28,7 +28,7 @@
           "message": "ユニアリー呼び出しの応答本文の最大サイズ（バイト単位）；受信後、完全にメモリに読み込まれてからデコードされる。`0`（デフォルト）は制限なしを意味する。\n\n大きな応答は `RESOURCE_EXHAUSTED` 状態で呼び出しを終了する。ストリーミング呼び出しの応答は1メッセージずつ受信され、`max_message_size` で制限される。"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.display_name": {
-          "source": "Max Response Body Size",
+          "source": "Max response body size",
           "message": "最大レスポンス本文サイズ"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.short_desc": {

@@ -16,7 +16,7 @@
           "message": "Подія зміни (**change event**), для якої потрібно ввімкнути Change Data Capture, названа на честь об'єкта, про який вона звітує, із суфіксом `ChangeEvent`: `AccountChangeEvent` для `Account`, `CaseChangeEvent` для `Case` і так далі. Настроюваний об'єкт використовує `__ChangeEvent`, наприклад `MyObject__ChangeEvent`.\n\nУвімкнення вже ввімкненого об'єкта **не є** помилкою; відповідь повідомляє про це через `already_enabled`.\n\n**Увімкнення Change Data Capture має побічні ефекти**: воно запускає 72-годинний потік утримання для об'єкта, а кількість об'єктів, яку може вибрати організація, залежить від її редакції та доповнень."
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.display_name": {
-          "source": "Change Event",
+          "source": "Change event",
           "message": "Подія зміни"
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.short_desc": {
@@ -32,7 +32,7 @@
           "message": "Реагує на створення **контакту** Salesforce за допомогою потоку Change Data Capture в **Pub/Sub API**.\n\nЦе дія `new-record`, зафіксована для об'єкта `Contact`. Доставка відбувається в режимі реального часу, а не за опитуванням, і підписка відновлюється з останньої позиції відтворення після повторного підключення.\n\nChange Data Capture необхідно ввімкнути для `Contact` у меню **Setup -> Integrations -> Change Data Capture**"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.display_name": {
-          "source": "New Salesforce Contact",
+          "source": "New Salesforce contact",
           "message": "Новий контакт Salesforce"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.desc": {
@@ -52,7 +52,7 @@
           "message": "Скільки подій клієнт утримує затребуваними від сервера одночасно; від 1 до 100, що є максимумом, який Pub/Sub API приймає в одному `FetchRequest`"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.bnVtX3JlcXVlc3RlZA.display_name": {
-          "source": "Flow Control Window",
+          "source": "Flow control window",
           "message": "Вікно керування потоком"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.bnVtX3JlcXVlc3RlZA.short_desc": {
@@ -100,7 +100,7 @@
           "message": "Звідки починається підписка: `LATEST` (кінець потоку, за замовчуванням), `EARLIEST` (найстаріша збережена подія) або `CUSTOM` (після події, ідентифікованої `replay_id`).\n\nSalesforce зберігає ID відтворення протягом **72 годин**"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.display_name": {
-          "source": "Replay Preset",
+          "source": "Replay preset",
           "message": "Пресет відтворення"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.short_desc": {
@@ -112,7 +112,7 @@
           "message": "Назва теми Pub/Sub, що перевизначає назву, отриману від імені цього провайдера. Встановіть це значення, щоб підписатися на **настроюваний канал**, який не відображається в `describeGlobal`; наприклад `/event/MyChannel__chn`"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.dG9waWNfbmFtZQ.display_name": {
-          "source": "Topic Name",
+          "source": "Topic name",
           "message": "Назва теми"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.dG9waWNfbmFtZQ.short_desc": {
@@ -128,7 +128,7 @@
           "message": "Реагує на створення **ліда** Salesforce за допомогою потоку Change Data Capture в **Pub/Sub API**.\n\nЦе дія `new-record`, зафіксована для об'єкта `Lead`. Доставка відбувається в режимі реального часу, а не за опитуванням, і підписка відновлюється з останньої позиції відтворення після повторного підключення.\n\nChange Data Capture необхідно ввімкнути для `Lead` у меню **Setup -> Integrations -> Change Data Capture**"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.display_name": {
-          "source": "New Salesforce Lead",
+          "source": "New Salesforce lead",
           "message": "Новий лід Salesforce"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.desc": {
@@ -148,7 +148,7 @@
           "message": "Скільки подій клієнт утримує затребуваними від сервера одночасно; від 1 до 100, що є максимумом, який Pub/Sub API приймає в одному `FetchRequest`"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.bnVtX3JlcXVlc3RlZA.display_name": {
-          "source": "Flow Control Window",
+          "source": "Flow control window",
           "message": "Вікно керування потоком"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.bnVtX3JlcXVlc3RlZA.short_desc": {
@@ -196,7 +196,7 @@
           "message": "Звідки починається підписка: `LATEST` (кінець потоку, за замовчуванням), `EARLIEST` (найстаріша збережена подія) або `CUSTOM` (після події, ідентифікованої `replay_id`).\n\nSalesforce зберігає ID відтворення протягом **72 годин**"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.display_name": {
-          "source": "Replay Preset",
+          "source": "Replay preset",
           "message": "Пресет відтворення"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.short_desc": {
@@ -208,7 +208,7 @@
           "message": "Назва теми Pub/Sub, що перевизначає назву, отриману від імені цього провайдера. Встановіть це значення, щоб підписатися на **настроюваний канал**, який не відображається в `describeGlobal`; наприклад `/event/MyChannel__chn`"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.dG9waWNfbmFtZQ.display_name": {
-          "source": "Topic Name",
+          "source": "Topic name",
           "message": "Назва теми"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.dG9waWNfbmFtZQ.short_desc": {
@@ -224,7 +224,7 @@
           "message": "Реагує на **створення** запису вказаного об'єкта Salesforce за допомогою потоку Change Data Capture в **Pub/Sub API**.\n\nДоставка відбувається в режимі реального часу, а не за опитуванням, і підписка відстежує свою позицію відтворення, тому після втрати та відновлення з'єднання робота продовжується після останньої доставленої події замість пропуску записів, створених під час простою. Salesforce зберігає ID відтворення протягом **72 годин**.\n\nПодія `GAP_CREATE`, яка повідомляє про створення, яке Salesforce не вдалося доставити повністю, також доставляється цією дією, тому створення ніколи не втрачається безвісти.\n\nChange Data Capture необхідно ввімкнути для об'єкта в меню **Setup -> Integrations -> Change Data Capture**"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.display_name": {
-          "source": "New Salesforce Record",
+          "source": "New Salesforce record",
           "message": "Новий запис Salesforce"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.Y2hhbm5lbA.desc": {
@@ -256,7 +256,7 @@
           "message": "Скільки подій клієнт утримує затребуваними від сервера одночасно; від 1 до 100, що є максимумом, який Pub/Sub API приймає в одному `FetchRequest`"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.bnVtX3JlcXVlc3RlZA.display_name": {
-          "source": "Flow Control Window",
+          "source": "Flow control window",
           "message": "Вікно керування потоком"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.bnVtX3JlcXVlc3RlZA.short_desc": {
@@ -304,7 +304,7 @@
           "message": "Звідки починається підписка: `LATEST` (кінець потоку, за замовчуванням), `EARLIEST` (найстаріша збережена подія) або `CUSTOM` (після події, ідентифікованої `replay_id`).\n\nSalesforce зберігає ID відтворення протягом **72 годин**"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.display_name": {
-          "source": "Replay Preset",
+          "source": "Replay preset",
           "message": "Пресет відтворення"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.short_desc": {
@@ -316,7 +316,7 @@
           "message": "Назва теми Pub/Sub, що перевизначає назву, отриману від імені цього провайдера. Встановіть це значення, щоб підписатися на **настроюваний канал**, який не відображається в `describeGlobal`; наприклад `/event/MyChannel__chn`"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.dG9waWNfbmFtZQ.display_name": {
-          "source": "Topic Name",
+          "source": "Topic name",
           "message": "Назва теми"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.dG9waWNfbmFtZQ.short_desc": {
@@ -332,7 +332,7 @@
           "message": "Реагує на події, опубліковані в каналі Salesforce **Pub/Sub API**: події платформи, події Change Data Capture та настроювані канали надходять через одну й ту саму підписку.\n\nПідписка відстежує свою позицію відтворення, тому після втрати та відновлення з'єднання робота продовжується після останньої доставленої події замість пропуску. Salesforce зберігає ID відтворення протягом **72 годин**."
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.display_name": {
-          "source": "Salesforce Event",
+          "source": "Salesforce event",
           "message": "Подія Salesforce"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbm5lbA.desc": {
@@ -368,7 +368,7 @@
           "message": "Запис було створено, але зміну не вдалося доставити; мається на увазі `CREATE`"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9DUkVBVEU.display_name": {
-          "source": "Gap: Create",
+          "source": "Gap: create",
           "message": "Прогалина: Створення"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9ERUxFVEU.desc": {
@@ -376,7 +376,7 @@
           "message": "Запис було видалено, але зміну не вдалося доставити; мається на увазі `DELETE`"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9ERUxFVEU.display_name": {
-          "source": "Gap: Delete",
+          "source": "Gap: delete",
           "message": "Прогалина: Видалення"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9PVkVSRkxPVw.desc": {
@@ -384,7 +384,7 @@
           "message": "Невідома кількість змін була втрачена; доставляється завжди"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9PVkVSRkxPVw.display_name": {
-          "source": "Gap: Overflow",
+          "source": "Gap: overflow",
           "message": "Прогалина: Переповнення"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VTkRFTEVURQ.desc": {
@@ -392,7 +392,7 @@
           "message": "Запис було відновлено, але зміну не вдалося доставити; мається на увазі `UNDELETE`"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VTkRFTEVURQ.display_name": {
-          "source": "Gap: Undelete",
+          "source": "Gap: undelete",
           "message": "Прогалина: Відновлення"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VUERBVEU.desc": {
@@ -400,7 +400,7 @@
           "message": "Запис було оновлено, але зміну не вдалося доставити; мається на увазі `UPDATE`"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VUERBVEU.display_name": {
-          "source": "Gap: Update",
+          "source": "Gap: update",
           "message": "Прогалина: Оновлення"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOlVOREVMRVRF.desc": {
@@ -424,7 +424,7 @@
           "message": "Обмежує доставку вказаними типами змін **Change Data Capture**; залиште порожнім, щоб отримувати всі зміни в каналі.\n\n**Подія прогалини (gap event)** повідомляє про зміну, яку Salesforce не вдалося доставити повністю. Типи прогалин відповідають типу, який вони замінюють, тому вибір `CREATE` також доставляє `GAP_CREATE` замість безшумного відкидання створення. `GAP_OVERFLOW` доставляється завжди, незалежно від фільтра, оскільки повідомляє про втрату невідомої кількості змін.\n\nЦей параметр застосовується лише до каналів Change Data Capture; події платформи не містять `ChangeEventHeader`, і його встановлення для каналу подій платформи призведе до помилки."
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.display_name": {
-          "source": "Change Types",
+          "source": "Change types",
           "message": "Типи змін"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.short_desc": {
@@ -448,7 +448,7 @@
           "message": "Скільки подій клієнт утримує затребуваними від сервера одночасно; від 1 до 100, що є максимумом, який Pub/Sub API приймає в одному `FetchRequest`"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.bnVtX3JlcXVlc3RlZA.display_name": {
-          "source": "Flow Control Window",
+          "source": "Flow control window",
           "message": "Вікно керування потоком"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.bnVtX3JlcXVlc3RlZA.short_desc": {
@@ -496,7 +496,7 @@
           "message": "Звідки починається підписка: `LATEST` (кінець потоку, за замовчуванням), `EARLIEST` (найстаріша збережена подія) або `CUSTOM` (після події, ідентифікованої `replay_id`).\n\nSalesforce зберігає ID відтворення протягом **72 годин**"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.display_name": {
-          "source": "Replay Preset",
+          "source": "Replay preset",
           "message": "Пресет відтворення"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.short_desc": {
@@ -508,7 +508,7 @@
           "message": "Назва теми Pub/Sub, що перевизначає назву, отриману від імені цього провайдера. Встановіть це значення, щоб підписатися на **настроюваний канал**, який не відображається в `describeGlobal`; наприклад `/event/MyChannel__chn`"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.dG9waWNfbmFtZQ.display_name": {
-          "source": "Topic Name",
+          "source": "Topic name",
           "message": "Назва теми"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.dG9waWNfbmFtZQ.short_desc": {
@@ -524,7 +524,7 @@
           "message": "Реагує, коли запис вказаного об'єкта Salesforce **оновлено**, використовуючи потік Change Data Capture в **Pub/Sub API**.\n\nКорисне навантаження події містить список `ChangeEventHeader.changedFields`, тому поля, які дійсно змінилися, відомі без повторного зчитування запису.\n\nДоставка здійснюється в режимі реального часу, а не шляхом опитування, і підписка відновлюється з останньої позиції відтворення після повторного підключення; Salesforce зберігає ідентифікатори відтворення протягом **72 годин**.\n\nПодія `GAP_UPDATE`, яка повідомляє про оновлення, яке Salesforce не вдалося доставити повністю, також доставляється цією дією.\n\nChange Data Capture має бути увімкнено для об'єкта у меню **Setup -> Integrations -> Change Data Capture**"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.display_name": {
-          "source": "Updated Salesforce Record",
+          "source": "Updated Salesforce record",
           "message": "Оновлений запис Salesforce"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.Y2hhbm5lbA.desc": {
@@ -556,7 +556,7 @@
           "message": "Скільки подій клієнт утримує затребуваними від сервера одночасно; від 1 до 100, що є максимумом, який Pub/Sub API приймає в одному `FetchRequest`"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.bnVtX3JlcXVlc3RlZA.display_name": {
-          "source": "Flow Control Window",
+          "source": "Flow control window",
           "message": "Вікно керування потоком"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.bnVtX3JlcXVlc3RlZA.short_desc": {
@@ -604,7 +604,7 @@
           "message": "Звідки починається підписка: `LATEST` (кінець потоку, за замовчуванням), `EARLIEST` (найстаріша збережена подія) або `CUSTOM` (після події, ідентифікованої `replay_id`).\n\nSalesforce зберігає ID відтворення протягом **72 годин**"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.display_name": {
-          "source": "Replay Preset",
+          "source": "Replay preset",
           "message": "Пресет відтворення"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.short_desc": {
@@ -616,7 +616,7 @@
           "message": "Назва теми Pub/Sub, що перевизначає назву, отриману від імені цього провайдера. Встановіть це значення, щоб підписатися на **настроюваний канал**, який не відображається в `describeGlobal`; наприклад `/event/MyChannel__chn`"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.dG9waWNfbmFtZQ.display_name": {
-          "source": "Topic Name",
+          "source": "Topic name",
           "message": "Назва теми"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.dG9waWNfbmFtZQ.short_desc": {

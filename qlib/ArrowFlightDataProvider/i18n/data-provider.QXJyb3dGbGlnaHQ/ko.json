@@ -8,7 +8,7 @@
           "message": "DoGet 스트리밍 RPC를 통해 Arrow Flight 서비스에서 컬럼너 데이터를 조회합니다. 기본적으로 모든 레코드 배치를 행 해시로 반환하거나, `output_shape`이(가) `columnar`(일) 때 ColumnarResult 배치를 반환합니다."
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.display_name": {
-          "source": "Get Flight Data",
+          "source": "Get flight data",
           "message": "Flight 데이터 가져오기"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.desc": {
@@ -36,7 +36,7 @@
           "message": "선택적 출력 형식: `rows`은(는) 행 해시 목록을 반환하고, `columnar`은(는) ColumnarResult 레코드 배치 목록을 반환합니다."
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.display_name": {
-          "source": "Output Shape",
+          "source": "Output shape",
           "message": "출력 형식"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.short_desc": {
@@ -64,7 +64,7 @@
           "message": "GetFlightInfo RPC를 통해 스키마, 레코드 수 및 엔드포인트 정보를 포함한 특정 데이터셋의 메타데이터를 조회합니다."
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.display_name": {
-          "source": "Get Flight Info",
+          "source": "Get flight info",
           "message": "Flight 정보 가져오기"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.option.ZGF0YXNldA.desc": {
@@ -88,7 +88,7 @@
           "message": "DoAction RPC를 통해 사용자 지정 서버 측 작업을 실행합니다. 작업 유형과 선택적 바이너리 본문이 서버로 전송되고, 서버는 바이너리 결과 목록을 반환합니다."
         },
         "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.display_name": {
-          "source": "Execute Flight Action",
+          "source": "Execute flight action",
           "message": "Flight 작업 실행"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.desc": {
@@ -96,7 +96,7 @@
           "message": "실행할 서버 측 작업을 식별하는 작업 유형 문자열"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.display_name": {
-          "source": "Action Type",
+          "source": "Action type",
           "message": "작업 유형"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.short_desc": {
@@ -124,7 +124,7 @@
           "message": "DoExchange 스트리밍 RPC를 통해 양방향 데이터 교환을 수행합니다. 입력 행 또는 컬럼너 배치를 전송하고, 기본적으로 변환된 출력 행을 수신하거나 `output_shape`이(가) `columnar`(일) 때 ColumnarResult 배치를 수신합니다."
         },
         "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.display_name": {
-          "source": "Exchange Flight Data",
+          "source": "Exchange flight data",
           "message": "Flight 데이터 교환"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.ZGF0YXNldA.desc": {
@@ -152,7 +152,7 @@
           "message": "선택적 응답 형식: `rows`은(는) 행 해시 목록을 반환하고, `columnar`은(는) ColumnarResult 레코드 배치 목록을 반환합니다."
         },
         "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.display_name": {
-          "source": "Output Shape",
+          "source": "Output shape",
           "message": "출력 형식"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.short_desc": {
@@ -180,7 +180,7 @@
           "message": "ListActions RPC를 통해 Arrow Flight 서버에서 사용할 수 있는 사용자 지정 작업을 나열합니다. 각 작업에는 유형 식별자와 설명이 있습니다."
         },
         "app.QXJyb3dGbGlnaHQ.action.bGlzdC1hY3Rpb25z.display_name": {
-          "source": "List Flight Actions",
+          "source": "List flight actions",
           "message": "Flight 작업 목록 조회"
         },
         "app.QXJyb3dGbGlnaHQ.action.bGlzdC1hY3Rpb25z.short_desc": {
@@ -192,7 +192,7 @@
           "message": "ListFlights RPC를 통해 Arrow Flight 서버에서 사용 가능한 데이터셋을 탐색합니다. 데이터셋 메타데이터가 포함된 FlightInfo 해시 목록을 반환합니다."
         },
         "app.QXJyb3dGbGlnaHQ.action.bGlzdC1mbGlnaHRz.display_name": {
-          "source": "List Flights",
+          "source": "List flights",
           "message": "Flight 목록 조회"
         },
         "app.QXJyb3dGbGlnaHQ.action.bGlzdC1mbGlnaHRz.short_desc": {
@@ -204,7 +204,7 @@
           "message": "DoPut 스트리밍 RPC를 통해 Arrow Flight 서비스로 컬럼너 데이터를 전송합니다. 데이터는 행 목록, 해시-오브-리스트 블록, ColumnarResult 객체, DataFrame 또는 ArrowRecordBatch 객체로부터 하나 이상의 Arrow 레코드 배치 형태로 전송됩니다."
         },
         "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.display_name": {
-          "source": "Put Flight Data",
+          "source": "Put flight data",
           "message": "Put Flight Data"
         },
         "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.desc": {

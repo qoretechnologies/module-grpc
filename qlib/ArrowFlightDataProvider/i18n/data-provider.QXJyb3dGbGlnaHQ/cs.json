@@ -8,7 +8,7 @@
           "message": "Získává sloupcová data ze služby Arrow Flight pomocí streamovacího RPC DoGet; výchozí nastavení vrací všechny dávky záznamů jako hashe řádků, nebo dávky ColumnarResult, pokud je `output_shape` `columnar`"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.display_name": {
-          "source": "Get Flight Data",
+          "source": "Get flight data",
           "message": "Získat data Flight"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.desc": {
@@ -36,7 +36,7 @@
           "message": "Volitelná forma výstupu: `rows` vrací seznam hashů řádků; `columnar` vrací seznam dávek záznamů ColumnarResult"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.display_name": {
-          "source": "Output Shape",
+          "source": "Output shape",
           "message": "Forma výstupu"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.short_desc": {
@@ -64,7 +64,7 @@
           "message": "Získává metadata pro konkrétní datovou sadu pomocí RPC GetFlightInfo, včetně schématu, počtu záznamů a informací o koncových bodech"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.display_name": {
-          "source": "Get Flight Info",
+          "source": "Get flight info",
           "message": "Získat informace Flight"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.option.ZGF0YXNldA.desc": {
@@ -88,7 +88,7 @@
           "message": "Provádí vlastní akci na straně serveru pomocí RPC DoAction; typ akce a volitelné binární tělo jsou odeslány na server, který vrací seznam binárních výsledků"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.display_name": {
-          "source": "Execute Flight Action",
+          "source": "Execute flight action",
           "message": "Provést akci Flight"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.desc": {
@@ -96,7 +96,7 @@
           "message": "Řetězec typu akce identifikující akci na straně serveru k provedení"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.display_name": {
-          "source": "Action Type",
+          "source": "Action type",
           "message": "Typ akce"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.short_desc": {
@@ -124,7 +124,7 @@
           "message": "Provádí obousměrnou výměnu dat pomocí streamovacího RPC DoExchange; odesílá vstupní řádky nebo sloupcové dávky a výchozí nastavení přijímá transformované výstupní řádky, nebo dávky ColumnarResult, pokud je `output_shape` `columnar`"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.display_name": {
-          "source": "Exchange Flight Data",
+          "source": "Exchange flight data",
           "message": "Vyměnit data Flight"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.ZGF0YXNldA.desc": {
@@ -152,7 +152,7 @@
           "message": "Volitelná forma odpovědi: `rows` vrací seznam hashů řádků; `columnar` vrací seznam dávek záznamů ColumnarResult"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.display_name": {
-          "source": "Output Shape",
+          "source": "Output shape",
           "message": "Forma výstupu"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.short_desc": {
@@ -180,7 +180,7 @@
           "message": "Vypisuje dostupné vlastní akce na serveru Arrow Flight pomocí RPC ListActions; každá akce má identifikátor typu a popis"
         },
         "app.QXJyb3dGbGlnaHQ.action.bGlzdC1hY3Rpb25z.display_name": {
-          "source": "List Flight Actions",
+          "source": "List flight actions",
           "message": "Vypsat akce Flight"
         },
         "app.QXJyb3dGbGlnaHQ.action.bGlzdC1hY3Rpb25z.short_desc": {
@@ -192,7 +192,7 @@
           "message": "Vyhledává dostupné datové sady na serveru Arrow Flight pomocí RPC ListFlights; vrací seznam hashů FlightInfo s metadaty datové sady"
         },
         "app.QXJyb3dGbGlnaHQ.action.bGlzdC1mbGlnaHRz.display_name": {
-          "source": "List Flights",
+          "source": "List flights",
           "message": "Vypsat Flights"
         },
         "app.QXJyb3dGbGlnaHQ.action.bGlzdC1mbGlnaHRz.short_desc": {
@@ -204,7 +204,7 @@
           "message": "Odesílá sloupcová data do služby Arrow Flight pomocí streamovacího RPC DoPut; data jsou odesílána jako jedna nebo více dávek záznamů Arrow ze seznamů řádků, bloků hashů seznamů, objektů ColumnarResult, DataFrame nebo ArrowRecordBatch"
         },
         "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.display_name": {
-          "source": "Put Flight Data",
+          "source": "Put flight data",
           "message": "Odeslat data Flight"
         },
         "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.desc": {

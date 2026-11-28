@@ -58,6 +58,7 @@ public class SalesforcePubSubEventDataProvider inherits
             "type": "SalesforcePubSubEventDataProvider",
             "desc": "Observable data provider for a single Salesforce Pub/Sub event channel",
             "supports_observable": True,
+            "supports_refusal_redelivery": True,
             "supports_children": True,
             "children_can_support_observers": True,
             "children_can_support_apis": False,
@@ -84,7 +85,7 @@ public class SalesforcePubSubEventDataProvider inherits
         */
         const LocalOptions = {
             "topic_name": <DataProviderOptionInfo>{
-                "display_name": "Topic Name",
+                "display_name": "Topic name",
                 "short_desc": "The Pub/Sub topic name to subscribe to",
                 "type": AbstractDataProviderTypeMap."*string",
                 "desc": "The Pub/Sub topic name, overriding the one derived from this provider's "
@@ -93,7 +94,7 @@ public class SalesforcePubSubEventDataProvider inherits
                 "example_value": "/data/AccountChangeEvent",
             },
             "change_type": <DataProviderOptionInfo>{
-                "display_name": "Change Types",
+                "display_name": "Change types",
                 "short_desc": "Which Change Data Capture change types to deliver",
                 "type": new DataProvider::SoftListDataType(
                     AbstractDataProviderTypeMap."string", True),
@@ -130,31 +131,31 @@ public class SalesforcePubSubEventDataProvider inherits
                     },
                     <AllowedValueInfo>{
                         "value": ChangeTypeGapCreate,
-                        "display_name": "Gap: Create",
+                        "display_name": "Gap: create",
                         "desc": "A record was created, but the change could not be delivered; "
                             "implied by `CREATE`",
                     },
                     <AllowedValueInfo>{
                         "value": ChangeTypeGapUpdate,
-                        "display_name": "Gap: Update",
+                        "display_name": "Gap: update",
                         "desc": "A record was updated, but the change could not be delivered; "
                             "implied by `UPDATE`",
                     },
                     <AllowedValueInfo>{
                         "value": ChangeTypeGapDelete,
-                        "display_name": "Gap: Delete",
+                        "display_name": "Gap: delete",
                         "desc": "A record was deleted, but the change could not be delivered; "
                             "implied by `DELETE`",
                     },
                     <AllowedValueInfo>{
                         "value": ChangeTypeGapUndelete,
-                        "display_name": "Gap: Undelete",
+                        "display_name": "Gap: undelete",
                         "desc": "A record was restored, but the change could not be delivered; "
                             "implied by `UNDELETE`",
                     },
                     <AllowedValueInfo>{
                         "value": ChangeTypeGapOverflow,
-                        "display_name": "Gap: Overflow",
+                        "display_name": "Gap: overflow",
                         "desc": "An unknown number of changes were lost; always delivered",
                     },
                 ),
@@ -162,7 +163,7 @@ public class SalesforcePubSubEventDataProvider inherits
                 "preselected": True,
             },
             "replay_preset": <DataProviderOptionInfo>{
-                "display_name": "Replay Preset",
+                "display_name": "Replay preset",
                 "short_desc": "Where in the event stream the subscription starts",
                 "type": AbstractDataProviderTypeMap."*string",
                 "desc": "Where the subscription starts: `LATEST` (the tip of the stream, the "
@@ -198,7 +199,7 @@ public class SalesforcePubSubEventDataProvider inherits
                     "preset",
             },
             "num_requested": <DataProviderOptionInfo>{
-                "display_name": "Flow Control Window",
+                "display_name": "Flow control window",
                 "short_desc": "How many events the client keeps requested",
                 "type": AbstractDataProviderTypeMap."*int",
                 "desc": "How many events the client keeps requested from the server at a time; "

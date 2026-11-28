@@ -16,7 +16,7 @@
           "message": "Максимальний розмір у байтах одного відповідного повідомлення, отриманого від сервера; `0` (за замовчуванням) означає відсутність обмеження.\n\nБільше повідомлення завершує виклик із статусом `RESOURCE_EXHAUSTED`, тому велике повідомлення не може вичерпати пам’ять; це обмеження також застосовується до потокових викликів."
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.display_name": {
-          "source": "Max Message Size",
+          "source": "Max message size",
           "message": "Максимальний розмір повідомлення"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.short_desc": {
@@ -28,7 +28,7 @@
           "message": "Максимальний розмір тіла відповіді у байтах для унітарного виклику, який повністю завантажується в пам’ять перед декодуванням; `0` (за замовчуванням) означає відсутність обмеження.\n\nБільше відповіді завершує виклик із статусом `RESOURCE_EXHAUSTED`. Відповідь потокового виклику отримується по одному повідомленню і обмежується значенням `max_message_size` замість цього."
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.display_name": {
-          "source": "Max Response Body Size",
+          "source": "Max response body size",
           "message": "Максимальний розмір тіла відповіді"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.short_desc": {

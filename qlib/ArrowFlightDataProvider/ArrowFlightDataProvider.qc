@@ -65,7 +65,7 @@ public class ArrowFlightDataProvider inherits AbstractDataProvider {
                     "or `https://flight.example.com:443`)",
             },
             "max_message_size": <DataProviderOptionInfo>{
-                "display_name": "Max Message Size",
+                "display_name": "Max message size",
                 "short_desc": "The maximum size of a response message received",
                 "type": AbstractDataProviderType::get(SoftIntType),
                 "desc": "The maximum size in bytes of one response message received from the server; `0` (the "
@@ -74,7 +74,7 @@ public class ArrowFlightDataProvider inherits AbstractDataProvider {
                     "exhaust memory; this limit also applies to streaming calls.  Ignored when `grpcchannel` is set.",
             },
             "max_response_body_size": <DataProviderOptionInfo>{
-                "display_name": "Max Response Body Size",
+                "display_name": "Max response body size",
                 "short_desc": "The maximum size of a unary response body received into memory",
                 "type": AbstractDataProviderType::get(SoftIntType),
                 "desc": "The maximum size in bytes of the response body of a unary call, which is received into "
@@ -91,7 +91,7 @@ public class ArrowFlightDataProvider inherits AbstractDataProvider {
                 "default_value": 30000,
             },
             "grpcchannel": <DataProviderOptionInfo>{
-                "display_name": "gRPC Channel",
+                "display_name": "gRPC channel",
                 "short_desc": "A pre-built GrpcChannel object",
                 "type": AbstractDataProviderType::get(new Type("GrpcChannel"), NOTHING, {
                     DTT_ClientOnly: True,

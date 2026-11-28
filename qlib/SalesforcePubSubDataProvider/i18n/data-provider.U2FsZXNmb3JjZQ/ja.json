@@ -16,7 +16,7 @@
           "message": "Change Data Capture を有効にする **変更イベント**。レポート対象のオブジェクトに `ChangeEvent` サフィックスを付けた名前が指定されます（例: `Account` の場合は `AccountChangeEvent`、`Case` の場合は `CaseChangeEvent` など）。カスタムオブジェクトでは `__ChangeEvent` を使用します（例: `MyObject__ChangeEvent`）。\n\nすでに有効になっているオブジェクトを有効にしてもエラーには**なりません**。応答は `already_enabled` を介して報告します。\n\n**Change Data Capture の有効化には副作用が伴います**: オブジェクトの 72 時間保持ストリームが開始され、組織が選択できるオブジェクトの数はそのエディションとアドオンによって異なります。"
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.display_name": {
-          "source": "Change Event",
+          "source": "Change event",
           "message": "変更イベント"
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.short_desc": {
@@ -32,7 +32,7 @@
           "message": "**Pub/Sub API** Change Data Capture ストリームを使用して、Salesforce の**取引先責任者**が作成されたときに反応します。\n\nこれは `Contact` オブジェクトに固定された `new-record` アクションです。配信はポーリングではなくリアルタイムで行われ、再接続後は最後のリプレイ位置からサブスクリプションが再開されます。\n\n**設定 -> 統合 -> Change Data Capture** で `Contact` の Change Data Capture を有効にする必要があります。"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.display_name": {
-          "source": "New Salesforce Contact",
+          "source": "New Salesforce contact",
           "message": "新しい Salesforce 取引先責任者"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.desc": {
@@ -52,7 +52,7 @@
           "message": "クライアントが一度にサーバーに要求し続けるイベント数。1 から 100 の間（Pub/Sub API が単一の `FetchRequest` で受け入れる最大値）"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.bnVtX3JlcXVlc3RlZA.display_name": {
-          "source": "Flow Control Window",
+          "source": "Flow control window",
           "message": "フロー制御ウィンドウ"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.bnVtX3JlcXVlc3RlZA.short_desc": {
@@ -100,7 +100,7 @@
           "message": "サブスクリプションの開始位置: `LATEST`（ストリームの先端、デフォルト）、`EARLIEST`（保持されている最古のイベント）、または `CUSTOM`（`replay_id` で識別されるイベントの後）。\n\nSalesforce はリプレイ ID を **72 時間** 保持します"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.display_name": {
-          "source": "Replay Preset",
+          "source": "Replay preset",
           "message": "リプレイプリセット"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.short_desc": {
@@ -112,7 +112,7 @@
           "message": "Pub/Sub トピック名。このプロバイダー名から派生した名前をオーバーライドします。`describeGlobal` に一覧表示されない **カスタムチャネル**（例: `/event/MyChannel__chn`）をサブスクライブするには、これを設定します"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.dG9waWNfbmFtZQ.display_name": {
-          "source": "Topic Name",
+          "source": "Topic name",
           "message": "トピック名"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.dG9waWNfbmFtZQ.short_desc": {
@@ -128,7 +128,7 @@
           "message": "**Pub/Sub API** Change Data Capture ストリームを使用して、Salesforce の**リード**が作成されたときに反応します。\n\nこれは `Lead` オブジェクトに固定された `new-record` アクションです。配信はポーリングではなくリアルタイムで行われ、再接続後は最後のリプレイ位置からサブスクリプションが再開されます。\n\n**設定 -> 統合 -> Change Data Capture** で `Lead` の Change Data Capture を有効にする必要があります。"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.display_name": {
-          "source": "New Salesforce Lead",
+          "source": "New Salesforce lead",
           "message": "新しい Salesforce リード"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.desc": {
@@ -148,7 +148,7 @@
           "message": "クライアントが一度にサーバーに要求し続けるイベント数。1 から 100 の間（Pub/Sub API が単一の `FetchRequest` で受け入れる最大値）"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.bnVtX3JlcXVlc3RlZA.display_name": {
-          "source": "Flow Control Window",
+          "source": "Flow control window",
           "message": "フロー制御ウィンドウ"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.bnVtX3JlcXVlc3RlZA.short_desc": {
@@ -196,7 +196,7 @@
           "message": "サブスクリプションの開始位置: `LATEST`（ストリームの先端、デフォルト）、`EARLIEST`（保持されている最古のイベント）、または `CUSTOM`（`replay_id` で識別されるイベントの後）。\n\nSalesforce はリプレイ ID を **72 時間** 保持します"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.display_name": {
-          "source": "Replay Preset",
+          "source": "Replay preset",
           "message": "リプレイプリセット"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.short_desc": {
@@ -208,7 +208,7 @@
           "message": "Pub/Sub トピック名。このプロバイダー名から派生した名前をオーバーライドします。`describeGlobal` に一覧表示されない **カスタムチャネル**（例: `/event/MyChannel__chn`）をサブスクライブするには、これを設定します"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.dG9waWNfbmFtZQ.display_name": {
-          "source": "Topic Name",
+          "source": "Topic name",
           "message": "トピック名"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.dG9waWNfbmFtZQ.short_desc": {
@@ -224,7 +224,7 @@
           "message": "**Pub/Sub API** Change Data Capture ストリームを使用して、指定された Salesforce オブジェクトのレコードが**作成**されたときに反応します。\n\n配信はポーリングではなくリアルタイムで行われ、サブスクリプションはリプレイ位置を追跡するため、接続が切断されて再確立された場合でも、ダウン中に作成されたレコードをスキップすることなく、最後に配信されたイベントの後から再開されます。Salesforce はリプレイ ID を **72 時間** 保持します。\n\nSalesforce が完全には配信できなかった作成を報告する `GAP_CREATE` イベントもこのアクションによって配信されるため、作成が警告なしに失われることはありません。\n\n**設定 -> 統合 -> Change Data Capture** でオブジェクトの Change Data Capture を有効にする必要があります。"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.display_name": {
-          "source": "New Salesforce Record",
+          "source": "New Salesforce record",
           "message": "新しい Salesforce レコード"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.Y2hhbm5lbA.desc": {
@@ -256,7 +256,7 @@
           "message": "クライアントが一度にサーバーに要求し続けるイベント数。1 から 100 の間（Pub/Sub API が単一の `FetchRequest` で受け入れる最大値）"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.bnVtX3JlcXVlc3RlZA.display_name": {
-          "source": "Flow Control Window",
+          "source": "Flow control window",
           "message": "フロー制御ウィンドウ"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.bnVtX3JlcXVlc3RlZA.short_desc": {
@@ -304,7 +304,7 @@
           "message": "サブスクリプションの開始位置: `LATEST`（ストリームの先端、デフォルト）、`EARLIEST`（保持されている最古のイベント）、または `CUSTOM`（`replay_id` で識別されるイベントの後）。\n\nSalesforce はリプレイ ID を **72 時間** 保持します"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.display_name": {
-          "source": "Replay Preset",
+          "source": "Replay preset",
           "message": "リプレイプリセット"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.short_desc": {
@@ -316,7 +316,7 @@
           "message": "Pub/Sub トピック名。このプロバイダー名から派生した名前をオーバーライドします。`describeGlobal` に一覧表示されない **カスタムチャネル**（例: `/event/MyChannel__chn`）をサブスクライブするには、これを設定します"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.dG9waWNfbmFtZQ.display_name": {
-          "source": "Topic Name",
+          "source": "Topic name",
           "message": "トピック名"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.dG9waWNfbmFtZQ.short_desc": {
@@ -332,7 +332,7 @@
           "message": "Salesforce **Pub/Sub API** チャネルに発行されたイベントに反応します。プラットフォームイベント、Change Data Capture イベント、カスタムチャネルはすべて同じサブスクリプションを介して到着します。\n\nサブスクリプションはリプレイ位置を追跡するため、接続が切断されて再確立された場合でも、先に進んでしまうことなく、最後に配信されたイベントの後から再開されます。Salesforce はリプレイ ID を **72 時間** 保持します。"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.display_name": {
-          "source": "Salesforce Event",
+          "source": "Salesforce event",
           "message": "Salesforce イベント"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbm5lbA.desc": {
@@ -368,7 +368,7 @@
           "message": "レコードが作成されましたが、変更を配信できませんでした。`CREATE` によって暗黙的に指定されます"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9DUkVBVEU.display_name": {
-          "source": "Gap: Create",
+          "source": "Gap: create",
           "message": "ギャップ: 作成"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9ERUxFVEU.desc": {
@@ -376,7 +376,7 @@
           "message": "レコードが削除されましたが、変更を配信できませんでした。`DELETE` によって暗黙的に指定されます"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9ERUxFVEU.display_name": {
-          "source": "Gap: Delete",
+          "source": "Gap: delete",
           "message": "ギャップ: 削除"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9PVkVSRkxPVw.desc": {
@@ -384,7 +384,7 @@
           "message": "不明な数の変更が失われました。常に配信されます"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9PVkVSRkxPVw.display_name": {
-          "source": "Gap: Overflow",
+          "source": "Gap: overflow",
           "message": "ギャップ: オーバーフロー"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VTkRFTEVURQ.desc": {
@@ -392,7 +392,7 @@
           "message": "レコードが復元されましたが、変更を配信できませんでした。`UNDELETE` によって暗黙的に指定されます"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VTkRFTEVURQ.display_name": {
-          "source": "Gap: Undelete",
+          "source": "Gap: undelete",
           "message": "ギャップ: 削除の取り消し"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VUERBVEU.desc": {
@@ -400,7 +400,7 @@
           "message": "レコードが更新されましたが、変更を配信できませんでした。`UPDATE` によって暗黙的に指定されます"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VUERBVEU.display_name": {
-          "source": "Gap: Update",
+          "source": "Gap: update",
           "message": "ギャップ: 更新"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOlVOREVMRVRF.desc": {
@@ -424,7 +424,7 @@
           "message": "配信を指定された **Change Data Capture** の変更タイプに制限します。チャネル上のすべての変更を受信するには空のままにします。\n\n**ギャップイベント**は、Salesforce が完全に配信できなかった変更を報告します。ギャップタイプは、それが代行するタイプを満たすため、`CREATE` を選択すると、作成を静かに削除するのではなく `GAP_CREATE` も配信されます。`GAP_OVERFLOW` は、フィルタに関係なく常に配信されます。これは不明な数の変更が失われたことを報告するためです。\n\nこのオプションは Change Data Capture チャネルにのみ適用されます。プラットフォームイベントには `ChangeEventHeader` が含まれず、プラットフォームイベントチャネルでこれを設定するとエラーになります。"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.display_name": {
-          "source": "Change Types",
+          "source": "Change types",
           "message": "変更タイプ"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.short_desc": {
@@ -448,7 +448,7 @@
           "message": "クライアントが一度にサーバーに要求し続けるイベント数。1 から 100 の間（Pub/Sub API が単一の `FetchRequest` で受け入れる最大値）"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.bnVtX3JlcXVlc3RlZA.display_name": {
-          "source": "Flow Control Window",
+          "source": "Flow control window",
           "message": "フロー制御ウィンドウ"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.bnVtX3JlcXVlc3RlZA.short_desc": {
@@ -496,7 +496,7 @@
           "message": "サブスクリプションの開始位置: `LATEST`（ストリームの先端、デフォルト）、`EARLIEST`（保持されている最古のイベント）、または `CUSTOM`（`replay_id` で識別されるイベントの後）。\n\nSalesforce はリプレイ ID を **72 時間** 保持します"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.display_name": {
-          "source": "Replay Preset",
+          "source": "Replay preset",
           "message": "リプレイプリセット"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.short_desc": {
@@ -508,7 +508,7 @@
           "message": "Pub/Sub トピック名。このプロバイダー名から派生した名前をオーバーライドします。`describeGlobal` に一覧表示されない **カスタムチャネル**（例: `/event/MyChannel__chn`）をサブスクライブするには、これを設定します"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.dG9waWNfbmFtZQ.display_name": {
-          "source": "Topic Name",
+          "source": "Topic name",
           "message": "トピック名"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.dG9waWNfbmFtZQ.short_desc": {
@@ -524,7 +524,7 @@
           "message": "指定された Salesforce オブジェクトのレコードが**更新**されたときに、**Pub/Sub API** の Change Data Capture ストリームを使用して反応します。\n\nイベントペイロードには `ChangeEventHeader.changedFields` リストが含まれているため、レコードを再読み込みすることなく実際に変更されたフィールドを把握できます。\n\n配信はポーリングではなくリアルタイムで行われ、再接続後、サブスクリプションは最後のリプレイ位置から再開されます。Salesforce はリプレイ ID を **72 時間** 保持します。\n\nSalesforce が完全には配信できなかった更新を報告する `GAP_UPDATE` イベントも、このアクションによって配信されます。\n\n**設定 -> 統合 -> Change Data Capture** で、オブジェクトに対して Change Data Capture を有効にする必要があります。"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.display_name": {
-          "source": "Updated Salesforce Record",
+          "source": "Updated Salesforce record",
           "message": "更新された Salesforce レコード"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.Y2hhbm5lbA.desc": {
@@ -556,7 +556,7 @@
           "message": "クライアントが一度にサーバーに要求し続けるイベント数。1 から 100 の間（Pub/Sub API が単一の `FetchRequest` で受け入れる最大値）"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.bnVtX3JlcXVlc3RlZA.display_name": {
-          "source": "Flow Control Window",
+          "source": "Flow control window",
           "message": "フロー制御ウィンドウ"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.bnVtX3JlcXVlc3RlZA.short_desc": {
@@ -604,7 +604,7 @@
           "message": "サブスクリプションの開始位置: `LATEST`（ストリームの先端、デフォルト）、`EARLIEST`（保持されている最古のイベント）、または `CUSTOM`（`replay_id` で識別されるイベントの後）。\n\nSalesforce はリプレイ ID を **72 時間** 保持します"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.display_name": {
-          "source": "Replay Preset",
+          "source": "Replay preset",
           "message": "リプレイプリセット"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.short_desc": {
@@ -616,7 +616,7 @@
           "message": "Pub/Sub トピック名。このプロバイダー名から派生した名前をオーバーライドします。`describeGlobal` に一覧表示されない **カスタムチャネル**（例: `/event/MyChannel__chn`）をサブスクライブするには、これを設定します"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.dG9waWNfbmFtZQ.display_name": {
-          "source": "Topic Name",
+          "source": "Topic name",
           "message": "トピック名"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.dG9waWNfbmFtZQ.short_desc": {

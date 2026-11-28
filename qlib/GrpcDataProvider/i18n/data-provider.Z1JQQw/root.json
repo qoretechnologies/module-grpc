@@ -16,8 +16,8 @@
           "message": "Connect to gRPC services using protobuf schemas for request/response serialization, supporting all four RPC patterns: unary, server streaming, client streaming, and bidirectional streaming"
         },
         "app.Z1JQQw.action.Y2FsbA.display_name": {
-          "source": "Call gRPC Method",
-          "message": "Call gRPC Method"
+          "source": "Call gRPC method",
+          "message": "Call gRPC method"
         },
         "app.Z1JQQw.action.Y2FsbA.short_desc": {
           "source": "Call a gRPC service method",
