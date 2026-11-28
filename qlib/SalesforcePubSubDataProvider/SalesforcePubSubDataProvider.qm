@@ -72,7 +72,7 @@ module SalesforcePubSubDataProvider {
             # grouped with the event actions: this exists to make those deliver, so it belongs
             # where someone configuring Salesforce events will look for it
             "groups": "Events",
-            "display_name": "Enable change data capture",
+            "display_name": "Enable Change Data Capture",
             "short_desc": "Enable Change Data Capture for a Salesforce object",
             "desc": "Enables **Change Data Capture** for a Salesforce object, so that its "
                 "creates, updates, deletes and undeletes can be subscribed to through the "

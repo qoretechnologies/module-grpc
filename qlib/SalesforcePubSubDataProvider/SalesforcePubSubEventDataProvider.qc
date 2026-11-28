@@ -208,7 +208,7 @@ public class SalesforcePubSubEventDataProvider inherits
                 "default_value": DefaultNumRequested,
             },
             "enable_cdc": <DataProviderOptionInfo>{
-                "display_name": "Enable change data capture",
+                "display_name": "Enable Change Data Capture",
                 "short_desc": "Switch Change Data Capture on for the object if it is not already",
                 "type": AbstractDataProviderTypeMap."*bool",
                 "desc": "If `True`, and the org reports that this **Change Data Capture** channel "

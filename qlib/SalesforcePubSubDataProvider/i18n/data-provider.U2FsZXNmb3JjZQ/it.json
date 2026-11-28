@@ -8,7 +8,7 @@
           "message": "Abilita **Change Data Capture** per un oggetto Salesforce, in modo che sia possibile sottoscrivere le relative creazioni, aggiornamenti, eliminazioni e ripristini tramite l'**API Pub/Sub**.\n\nChange Data Capture deve essere attivato per ciascun oggetto prima che una sottoscrizione possa consegnare qualcosa e una sottoscrizione a un oggetto mai abilitato ha esito positivo rimanendo poi silente; pertanto, questa operazione viene di solito eseguita **una volta sola**, al momento della configurazione di un'integrazione, anziché come parte di un flusso.\n\nL'abilitazione di un oggetto già abilitato non costituisce un errore.\n\n**Questo modifica la configurazione dell'organizzazione.** Avvia uno stream con conservazione di 72 ore per l'oggetto e il numero di oggetti che un'organizzazione può selezionare dipende dalla sua edizione e dai componenti aggiuntivi. L'utente della connessione deve disporre dell'autorizzazione per modificare i metadati."
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Abilita Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.desc": {
@@ -40,7 +40,7 @@
           "message": "Se `True` e l'organizzazione segnala che non è possibile sottoscrivere questo canale **Change Data Capture** perché l'oggetto non è mai stato selezionato, lo attiva e prosegue anziché interrompersi con un errore.\n\nQuesto esiste perché una sottoscrizione a un oggetto non abilitato ha esito positivo e poi non consegna nulla, il che è indistinguibile da un'organizzazione inattiva. Il valore predefinito è `False`: la sottoscrizione agli eventi non dovrebbe modificare silenziosamente la configurazione dell'organizzazione.\n\n**Questo modifica la configurazione dell'organizzazione.** Avvia uno stream con conservazione di 72 ore per l'oggetto e il numero di oggetti che un'organizzazione può selezionare dipende dalla sua edizione e dai componenti aggiuntivi. L'utente della connessione deve disporre dell'autorizzazione per modificare i metadati. Per un passaggio unico e verificabile, utilizzare invece l'azione `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Abilita Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -136,7 +136,7 @@
           "message": "Se `True` e l'organizzazione segnala che non è possibile sottoscrivere questo canale **Change Data Capture** perché l'oggetto non è mai stato selezionato, lo attiva e prosegue anziché interrompersi con un errore.\n\nQuesto esiste perché una sottoscrizione a un oggetto non abilitato ha esito positivo e poi non consegna nulla, il che è indistinguibile da un'organizzazione inattiva. Il valore predefinito è `False`: la sottoscrizione agli eventi non dovrebbe modificare silenziosamente la configurazione dell'organizzazione.\n\n**Questo modifica la configurazione dell'organizzazione.** Avvia uno stream con conservazione di 72 ore per l'oggetto e il numero di oggetti che un'organizzazione può selezionare dipende dalla sua edizione e dai componenti aggiuntivi. L'utente della connessione deve disporre dell'autorizzazione per modificare i metadati. Per un passaggio unico e verificabile, utilizzare invece l'azione `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Abilita Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -244,7 +244,7 @@
           "message": "Se `True` e l'organizzazione segnala che non è possibile sottoscrivere questo canale **Change Data Capture** perché l'oggetto non è mai stato selezionato, lo attiva e prosegue anziché interrompersi con un errore.\n\nQuesto esiste perché una sottoscrizione a un oggetto non abilitato ha esito positivo e poi non consegna nulla, il che è indistinguibile da un'organizzazione inattiva. Il valore predefinito è `False`: la sottoscrizione agli eventi non dovrebbe modificare silenziosamente la configurazione dell'organizzazione.\n\n**Questo modifica la configurazione dell'organizzazione.** Avvia uno stream con conservazione di 72 ore per l'oggetto e il numero di oggetti che un'organizzazione può selezionare dipende dalla sua edizione e dai componenti aggiuntivi. L'utente della connessione deve disporre dell'autorizzazione per modificare i metadati. Per un passaggio unico e verificabile, utilizzare invece l'azione `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Abilita Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -436,7 +436,7 @@
           "message": "Se `True` e l'organizzazione segnala che non è possibile sottoscrivere questo canale **Change Data Capture** perché l'oggetto non è mai stato selezionato, lo attiva e prosegue anziché interrompersi con un errore.\n\nQuesto esiste perché una sottoscrizione a un oggetto non abilitato ha esito positivo e poi non consegna nulla, il che è indistinguibile da un'organizzazione inattiva. Il valore predefinito è `False`: la sottoscrizione agli eventi non dovrebbe modificare silenziosamente la configurazione dell'organizzazione.\n\n**Questo modifica la configurazione dell'organizzazione.** Avvia uno stream con conservazione di 72 ore per l'oggetto e il numero di oggetti che un'organizzazione può selezionare dipende dalla sua edizione e dai componenti aggiuntivi. L'utente della connessione deve disporre dell'autorizzazione per modificare i metadati. Per un passaggio unico e verificabile, utilizzare invece l'azione `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Abilita Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -544,7 +544,7 @@
           "message": "Se `True` e l'organizzazione segnala che non è possibile sottoscrivere questo canale **Change Data Capture** perché l'oggetto non è mai stato selezionato, lo attiva e prosegue anziché interrompersi con un errore.\n\nQuesto esiste perché una sottoscrizione a un oggetto non abilitato ha esito positivo e poi non consegna nulla, il che è indistinguibile da un'organizzazione inattiva. Il valore predefinito è `False`: la sottoscrizione agli eventi non dovrebbe modificare silenziosamente la configurazione dell'organizzazione.\n\n**Questo modifica la configurazione dell'organizzazione.** Avvia uno stream con conservazione di 72 ore per l'oggetto e il numero di oggetti che un'organizzazione può selezionare dipende dalla sua edizione e dai componenti aggiuntivi. L'utente della connessione deve disporre dell'autorizzazione per modificare i metadati. Per un passaggio unico e verificabile, utilizzare invece l'azione `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Abilita Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.short_desc": {

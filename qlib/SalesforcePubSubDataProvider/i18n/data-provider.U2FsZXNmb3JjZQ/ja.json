@@ -8,7 +8,7 @@
           "message": "Salesforce オブジェクトの **Change Data Capture** を有効化し、**Pub/Sub API** を介して作成、更新、削除、削除取り消しをサブスクライブできるようにします。\n\nサブスクリプションで配信が行われる前に、オブジェクトごとに Change Data Capture をオンにする必要があります。有効化されていないオブジェクトへのサブスクリプションは成功してもサイレント状態のままになります。そのため、通常はフローの一部としてではなく、統合のセットアップ時に **1 回** 実行されます。\n\nすでに有効化されているオブジェクトを有効化してもエラーにはなりません。\n\n**これにより組織の設定が変更されます。** オブジェクトの 72 時間保持ストリームが開始され、組織が選択できるオブジェクトの数はエディションやアドオンによって異なります。接続のユーザーにはメタデータを変更する権限が必要です。"
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Change Data Capture の有効化"
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.desc": {
@@ -40,7 +40,7 @@
           "message": "`True` の場合で、オブジェクトが選択されていないためにこの **Change Data Capture** チャネルをサブスクライブできないと組織が報告した場合、失敗するのではなく、オンにして処理を続行します。\n\nこれは、有効化されていないオブジェクトへのサブスクリプションが成功しても何も配信されず、アイドル状態の組織と区別がつかないため存在します。デフォルトは `False` です（イベントのサブスクライブによって組織の設定が勝手に変更されるべきではありません）。\n\n**これにより組織の設定が変更されます。** オブジェクトの 72 時間保持ストリームが開始され、組織が選択できるオブジェクトの数はそのエディションとアドオンによって異なります。接続のユーザーにはメタデータを変更する権限が必要です。単発かつ監査可能な手順には、代わりに `enable-change-data-capture` アクションを使用してください。"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Change Data Capture の有効化"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -136,7 +136,7 @@
           "message": "`True` の場合で、オブジェクトが選択されていないためにこの **Change Data Capture** チャネルをサブスクライブできないと組織が報告した場合、失敗するのではなく、オンにして処理を続行します。\n\nこれは、有効化されていないオブジェクトへのサブスクリプションが成功しても何も配信されず、アイドル状態の組織と区別がつかないため存在します。デフォルトは `False` です（イベントのサブスクライブによって組織の設定が勝手に変更されるべきではありません）。\n\n**これにより組織の設定が変更されます。** オブジェクトの 72 時間保持ストリームが開始され、組織が選択できるオブジェクトの数はそのエディションとアドオンによって異なります。接続のユーザーにはメタデータを変更する権限が必要です。単発かつ監査可能な手順には、代わりに `enable-change-data-capture` アクションを使用してください。"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Change Data Capture の有効化"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -244,7 +244,7 @@
           "message": "`True` の場合で、オブジェクトが選択されていないためにこの **Change Data Capture** チャネルをサブスクライブできないと組織が報告した場合、失敗するのではなく、オンにして処理を続行します。\n\nこれは、有効化されていないオブジェクトへのサブスクリプションが成功しても何も配信されず、アイドル状態の組織と区別がつかないため存在します。デフォルトは `False` です（イベントのサブスクライブによって組織の設定が勝手に変更されるべきではありません）。\n\n**これにより組織の設定が変更されます。** オブジェクトの 72 時間保持ストリームが開始され、組織が選択できるオブジェクトの数はそのエディションとアドオンによって異なります。接続のユーザーにはメタデータを変更する権限が必要です。単発かつ監査可能な手順には、代わりに `enable-change-data-capture` アクションを使用してください。"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Change Data Capture の有効化"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -436,7 +436,7 @@
           "message": "`True` の場合で、オブジェクトが選択されていないためにこの **Change Data Capture** チャネルをサブスクライブできないと組織が報告した場合、失敗するのではなく、オンにして処理を続行します。\n\nこれは、有効化されていないオブジェクトへのサブスクリプションが成功しても何も配信されず、アイドル状態の組織と区別がつかないため存在します。デフォルトは `False` です（イベントのサブスクライブによって組織の設定が勝手に変更されるべきではありません）。\n\n**これにより組織の設定が変更されます。** オブジェクトの 72 時間保持ストリームが開始され、組織が選択できるオブジェクトの数はそのエディションとアドオンによって異なります。接続のユーザーにはメタデータを変更する権限が必要です。単発かつ監査可能な手順には、代わりに `enable-change-data-capture` アクションを使用してください。"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Change Data Capture の有効化"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -544,7 +544,7 @@
           "message": "`True` の場合で、オブジェクトが選択されていないためにこの **Change Data Capture** チャネルをサブスクライブできないと組織が報告した場合、失敗するのではなく、オンにして処理を続行します。\n\nこれは、有効化されていないオブジェクトへのサブスクリプションが成功しても何も配信されず、アイドル状態の組織と区別がつかないため存在します。デフォルトは `False` です（イベントのサブスクライブによって組織の設定が勝手に変更されるべきではありません）。\n\n**これにより組織の設定が変更されます。** オブジェクトの 72 時間保持ストリームが開始され、組織が選択できるオブジェクトの数はそのエディションとアドオンによって異なります。接続のユーザーにはメタデータを変更する権限が必要です。単発かつ監査可能な手順には、代わりに `enable-change-data-capture` アクションを使用してください。"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Change Data Capture の有効化"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.short_desc": {

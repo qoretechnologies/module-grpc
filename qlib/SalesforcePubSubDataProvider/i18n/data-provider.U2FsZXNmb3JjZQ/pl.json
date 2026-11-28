@@ -8,7 +8,7 @@
           "message": "Włącza funkcję **Change Data Capture** dla obiektu Salesforce, dzięki czemu jego utworzenia, aktualizacje, usunięcia i przywrócenia mogą być subskrybowane za pośrednictwem **Pub/Sub API**.\n\nFunkcja Change Data Capture musi być włączona osobno dla każdego obiektu, zanim subskrypcja zacznie cokolwiek dostarczać, a subskrypcja obiektu, który nigdy nie został włączony, kończy się sukcesem, a następnie milczy – dlatego zazwyczaj uruchamia się to **raz**, podczas konfiguracji integracji, a nie jako część przepływu.\n\nWłączenie obiektu, który jest już włączony, nie jest błędem.\n\n**To zmienia konfigurację organizacji.** Uruchamia 72-godzinny strumień retencji dla obiektu, a liczba obiektów, które organizacja może wybrać, zależy od jej edycji i dodatków. Użytkownik połączenia wymaga uprawnień do modyfikowania metadanych."
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Włącz Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.desc": {
@@ -40,7 +40,7 @@
           "message": "Jeśli `True`, a organizacja zgłasza, że tego kanału **Change Data Capture** nie można subskrybować, ponieważ obiekt nigdy nie został wybrany, włącz go i kontynuuj zamiast zgłaszać błąd.\n\nIstnieje to dlatego, że subskrypcja obiektu, który nie jest włączony, kończy się sukcesem, a następnie nic nie dostarcza, co jest nie do odróżnienia od bezczynnej organizacji. Domyślna wartość to `False`: subskrybowanie zdarzeń nie powinno po cichu zmieniać konfiguracji organizacji.\n\n**To zmienia konfigurację organizacji.** Uruchamia 72-godzinny strumień retencji dla obiektu, a liczba obiektów, które organizacja może wybrać, zależy od jej edycji i dodatków. Użytkownik połączenia wymaga uprawnień do modyfikowania metadanych. W przypadku jednorazowego, audytowalnego kroku użyj zamiast tego akcji `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Włącz Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -136,7 +136,7 @@
           "message": "Jeśli `True`, a organizacja zgłasza, że tego kanału **Change Data Capture** nie można subskrybować, ponieważ obiekt nigdy nie został wybrany, włącz go i kontynuuj zamiast zgłaszać błąd.\n\nIstnieje to dlatego, że subskrypcja obiektu, który nie jest włączony, kończy się sukcesem, a następnie nic nie dostarcza, co jest nie do odróżnienia od bezczynnej organizacji. Domyślna wartość to `False`: subskrybowanie zdarzeń nie powinno po cichu zmieniać konfiguracji organizacji.\n\n**To zmienia konfigurację organizacji.** Uruchamia 72-godzinny strumień retencji dla obiektu, a liczba obiektów, które organizacja może wybrać, zależy od jej edycji i dodatków. Użytkownik połączenia wymaga uprawnień do modyfikowania metadanych. W przypadku jednorazowego, audytowalnego kroku użyj zamiast tego akcji `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Włącz Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -244,7 +244,7 @@
           "message": "Jeśli `True`, a organizacja zgłasza, że tego kanału **Change Data Capture** nie można subskrybować, ponieważ obiekt nigdy nie został wybrany, włącz go i kontynuuj zamiast zgłaszać błąd.\n\nIstnieje to dlatego, że subskrypcja obiektu, który nie jest włączony, kończy się sukcesem, a następnie nic nie dostarcza, co jest nie do odróżnienia od bezczynnej organizacji. Domyślna wartość to `False`: subskrybowanie zdarzeń nie powinno po cichu zmieniać konfiguracji organizacji.\n\n**To zmienia konfigurację organizacji.** Uruchamia 72-godzinny strumień retencji dla obiektu, a liczba obiektów, które organizacja może wybrać, zależy od jej edycji i dodatków. Użytkownik połączenia wymaga uprawnień do modyfikowania metadanych. W przypadku jednorazowego, audytowalnego kroku użyj zamiast tego akcji `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Włącz Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -436,7 +436,7 @@
           "message": "Jeśli `True`, a organizacja zgłasza, że tego kanału **Change Data Capture** nie można subskrybować, ponieważ obiekt nigdy nie został wybrany, włącz go i kontynuuj zamiast zgłaszać błąd.\n\nIstnieje to dlatego, że subskrypcja obiektu, który nie jest włączony, kończy się sukcesem, a następnie nic nie dostarcza, co jest nie do odróżnienia od bezczynnej organizacji. Domyślna wartość to `False`: subskrybowanie zdarzeń nie powinno po cichu zmieniać konfiguracji organizacji.\n\n**To zmienia konfigurację organizacji.** Uruchamia 72-godzinny strumień retencji dla obiektu, a liczba obiektów, które organizacja może wybrać, zależy od jej edycji i dodatków. Użytkownik połączenia wymaga uprawnień do modyfikowania metadanych. W przypadku jednorazowego, audytowalnego kroku użyj zamiast tego akcji `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Włącz Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -544,7 +544,7 @@
           "message": "Jeśli `True`, a organizacja zgłasza, że tego kanału **Change Data Capture** nie można subskrybować, ponieważ obiekt nigdy nie został wybrany, włącz go i kontynuuj zamiast zgłaszać błąd.\n\nIstnieje to dlatego, że subskrypcja obiektu, który nie jest włączony, kończy się sukcesem, a następnie nic nie dostarcza, co jest nie do odróżnienia od bezczynnej organizacji. Domyślna wartość to `False`: subskrybowanie zdarzeń nie powinno po cichu zmieniać konfiguracji organizacji.\n\n**To zmienia konfigurację organizacji.** Uruchamia 72-godzinny strumień retencji dla obiektu, a liczba obiektów, które organizacja może wybrać, zależy od jej edycji i dodatków. Użytkownik połączenia wymaga uprawnień do modyfikowania metadanych. W przypadku jednorazowego, audytowalnego kroku użyj zamiast tego akcji `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Włącz Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.short_desc": {

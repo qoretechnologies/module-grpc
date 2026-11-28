@@ -8,7 +8,7 @@
           "message": "為 Salesforce 物件啟用 **Change Data Capture**，以便能透過 **Pub/Sub API** 訂閱其建立、更新、刪除與取消刪除操作。\n\n在訂閱交付任何內容之前，必須針對每個物件開啟 Change Data Capture，且對從未啟用的物件進行訂閱雖會成功但保持靜默——因此通常會在設定整合時執行 **一次**，而非作為流程的一部分。\n\n啟用已啟用的物件並非錯誤。\n\n**這會變更組織設定。** 它會為該物件啟動 72 小時的保留串流，且組織可選擇的物件數量取決於其版本與附加元件。連線的使用者需要修改中繼資料的權限。"
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "啟用 Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.desc": {
@@ -40,7 +40,7 @@
           "message": "如果為 `True`，且組織報告由於從未選擇該物件而無法訂閱此 **Change Data Capture** 通道，則開啟該物件並繼續，而非失敗。\n\n此設定存在是因為對未啟用的物件進行訂閱會成功但什麼都不交付，這與閒置的組織無法區分。預設值為 `False`：訂閱事件不應無聲無息地變更組織設定。\n\n**這會變更組織設定。** 它會為該物件啟動 72 小時的保留串流，且組織可選擇的物件數量取決於其版本與附加元件。連線的使用者需要修改中繼資料的權限。若要進行一次性且可審計的步驟，請改用 `enable-change-data-capture` 操作。"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "啟用 Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -136,7 +136,7 @@
           "message": "如果為 `True`，且組織報告由於從未選擇該物件而無法訂閱此 **Change Data Capture** 通道，則開啟該物件並繼續，而非失敗。\n\n此設定存在是因為對未啟用的物件進行訂閱會成功但什麼都不交付，這與閒置的組織無法區分。預設值為 `False`：訂閱事件不應無聲無息地變更組織設定。\n\n**這會變更組織設定。** 它會為該物件啟動 72 小時的保留串流，且組織可選擇的物件數量取決於其版本與附加元件。連線的使用者需要修改中繼資料的權限。若要進行一次性且可審計的步驟，請改用 `enable-change-data-capture` 操作。"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "啟用 Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -244,7 +244,7 @@
           "message": "如果為 `True`，且組織報告由於從未選擇該物件而無法訂閱此 **Change Data Capture** 通道，則開啟該物件並繼續，而非失敗。\n\n此設定存在是因為對未啟用的物件進行訂閱會成功但什麼都不交付，這與閒置的組織無法區分。預設值為 `False`：訂閱事件不應無聲無息地變更組織設定。\n\n**這會變更組織設定。** 它會為該物件啟動 72 小時的保留串流，且組織可選擇的物件數量取決於其版本與附加元件。連線的使用者需要修改中繼資料的權限。若要進行一次性且可審計的步驟，請改用 `enable-change-data-capture` 操作。"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "啟用 Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -436,7 +436,7 @@
           "message": "如果為 `True`，且組織報告由於從未選擇該物件而無法訂閱此 **Change Data Capture** 通道，則開啟該物件並繼續，而非失敗。\n\n此設定存在是因為對未啟用的物件進行訂閱會成功但什麼都不交付，這與閒置的組織無法區分。預設值為 `False`：訂閱事件不應無聲無息地變更組織設定。\n\n**這會變更組織設定。** 它會為該物件啟動 72 小時的保留串流，且組織可選擇的物件數量取決於其版本與附加元件。連線的使用者需要修改中繼資料的權限。若要進行一次性且可審計的步驟，請改用 `enable-change-data-capture` 操作。"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "啟用 Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -544,7 +544,7 @@
           "message": "如果為 `True`，且組織報告由於從未選擇該物件而無法訂閱此 **Change Data Capture** 通道，則開啟該物件並繼續，而非失敗。\n\n此設定存在是因為對未啟用的物件進行訂閱會成功但什麼都不交付，這與閒置的組織無法區分。預設值為 `False`：訂閱事件不應無聲無息地變更組織設定。\n\n**這會變更組織設定。** 它會為該物件啟動 72 小時的保留串流，且組織可選擇的物件數量取決於其版本與附加元件。連線的使用者需要修改中繼資料的權限。若要進行一次性且可審計的步驟，請改用 `enable-change-data-capture` 操作。"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "啟用 Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.short_desc": {

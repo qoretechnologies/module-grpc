@@ -4,8 +4,8 @@
     "root": {
       "messages": {
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.display_name": {
-          "source": "Enable change data capture",
-          "message": "Enable change data capture"
+          "source": "Enable Change Data Capture",
+          "message": "Enable Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.short_desc": {
           "source": "Enable Change Data Capture for a Salesforce object",
@@ -208,8 +208,8 @@
           "message": "How many events the client keeps requested from the server at a time; between 1 and 100, which is the maximum the Pub/Sub API accepts in a single `FetchRequest`"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
-          "message": "Enable change data capture"
+          "source": "Enable Change Data Capture",
+          "message": "Enable Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.short_desc": {
           "source": "Switch Change Data Capture on for the object if it is not already",
@@ -316,8 +316,8 @@
           "message": "How many events the client keeps requested from the server at a time; between 1 and 100, which is the maximum the Pub/Sub API accepts in a single `FetchRequest`"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
-          "message": "Enable change data capture"
+          "source": "Enable Change Data Capture",
+          "message": "Enable Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.short_desc": {
           "source": "Switch Change Data Capture on for the object if it is not already",
@@ -424,8 +424,8 @@
           "message": "How many events the client keeps requested from the server at a time; between 1 and 100, which is the maximum the Pub/Sub API accepts in a single `FetchRequest`"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
-          "message": "Enable change data capture"
+          "source": "Enable Change Data Capture",
+          "message": "Enable Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.short_desc": {
           "source": "Switch Change Data Capture on for the object if it is not already",
@@ -520,8 +520,8 @@
           "message": "How many events the client keeps requested from the server at a time; between 1 and 100, which is the maximum the Pub/Sub API accepts in a single `FetchRequest`"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
-          "message": "Enable change data capture"
+          "source": "Enable Change Data Capture",
+          "message": "Enable Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.short_desc": {
           "source": "Switch Change Data Capture on for the object if it is not already",
@@ -616,8 +616,8 @@
           "message": "How many events the client keeps requested from the server at a time; between 1 and 100, which is the maximum the Pub/Sub API accepts in a single `FetchRequest`"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
-          "message": "Enable change data capture"
+          "source": "Enable Change Data Capture",
+          "message": "Enable Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.short_desc": {
           "source": "Switch Change Data Capture on for the object if it is not already",

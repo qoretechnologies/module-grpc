@@ -8,7 +8,7 @@
           "message": "Povoluje **Change Data Capture** pro objekt Salesforce, takže k jeho vytvoření, aktualizaci, odstranění a obnovení lze přihlásit odběr prostřednictvím **Pub/Sub API**.\n\nFunkce Change Data Capture musí být zapnuta pro každý objekt zvlášť, než odběr začne cokoliv doručovat. Odběr objektu, který nebyl nikdy povolen, proběhne úspěšně a poté zůstane tichý – proto se toto obvykle spouští **jednou** při nastavení integrace, nikoli jako součást toku.\n\nPovolení objektu, který je již povolen, není chyba.\n\n**Tímto se změní konfigurace organizace.** Spustí se stream s uchováváním po dobu 72 hodin pro daný objekt a počet objektů, které může organizace vybrat, závisí na její edici a doplňcích. Uživatel připojení vyžaduje oprávnění k úpravě metadat."
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Povolit Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.desc": {
@@ -40,7 +40,7 @@
           "message": "Pokud platí `True` a organizace hlásí, že k tomuto kanálu **Change Data Capture** nelze přihlásit odběr, protože objekt nebyl nikdy vybrán, zapněte jej a pokračujte, místo aby došlo k selhání.\n\nTato možnost existuje, protože odběr objektu, který není povolen, proběhne úspěšně a poté nic nedoručí, což je nerozeznatelné od neaktivní organizace. Výchozí hodnota je `False`: odběr událostí by neměl tichým způsobem měnit konfiguraci organizace.\n\n**Tímto se změní konfigurace organizace.** Spustí se stream s uchováváním po dobu 72 hodin pro daný objekt a počet objektů, které může organizace vybrat, závisí na její edici a doplňcích. Uživatel připojení vyžaduje oprávnění k úpravě metadat. Pro jednorázový, auditovatelný krok použijte místo toho akci `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Povolit Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -136,7 +136,7 @@
           "message": "Pokud platí `True` a organizace hlásí, že k tomuto kanálu **Change Data Capture** nelze přihlásit odběr, protože objekt nebyl nikdy vybrán, zapněte jej a pokračujte, místo aby došlo k selhání.\n\nTato možnost existuje, protože odběr objektu, který není povolen, proběhne úspěšně a poté nic nedoručí, což je nerozeznatelné od neaktivní organizace. Výchozí hodnota je `False`: odběr událostí by neměl tichým způsobem měnit konfiguraci organizace.\n\n**Tímto se změní konfigurace organizace.** Spustí se stream s uchováváním po dobu 72 hodin pro daný objekt a počet objektů, které může organizace vybrat, závisí na její edici a doplňcích. Uživatel připojení vyžaduje oprávnění k úpravě metadat. Pro jednorázový, auditovatelný krok použijte místo toho akci `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Povolit Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -244,7 +244,7 @@
           "message": "Pokud platí `True` a organizace hlásí, že k tomuto kanálu **Change Data Capture** nelze přihlásit odběr, protože objekt nebyl nikdy vybrán, zapněte jej a pokračujte, místo aby došlo k selhání.\n\nTato možnost existuje, protože odběr objektu, který není povolen, proběhne úspěšně a poté nic nedoručí, což je nerozeznatelné od neaktivní organizace. Výchozí hodnota je `False`: odběr událostí by neměl tichým způsobem měnit konfiguraci organizace.\n\n**Tímto se změní konfigurace organizace.** Spustí se stream s uchováváním po dobu 72 hodin pro daný objekt a počet objektů, které může organizace vybrat, závisí na její edici a doplňcích. Uživatel připojení vyžaduje oprávnění k úpravě metadat. Pro jednorázový, auditovatelný krok použijte místo toho akci `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Povolit Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -436,7 +436,7 @@
           "message": "Pokud platí `True` a organizace hlásí, že k tomuto kanálu **Change Data Capture** nelze přihlásit odběr, protože objekt nebyl nikdy vybrán, zapněte jej a pokračujte, místo aby došlo k selhání.\n\nTato možnost existuje, protože odběr objektu, který není povolen, proběhne úspěšně a poté nic nedoručí, což je nerozeznatelné od neaktivní organizace. Výchozí hodnota je `False`: odběr událostí by neměl tichým způsobem měnit konfiguraci organizace.\n\n**Tímto se změní konfigurace organizace.** Spustí se stream s uchováváním po dobu 72 hodin pro daný objekt a počet objektů, které může organizace vybrat, závisí na její edici a doplňcích. Uživatel připojení vyžaduje oprávnění k úpravě metadat. Pro jednorázový, auditovatelný krok použijte místo toho akci `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Povolit Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -544,7 +544,7 @@
           "message": "Pokud platí `True` a organizace hlásí, že k tomuto kanálu **Change Data Capture** nelze přihlásit odběr, protože objekt nebyl nikdy vybrán, zapněte jej a pokračujte, místo aby došlo k selhání.\n\nTato možnost existuje, protože odběr objektu, který není povolen, proběhne úspěšně a poté nic nedoručí, což je nerozeznatelné od neaktivní organizace. Výchozí hodnota je `False`: odběr událostí by neměl tichým způsobem měnit konfiguraci organizace.\n\n**Tímto se změní konfigurace organizace.** Spustí se stream s uchováváním po dobu 72 hodin pro daný objekt a počet objektů, které může organizace vybrat, závisí na její edici a doplňcích. Uživatel připojení vyžaduje oprávnění k úpravě metadat. Pro jednorázový, auditovatelný krok použijte místo toho akci `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Povolit Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.short_desc": {

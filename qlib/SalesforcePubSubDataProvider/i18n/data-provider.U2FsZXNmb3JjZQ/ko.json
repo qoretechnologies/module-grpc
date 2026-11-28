@@ -8,7 +8,7 @@
           "message": "Salesforce 개체에 대한 **변경 데이터 캡처**를 활성화하여 **Pub/Sub API**를 통해 생성, 업데이트, 삭제 및 삭제 취소를 구독할 수 있도록 합니다.\n\n구독이 항목을 전달하기 전에 각 개체별로 변경 데이터 캡처를 켜야 하며, 활성화되지 않은 개체에 대한 구독은 성공한 후 아무 응답도 보내지 않습니다. 따라서 이는 일반적으로 플로우의 일부가 아니라 통합을 설정할 때 **한 번** 실행됩니다.\n\n이미 활성화된 개체를 활성화하는 것은 오류가 아닙니다.\n\n**이 작업은 조직 구성을 변경합니다.** 개체에 대해 72시간 보유 스트림을 시작하며, 조직이 선택할 수 있는 개체 수는 에디션 및 추가 기능에 따라 다릅니다. 연결 사용자에게 메타데이터 수정 권한이 필요합니다."
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "변경 데이터 캡처 활성화"
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.desc": {
@@ -40,7 +40,7 @@
           "message": "`True`인 경우, 개체가 선택되지 않아 이 **변경 데이터 캡처** 채널을 구독할 수 없다고 조직이 보고하더라도 실패 처리하는 대신 켜고 진행합니다.\n\n이 기능이 존재하는 이유는 활성화되지 않은 개체에 대한 구독이 성공한 후 아무것도 전달하지 않아 유휴 조직과 구별할 수 없기 때문입니다. 기본값은 `False`입니다. 이벤트 구독이 자동으로 조직 구성을 변경해서는 안 됩니다.\n\n**이 작업은 조직 구성을 변경합니다.** 개체에 대해 72시간 보유 스트림을 시작하며, 조직이 선택할 수 있는 개체 수는 에디션 및 추가 기능에 따라 다릅니다. 연결 사용자에게 메타데이터 수정 권한이 필요합니다. 감사 가능한 일회성 단계의 경우 대신 `enable-change-data-capture` 작업을 사용하세요."
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "변경 데이터 캡처 활성화"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -136,7 +136,7 @@
           "message": "`True`인 경우, 개체가 선택되지 않아 이 **변경 데이터 캡처** 채널을 구독할 수 없다고 조직이 보고하더라도 실패 처리하는 대신 켜고 진행합니다.\n\n이 기능이 존재하는 이유는 활성화되지 않은 개체에 대한 구독이 성공한 후 아무것도 전달하지 않아 유휴 조직과 구별할 수 없기 때문입니다. 기본값은 `False`입니다. 이벤트 구독이 자동으로 조직 구성을 변경해서는 안 됩니다.\n\n**이 작업은 조직 구성을 변경합니다.** 개체에 대해 72시간 보유 스트림을 시작하며, 조직이 선택할 수 있는 개체 수는 에디션 및 추가 기능에 따라 다릅니다. 연결 사용자에게 메타데이터 수정 권한이 필요합니다. 감사 가능한 일회성 단계의 경우 대신 `enable-change-data-capture` 작업을 사용하세요."
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "변경 데이터 캡처 활성화"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -244,7 +244,7 @@
           "message": "`True`인 경우, 개체가 선택되지 않아 이 **변경 데이터 캡처** 채널을 구독할 수 없다고 조직이 보고하더라도 실패 처리하는 대신 켜고 진행합니다.\n\n이 기능이 존재하는 이유는 활성화되지 않은 개체에 대한 구독이 성공한 후 아무것도 전달하지 않아 유휴 조직과 구별할 수 없기 때문입니다. 기본값은 `False`입니다. 이벤트 구독이 자동으로 조직 구성을 변경해서는 안 됩니다.\n\n**이 작업은 조직 구성을 변경합니다.** 개체에 대해 72시간 보유 스트림을 시작하며, 조직이 선택할 수 있는 개체 수는 에디션 및 추가 기능에 따라 다릅니다. 연결 사용자에게 메타데이터 수정 권한이 필요합니다. 감사 가능한 일회성 단계의 경우 대신 `enable-change-data-capture` 작업을 사용하세요."
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "변경 데이터 캡처 활성화"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -436,7 +436,7 @@
           "message": "`True`인 경우, 개체가 선택되지 않아 이 **변경 데이터 캡처** 채널을 구독할 수 없다고 조직이 보고하더라도 실패 처리하는 대신 켜고 진행합니다.\n\n이 기능이 존재하는 이유는 활성화되지 않은 개체에 대한 구독이 성공한 후 아무것도 전달하지 않아 유휴 조직과 구별할 수 없기 때문입니다. 기본값은 `False`입니다. 이벤트 구독이 자동으로 조직 구성을 변경해서는 안 됩니다.\n\n**이 작업은 조직 구성을 변경합니다.** 개체에 대해 72시간 보유 스트림을 시작하며, 조직이 선택할 수 있는 개체 수는 에디션 및 추가 기능에 따라 다릅니다. 연결 사용자에게 메타데이터 수정 권한이 필요합니다. 감사 가능한 일회성 단계의 경우 대신 `enable-change-data-capture` 작업을 사용하세요."
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "변경 데이터 캡처 활성화"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -544,7 +544,7 @@
           "message": "`True`인 경우, 개체가 선택되지 않아 이 **변경 데이터 캡처** 채널을 구독할 수 없다고 조직이 보고하더라도 실패 처리하는 대신 켜고 진행합니다.\n\n이 기능이 존재하는 이유는 활성화되지 않은 개체에 대한 구독이 성공한 후 아무것도 전달하지 않아 유휴 조직과 구별할 수 없기 때문입니다. 기본값은 `False`입니다. 이벤트 구독이 자동으로 조직 구성을 변경해서는 안 됩니다.\n\n**이 작업은 조직 구성을 변경합니다.** 개체에 대해 72시간 보유 스트림을 시작하며, 조직이 선택할 수 있는 개체 수는 에디션 및 추가 기능에 따라 다릅니다. 연결 사용자에게 메타데이터 수정 권한이 필요합니다. 감사 가능한 일회성 단계의 경우 대신 `enable-change-data-capture` 작업을 사용하세요."
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "변경 데이터 캡처 활성화"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.short_desc": {

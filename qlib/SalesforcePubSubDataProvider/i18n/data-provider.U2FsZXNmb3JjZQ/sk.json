@@ -8,7 +8,7 @@
           "message": "Povolí **Change Data Capture** pre objekt Salesforce, aby bolo možné odoberať informácie o jeho vytvorení, aktualizácii, vymazaní a obnovení cez **Pub/Sub API**.\n\nChange Data Capture musí byť zapnuté pre každý objekt osobitne, kým odber niečo doručí. Odber objektu, ktorý nebol nikdy povolený, prebehne úspešne a potom zostane tichý – preto sa to zvyčajne spúšťa **raz** pri nastavovaní integrácie, a nie ako súčasť toku.\n\nPovolenie objektu, ktorý je už povolený, nie je chyba.\n\n**Mení to konfiguráciu organizácie.** Spustí sa 72-hodinový stream uchovávania pre objekt a počet objektov, ktoré môže organizácia vybrať, závisí od jej edície a doplnkov. Používateľ pripojenia vyžaduje oprávnenie na úpravu metadát."
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Povoliť Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.desc": {
@@ -40,7 +40,7 @@
           "message": "Ak `True` a organizácia hlási, že tento kanál **Change Data Capture** nemožno odoberať, pretože objekt nebol nikdy vybraný, zapnite ho a pokračujte, namiesto zlyhania.\n\nToto existuje preto, lebo odber objektu, ktorý nie je povolený, uspeje a potom nič nedoručí, čo je nerozoznateľné od neaktívnej organizácie. Predvolená hodnota je `False`: odber udalostí by nemal potichu meniť konfiguráciu organizácie.\n\n**Mení to konfiguráciu organizácie.** Spustí sa 72-hodinový stream uchovávania pre objekt a počet objektov, ktoré môže organizácia vybrať, závisí od jej edície a doplnkov. Používateľ pripojenia vyžaduje oprávnenie na úpravu metadát. Pre jednorazový, overiteľný krok použite radšej akciu `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Povoliť Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -136,7 +136,7 @@
           "message": "Ak `True` a organizácia hlási, že tento kanál **Change Data Capture** nemožno odoberať, pretože objekt nebol nikdy vybraný, zapnite ho a pokračujte, namiesto zlyhania.\n\nToto existuje preto, lebo odber objektu, ktorý nie je povolený, uspeje a potom nič nedoručí, čo je nerozoznateľné od neaktívnej organizácie. Predvolená hodnota je `False`: odber udalostí by nemal potichu meniť konfiguráciu organizácie.\n\n**Mení to konfiguráciu organizácie.** Spustí sa 72-hodinový stream uchovávania pre objekt a počet objektov, ktoré môže organizácia vybrať, závisí od jej edície a doplnkov. Používateľ pripojenia vyžaduje oprávnenie na úpravu metadát. Pre jednorazový, overiteľný krok použite radšej akciu `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Povoliť Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -244,7 +244,7 @@
           "message": "Ak `True` a organizácia hlási, že tento kanál **Change Data Capture** nemožno odoberať, pretože objekt nebol nikdy vybraný, zapnite ho a pokračujte, namiesto zlyhania.\n\nToto existuje preto, lebo odber objektu, ktorý nie je povolený, uspeje a potom nič nedoručí, čo je nerozoznateľné od neaktívnej organizácie. Predvolená hodnota je `False`: odber udalostí by nemal potichu meniť konfiguráciu organizácie.\n\n**Mení to konfiguráciu organizácie.** Spustí sa 72-hodinový stream uchovávania pre objekt a počet objektov, ktoré môže organizácia vybrať, závisí od jej edície a doplnkov. Používateľ pripojenia vyžaduje oprávnenie na úpravu metadát. Pre jednorazový, overiteľný krok použite radšej akciu `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Povoliť Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -436,7 +436,7 @@
           "message": "Ak `True` a organizácia hlási, že tento kanál **Change Data Capture** nemožno odoberať, pretože objekt nebol nikdy vybraný, zapnite ho a pokračujte, namiesto zlyhania.\n\nToto existuje preto, lebo odber objektu, ktorý nie je povolený, uspeje a potom nič nedoručí, čo je nerozoznateľné od neaktívnej organizácie. Predvolená hodnota je `False`: odber udalostí by nemal potichu meniť konfiguráciu organizácie.\n\n**Mení to konfiguráciu organizácie.** Spustí sa 72-hodinový stream uchovávania pre objekt a počet objektov, ktoré môže organizácia vybrať, závisí od jej edície a doplnkov. Používateľ pripojenia vyžaduje oprávnenie na úpravu metadát. Pre jednorazový, overiteľný krok použite radšej akciu `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Povoliť Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -544,7 +544,7 @@
           "message": "Ak `True` a organizácia hlási, že tento kanál **Change Data Capture** nemožno odoberať, pretože objekt nebol nikdy vybraný, zapnite ho a pokračujte, namiesto zlyhania.\n\nToto existuje preto, lebo odber objektu, ktorý nie je povolený, uspeje a potom nič nedoručí, čo je nerozoznateľné od neaktívnej organizácie. Predvolená hodnota je `False`: odber udalostí by nemal potichu meniť konfiguráciu organizácie.\n\n**Mení to konfiguráciu organizácie.** Spustí sa 72-hodinový stream uchovávania pre objekt a počet objektov, ktoré môže organizácia vybrať, závisí od jej edície a doplnkov. Používateľ pripojenia vyžaduje oprávnenie na úpravu metadát. Pre jednorazový, overiteľný krok použite radšej akciu `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Povoliť Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.short_desc": {

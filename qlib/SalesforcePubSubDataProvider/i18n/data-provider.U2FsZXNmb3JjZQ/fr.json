@@ -8,7 +8,7 @@
           "message": "Active **Change Data Capture** pour un objet Salesforce, afin que ses créations, mises à jour, suppressions et restaurations puissent faire l'objet d'un abonnement via l'**API Pub/Sub**.\n\nChange Data Capture doit être activé par objet avant qu'un abonnement ne livre quoi que ce soit, et un abonnement à un objet qui n'a jamais été activé réussit puis reste silencieux -- ceci est donc généralement exécuté **une fois**, lors de la configuration d'une intégration, plutôt que dans le cadre d'un flux.\n\nL'activation d'un objet déjà activé n'est pas une erreur.\n\n**Ceci modifie la configuration de l'organisation.** Cela démarre un flux de rétention de 72 heures pour l'objet, et le nombre d'objets qu'une organisation peut sélectionner dépend de son édition et de ses modules complémentaires. L'utilisateur de la connexion a besoin de la permission de modifier les métadonnées."
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Activer Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.desc": {
@@ -40,7 +40,7 @@
           "message": "Si `True`, et que l'organisation indique qu'il est impossible de s'abonner à ce canal **Change Data Capture** parce que l'objet n'a jamais été sélectionné, l'activer et continuer au lieu d'échouer.\n\nCela existe parce qu'un abonnement à un objet non activé réussit puis ne livre rien, ce qui ne se distingue pas d'une organisation inactive. La valeur par défaut est `False` : s'abonner à des événements ne devrait pas modifier discrètement la configuration de l'organisation.\n\n**Ceci modifie la configuration de l'organisation.** Cela démarre un flux de rétention de 72 heures pour l'objet, et le nombre d'objets qu'une organisation peut sélectionner dépend de son édition et de ses modules complémentaires. L'utilisateur de la connexion a besoin de la permission de modifier les métadonnées. Pour une étape ponctuelle et auditable, utilisez plutôt l'action `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Activer Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -136,7 +136,7 @@
           "message": "Si `True`, et que l'organisation indique qu'il est impossible de s'abonner à ce canal **Change Data Capture** parce que l'objet n'a jamais été sélectionné, l'activer et continuer au lieu d'échouer.\n\nCela existe parce qu'un abonnement à un objet non activé réussit puis ne livre rien, ce qui ne se distingue pas d'une organisation inactive. La valeur par défaut est `False` : s'abonner à des événements ne devrait pas modifier discrètement la configuration de l'organisation.\n\n**Ceci modifie la configuration de l'organisation.** Cela démarre un flux de rétention de 72 heures pour l'objet, et le nombre d'objets qu'une organisation peut sélectionner dépend de son édition et de ses modules complémentaires. L'utilisateur de la connexion a besoin de la permission de modifier les métadonnées. Pour une étape ponctuelle et auditable, utilisez plutôt l'action `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Activer Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -244,7 +244,7 @@
           "message": "Si `True`, et que l'organisation indique qu'il est impossible de s'abonner à ce canal **Change Data Capture** parce que l'objet n'a jamais été sélectionné, l'activer et continuer au lieu d'échouer.\n\nCela existe parce qu'un abonnement à un objet non activé réussit puis ne livre rien, ce qui ne se distingue pas d'une organisation inactive. La valeur par défaut est `False` : s'abonner à des événements ne devrait pas modifier discrètement la configuration de l'organisation.\n\n**Ceci modifie la configuration de l'organisation.** Cela démarre un flux de rétention de 72 heures pour l'objet, et le nombre d'objets qu'une organisation peut sélectionner dépend de son édition et de ses modules complémentaires. L'utilisateur de la connexion a besoin de la permission de modifier les métadonnées. Pour une étape ponctuelle et auditable, utilisez plutôt l'action `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Activer Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -436,7 +436,7 @@
           "message": "Si `True`, et que l'organisation indique qu'il est impossible de s'abonner à ce canal **Change Data Capture** parce que l'objet n'a jamais été sélectionné, l'activer et continuer au lieu d'échouer.\n\nCela existe parce qu'un abonnement à un objet non activé réussit puis ne livre rien, ce qui ne se distingue pas d'une organisation inactive. La valeur par défaut est `False` : s'abonner à des événements ne devrait pas modifier discrètement la configuration de l'organisation.\n\n**Ceci modifie la configuration de l'organisation.** Cela démarre un flux de rétention de 72 heures pour l'objet, et le nombre d'objets qu'une organisation peut sélectionner dépend de son édition et de ses modules complémentaires. L'utilisateur de la connexion a besoin de la permission de modifier les métadonnées. Pour une étape ponctuelle et auditable, utilisez plutôt l'action `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Activer Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -544,7 +544,7 @@
           "message": "Si `True`, et que l'organisation indique qu'il est impossible de s'abonner à ce canal **Change Data Capture** parce que l'objet n'a jamais été sélectionné, l'activer et continuer au lieu d'échouer.\n\nCela existe parce qu'un abonnement à un objet non activé réussit puis ne livre rien, ce qui ne se distingue pas d'une organisation inactive. La valeur par défaut est `False` : s'abonner à des événements ne devrait pas modifier discrètement la configuration de l'organisation.\n\n**Ceci modifie la configuration de l'organisation.** Cela démarre un flux de rétention de 72 heures pour l'objet, et le nombre d'objets qu'une organisation peut sélectionner dépend de son édition et de ses modules complémentaires. L'utilisateur de la connexion a besoin de la permission de modifier les métadonnées. Pour une étape ponctuelle et auditable, utilisez plutôt l'action `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable change data capture",
+          "source": "Enable Change Data Capture",
           "message": "Activer Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.short_desc": {
