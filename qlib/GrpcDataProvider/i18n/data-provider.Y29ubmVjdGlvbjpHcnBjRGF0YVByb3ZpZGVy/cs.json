@@ -16,7 +16,7 @@
           "message": "Největší velikost v bajtech jedné odpovědi přijaté ze serveru; `0` (výchozí) znamená žádné omezení.\n\nVětší zpráva ukončí volání stavem `RESOURCE_EXHAUSTED`, takže obrovská zpráva nemůže vyčerpat paměť; toto omezení se vztahuje i na streamovací volání."
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X21lc3NhZ2Vfc2l6ZQ.display_name": {
-          "source": "Max Message Size",
+          "source": "Max message size",
           "message": "Maximální velikost zprávy"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X21lc3NhZ2Vfc2l6ZQ.short_desc": {
@@ -28,7 +28,7 @@
           "message": "Největší velikost těla odpovědi jednorázového volání, která je přijata do paměti před dekódováním; `0` (výchozí) znamená žádné omezení.\n\nVětší odpověď ukončí volání stavem `RESOURCE_EXHAUSTED`. Odpověď streamovacího volání je přijímána po jednotlivých zprávách a je omezena hodnotou `max_message_size`."
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.display_name": {
-          "source": "Max Response Body Size",
+          "source": "Max response body size",
           "message": "Maximální velikost těla odpovědi"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.short_desc": {
@@ -40,7 +40,7 @@
           "message": "Vložená definice schématu protobuf jako řetězec; použijte ji, pokud schéma není k dispozici jako soubor"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fY29udGVudA.display_name": {
-          "source": "Proto Content",
+          "source": "Proto content",
           "message": "Obsah prototypu"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fY29udGVudA.short_desc": {
@@ -52,7 +52,7 @@
           "message": "Název souboru `.proto` v adresáři `proto_path`"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fZmlsZQ.display_name": {
-          "source": "Proto File Name",
+          "source": "Proto file name",
           "message": "Název souboru prototypu"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fZmlsZQ.short_desc": {
@@ -64,7 +64,7 @@
           "message": "Cestovní cesta k adresáři obsahující soubory `.proto`"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fcGF0aA.display_name": {
-          "source": "Proto File Path",
+          "source": "Proto file path",
           "message": "Cesta k souboru prototypu"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fcGF0aA.short_desc": {
@@ -88,7 +88,7 @@
           "message": "Pokud `True`, bude použit protokol reflexe gRPC serveru k dynamickému zjišťování dostupných služeb a jejich schémat"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.dXNlX3JlZmxlY3Rpb24.display_name": {
-          "source": "Use Reflection",
+          "source": "Use reflection",
           "message": "Použít reflexi"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.dXNlX3JlZmxlY3Rpb24.short_desc": {

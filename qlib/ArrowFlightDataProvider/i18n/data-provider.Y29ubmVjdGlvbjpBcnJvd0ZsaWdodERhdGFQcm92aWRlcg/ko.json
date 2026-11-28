@@ -16,7 +16,7 @@
           "message": "서버로부터 수신하는 하나의 응답 메시지의 최대 크기(바이트 단위); `0` (기본값)은 제한 없음을 의미함.\n\n더 큰 메시지는 `RESOURCE_EXHAUSTED` 상태로 호출을 종료하므로 메모리가 고갈되지 않음. 이 제한은 스트리밍 호출에도 적용됨."
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.display_name": {
-          "source": "Max Message Size",
+          "source": "Max message size",
           "message": "최대 메시지 크기"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.short_desc": {
@@ -28,7 +28,7 @@
           "message": "일원 호출의 응답 본문 최대 크기(바이트 단위), 이는 디코딩 전에 메모리에 완전히 수신됨; `0` (기본값)은 제한 없음을 의미함.\n\n더 큰 응답은 `RESOURCE_EXHAUSTED` 상태로 호출을 종료함. 스트리밍 호출의 응답은 하나의 메시지씩 수신되며, `max_message_size`로 제한됨."
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.display_name": {
-          "source": "Max Response Body Size",
+          "source": "Max response body size",
           "message": "최대 응답 본문 크기"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.short_desc": {

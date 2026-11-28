@@ -81,7 +81,7 @@ module GrpcDataProvider {
                 },
             },
             "action": "call",
-            "display_name": "Call gRPC Method",
+            "display_name": "Call gRPC method",
             "short_desc": "Call a gRPC service method",
             "desc": "Makes a gRPC call to the specified service method",
             "action_code": DPAT_API,

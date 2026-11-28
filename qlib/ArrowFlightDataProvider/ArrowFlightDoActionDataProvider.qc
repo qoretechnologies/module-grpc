@@ -83,7 +83,7 @@ public class DoActionRequestDataType inherits HashDataType {
     public {
         const Fields = {
             "action_type": {
-                "display_name": "Action Type",
+                "display_name": "Action type",
                 "short_desc": "The action type to execute",
                 "type": AbstractDataProviderType::get(StringType),
                 "desc": "The action type string identifying the server-side action to execute",

@@ -91,7 +91,7 @@ public class SalesforcePubSubEventDataType inherits DataProvider::HashDataType {
                 "example_value": "/data/AccountChangeEvent",
             },
             "event": {
-                "display_name": "Event Metadata",
+                "display_name": "Event metadata",
                 "short_desc": "The replay ID, event ID and schema ID of this event",
                 "type": new SalesforcePubSubEventMetaDataType(),
                 "desc": "Metadata about the event itself, as opposed to its `payload`: the replay "
@@ -124,7 +124,7 @@ public class SalesforcePubSubErrorDataType inherits DataProvider::HashDataType {
         #! Field definitions
         const Fields = {
             "err": {
-                "display_name": "Error Code",
+                "display_name": "Error code",
                 "short_desc": "The error code",
                 "type": AbstractDataProviderTypeMap."string",
                 "desc": "The error code; a gRPC status failure is reported as "
@@ -157,7 +157,7 @@ public class SalesforceEnableCdcRequestDataType inherits DataProvider::HashDataT
         #! Field definitions
         const Fields = {
             "entity": {
-                "display_name": "Change Event",
+                "display_name": "Change event",
                 "short_desc": "The change event to enable",
                 "type": AbstractDataProviderTypeMap."string",
                 "desc": "The **change event** to enable Change Data Capture for, named after the "
@@ -186,14 +186,14 @@ public class SalesforceEnableCdcResponseDataType inherits DataProvider::HashData
         #! Field definitions
         const Fields = {
             "entity": {
-                "display_name": "Change Event",
+                "display_name": "Change event",
                 "short_desc": "The change event that was enabled",
                 "type": AbstractDataProviderTypeMap."string",
                 "desc": "The change event that Change Data Capture is now enabled for",
                 "example_value": "AccountChangeEvent",
             },
             "developer_name": {
-                "display_name": "Developer Name",
+                "display_name": "Developer name",
                 "short_desc": "The channel member developer name",
                 "type": AbstractDataProviderTypeMap."string",
                 "desc": "The `DeveloperName` of the `PlatformEventChannelMember` record holding "
@@ -203,7 +203,7 @@ public class SalesforceEnableCdcResponseDataType inherits DataProvider::HashData
                 "example_value": "CM_ChangeEvents_Account",
             },
             "event_channel": {
-                "display_name": "Event Channel",
+                "display_name": "Event channel",
                 "short_desc": "The event channel the object was selected on",
                 "type": AbstractDataProviderTypeMap."string",
                 "desc": "The event channel the object was selected on; this is always the "
@@ -218,7 +218,7 @@ public class SalesforceEnableCdcResponseDataType inherits DataProvider::HashData
                 "example_value": "0v82o000000KyjWAAS",
             },
             "already_enabled": {
-                "display_name": "Already Enabled",
+                "display_name": "Already enabled",
                 "short_desc": "True if the object was already enabled",
                 "type": AbstractDataProviderTypeMap."bool",
                 "desc": "`True` if Change Data Capture was already enabled for the object, so "

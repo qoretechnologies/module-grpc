@@ -16,7 +16,7 @@
           "message": "Die maximale Größe in Bytes einer Antwortnachricht, die vom Server empfangen wird; `0` (der Standard) bedeutet keine Begrenzung.\n\nEine größere Nachricht beendet den Aufruf mit dem `RESOURCE_EXHAUSTED`-Status, sodass Speicher nicht erschöpft werden kann; diese Begrenzung gilt auch für Streaming-Aufrufe."
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.display_name": {
-          "source": "Max Message Size",
+          "source": "Max message size",
           "message": "Maximale Nachrichtengröße"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.short_desc": {
@@ -28,7 +28,7 @@
           "message": "Die maximale Größe in Bytes des Antwortkörpers eines einzeiligen Aufrufs, der vollständig in den Speicher geladen wird, bevor er decodiert wird; `0` (der Standard) bedeutet keine Begrenzung.\n\nEine größere Antwort beendet den Aufruf mit dem `RESOURCE_EXHAUSTED`-Status. Die Antwort eines Streaming-Aufrufs wird jeweils eine Nachricht zu einer Zeit empfangen und ist stattdessen durch `max_message_size` begrenzt."
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.display_name": {
-          "source": "Max Response Body Size",
+          "source": "Max response body size",
           "message": "Maximale Größe des Antworttexts"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.short_desc": {

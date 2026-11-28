@@ -16,7 +16,7 @@
           "message": "Maximálna veľkosť jednej odpovede prijatej zo servera v bajtoch; `0` (predvolené) znamená žiadny limit.\n\nVeľká správa ukončí volanie stavom `RESOURCE_EXHAUSTED`, takže veľká správa nemôže vyčerpať pamäť; tento limit sa tiež používa pri streamovaných volaniach."
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.display_name": {
-          "source": "Max Message Size",
+          "source": "Max message size",
           "message": "Maximálna veľkosť správy"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.short_desc": {
@@ -28,7 +28,7 @@
           "message": "Maximálna veľkosť telesa odpovede jednorazového volania, ktoré sa prijme do pamäte úplne pred dekódovaním; `0` (predvolené) znamená žiadny limit.\n\nVeľká odpoveď ukončí volanie stavom `RESOURCE_EXHAUSTED`. Odpoveď streamovaného volania sa prijíma po jednej správe naraz a je obmedzená limitom `max_message_size` namiesto toho."
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.display_name": {
-          "source": "Max Response Body Size",
+          "source": "Max response body size",
           "message": "Maximálna veľkosť tela odpovede"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.short_desc": {

@@ -16,7 +16,7 @@
           "message": "Maximálna veľkosť jednej odpovede prijatej zo servera v bajtoch; `0` (predvolené) znamená žiadny limit.\n\nVeľká správa ukončí volanie stavom `RESOURCE_EXHAUSTED`, takže veľká správa nemôže vyčerpať pamäť; tento limit sa tiež používa pri streamovaných volaniach."
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X21lc3NhZ2Vfc2l6ZQ.display_name": {
-          "source": "Max Message Size",
+          "source": "Max message size",
           "message": "Maximálna veľkosť správy"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X21lc3NhZ2Vfc2l6ZQ.short_desc": {
@@ -28,7 +28,7 @@
           "message": "Maximálna veľkosť telesa odpovede jednorazového volania, ktoré sa prijme do pamäte úplne pred dekódovaním; `0` (predvolené) znamená žiadny limit.\n\nVeľká odpoveď ukončí volanie stavom `RESOURCE_EXHAUSTED`. Odpoveď streamovaného volania sa prijíma po jednej správe naraz a je obmedzená limitom `max_message_size` namiesto toho."
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.display_name": {
-          "source": "Max Response Body Size",
+          "source": "Max response body size",
           "message": "Maximálna veľkosť tela odpovede"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.short_desc": {
@@ -40,7 +40,7 @@
           "message": "Vstupná definícia schémy protobuf ako reťazec; použite ju, keď schéma nie je dostupná ako súbor"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fY29udGVudA.display_name": {
-          "source": "Proto Content",
+          "source": "Proto content",
           "message": "Obsah .proto"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fY29udGVudA.short_desc": {
@@ -52,7 +52,7 @@
           "message": "Názov súboru `.proto` v adresári `proto_path`"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fZmlsZQ.display_name": {
-          "source": "Proto File Name",
+          "source": "Proto file name",
           "message": "Názov súboru .proto"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fZmlsZQ.short_desc": {
@@ -64,7 +64,7 @@
           "message": "Cesta v súborovom systéme k adresáru obsahujúcemu súbory `.proto`"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fcGF0aA.display_name": {
-          "source": "Proto File Path",
+          "source": "Proto file path",
           "message": "Cesta k súboru .proto"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fcGF0aA.short_desc": {
@@ -88,7 +88,7 @@
           "message": "Ak `True`, bude použitý protokol reflexie gRPC servera na dynamické zisťovanie dostupných služieb a ich schém"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.dXNlX3JlZmxlY3Rpb24.display_name": {
-          "source": "Use Reflection",
+          "source": "Use reflection",
           "message": "Použiť reflexiu"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.dXNlX3JlZmxlY3Rpb24.short_desc": {

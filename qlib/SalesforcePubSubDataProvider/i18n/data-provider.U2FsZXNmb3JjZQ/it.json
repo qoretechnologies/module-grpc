@@ -8,7 +8,7 @@
           "message": "Abilita **Change Data Capture** per un oggetto Salesforce, in modo che sia possibile sottoscrivere le relative creazioni, aggiornamenti, eliminazioni e ripristini tramite l'**API Pub/Sub**.\n\nChange Data Capture deve essere attivato per ciascun oggetto prima che una sottoscrizione possa consegnare qualcosa e una sottoscrizione a un oggetto mai abilitato ha esito positivo rimanendo poi silente; pertanto, questa operazione viene di solito eseguita **una volta sola**, al momento della configurazione di un'integrazione, anziché come parte di un flusso.\n\nL'abilitazione di un oggetto già abilitato non costituisce un errore.\n\n**Questo modifica la configurazione dell'organizzazione.** Avvia uno stream con conservazione di 72 ore per l'oggetto e il numero di oggetti che un'organizzazione può selezionare dipende dalla sua edizione e dai componenti aggiuntivi. L'utente della connessione deve disporre dell'autorizzazione per modificare i metadati."
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.display_name": {
-          "source": "Enable Change Data Capture",
+          "source": "Enable change data capture",
           "message": "Abilita Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.desc": {
@@ -16,7 +16,7 @@
           "message": "L'**evento di modifica** per cui abilitare Change Data Capture, denominato in base all'oggetto su cui riferisce con il suffisso `ChangeEvent`: `AccountChangeEvent` per `Account`, `CaseChangeEvent` per `Case` e così via. Un oggetto personalizzato utilizza `__ChangeEvent`, ad esempio `MyObject__ChangeEvent`.\n\nL'abilitazione di un oggetto già abilitato **non** è un errore; la risposta lo segnala tramite `already_enabled`.\n\n**L'abilitazione di Change Data Capture comporta effetti collaterali**: avvia uno stream con conservazione di 72 ore per l'oggetto e il numero di oggetti che un'organizzazione può selezionare dipende dalla sua edizione e dai componenti aggiuntivi."
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.display_name": {
-          "source": "Change Event",
+          "source": "Change event",
           "message": "Evento di modifica"
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.short_desc": {
@@ -32,7 +32,7 @@
           "message": "Reagisce quando viene creato un **contatto** Salesforce, utilizzando lo stream Change Data Capture dell'**API Pub/Sub**.\n\nQuesta è l'azione `new-record` fissata sull'oggetto `Contact`. La consegna avviene in tempo reale anziché tramite polling e la sottoscrizione riprende dall'ultima posizione di riproduzione dopo una riconnessione.\n\nChange Data Capture deve essere abilitato per `Contact` in **Setup -> Integrations -> Change Data Capture**"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.display_name": {
-          "source": "New Salesforce Contact",
+          "source": "New Salesforce contact",
           "message": "Nuovo contatto Salesforce"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.desc": {
@@ -40,7 +40,7 @@
           "message": "Se `True` e l'organizzazione segnala che non è possibile sottoscrivere questo canale **Change Data Capture** perché l'oggetto non è mai stato selezionato, lo attiva e prosegue anziché interrompersi con un errore.\n\nQuesto esiste perché una sottoscrizione a un oggetto non abilitato ha esito positivo e poi non consegna nulla, il che è indistinguibile da un'organizzazione inattiva. Il valore predefinito è `False`: la sottoscrizione agli eventi non dovrebbe modificare silenziosamente la configurazione dell'organizzazione.\n\n**Questo modifica la configurazione dell'organizzazione.** Avvia uno stream con conservazione di 72 ore per l'oggetto e il numero di oggetti che un'organizzazione può selezionare dipende dalla sua edizione e dai componenti aggiuntivi. L'utente della connessione deve disporre dell'autorizzazione per modificare i metadati. Per un passaggio unico e verificabile, utilizzare invece l'azione `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable Change Data Capture",
+          "source": "Enable change data capture",
           "message": "Abilita Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -52,7 +52,7 @@
           "message": "Quanti eventi il client mantiene richiesti al server alla volta; tra 1 e 100, che è il massimo accettato dall'API Pub/Sub in una singola `FetchRequest`"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.bnVtX3JlcXVlc3RlZA.display_name": {
-          "source": "Flow Control Window",
+          "source": "Flow control window",
           "message": "Finestra di controllo del flusso"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.bnVtX3JlcXVlc3RlZA.short_desc": {
@@ -100,7 +100,7 @@
           "message": "Punto di avvio della sottoscrizione: `LATEST` (la testa dello stream, impostazione predefinita), `EARLIEST` (l'evento conservato più vecchio) o `CUSTOM` (dopo l'evento identificato da `replay_id`).\n\nSalesforce conserva gli ID di riproduzione per **72 ore**"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.display_name": {
-          "source": "Replay Preset",
+          "source": "Replay preset",
           "message": "Preimpostazione di riproduzione"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.short_desc": {
@@ -112,7 +112,7 @@
           "message": "Il nome del topic Pub/Sub, che sostituisce quello derivato dal nome di questo provider. Impostare questo valore per sottoscrivere un **canale personalizzato**, non elencato da `describeGlobal`; ad esempio `/event/MyChannel__chn`"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.dG9waWNfbmFtZQ.display_name": {
-          "source": "Topic Name",
+          "source": "Topic name",
           "message": "Nome del topic"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.dG9waWNfbmFtZQ.short_desc": {
@@ -128,7 +128,7 @@
           "message": "Reagisce quando viene creato un **lead** Salesforce, utilizzando lo stream Change Data Capture dell'**API Pub/Sub**.\n\nQuesta è l'azione `new-record` fissata sull'oggetto `Lead`. La consegna avviene in tempo reale anziché tramite polling e la sottoscrizione riprende dall'ultima posizione di riproduzione dopo una riconnessione.\n\nChange Data Capture deve essere abilitato per `Lead` in **Setup -> Integrations -> Change Data Capture**"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.display_name": {
-          "source": "New Salesforce Lead",
+          "source": "New Salesforce lead",
           "message": "Nuovo lead Salesforce"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.desc": {
@@ -136,7 +136,7 @@
           "message": "Se `True` e l'organizzazione segnala che non è possibile sottoscrivere questo canale **Change Data Capture** perché l'oggetto non è mai stato selezionato, lo attiva e prosegue anziché interrompersi con un errore.\n\nQuesto esiste perché una sottoscrizione a un oggetto non abilitato ha esito positivo e poi non consegna nulla, il che è indistinguibile da un'organizzazione inattiva. Il valore predefinito è `False`: la sottoscrizione agli eventi non dovrebbe modificare silenziosamente la configurazione dell'organizzazione.\n\n**Questo modifica la configurazione dell'organizzazione.** Avvia uno stream con conservazione di 72 ore per l'oggetto e il numero di oggetti che un'organizzazione può selezionare dipende dalla sua edizione e dai componenti aggiuntivi. L'utente della connessione deve disporre dell'autorizzazione per modificare i metadati. Per un passaggio unico e verificabile, utilizzare invece l'azione `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable Change Data Capture",
+          "source": "Enable change data capture",
           "message": "Abilita Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -148,7 +148,7 @@
           "message": "Quanti eventi il client mantiene richiesti al server alla volta; tra 1 e 100, che è il massimo accettato dall'API Pub/Sub in una singola `FetchRequest`"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.bnVtX3JlcXVlc3RlZA.display_name": {
-          "source": "Flow Control Window",
+          "source": "Flow control window",
           "message": "Finestra di controllo del flusso"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.bnVtX3JlcXVlc3RlZA.short_desc": {
@@ -196,7 +196,7 @@
           "message": "Punto di avvio della sottoscrizione: `LATEST` (la testa dello stream, impostazione predefinita), `EARLIEST` (l'evento conservato più vecchio) o `CUSTOM` (dopo l'evento identificato da `replay_id`).\n\nSalesforce conserva gli ID di riproduzione per **72 ore**"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.display_name": {
-          "source": "Replay Preset",
+          "source": "Replay preset",
           "message": "Preimpostazione di riproduzione"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.short_desc": {
@@ -208,7 +208,7 @@
           "message": "Il nome del topic Pub/Sub, che sostituisce quello derivato dal nome di questo provider. Impostare questo valore per sottoscrivere un **canale personalizzato**, non elencato da `describeGlobal`; ad esempio `/event/MyChannel__chn`"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.dG9waWNfbmFtZQ.display_name": {
-          "source": "Topic Name",
+          "source": "Topic name",
           "message": "Nome del topic"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.dG9waWNfbmFtZQ.short_desc": {
@@ -224,7 +224,7 @@
           "message": "Reagisce quando un record dell'oggetto Salesforce specificato viene **creato**, utilizzando lo stream Change Data Capture dell'**API Pub/Sub**.\n\nLa consegna avviene in tempo reale anziché tramite polling e la sottoscrizione tiene traccia della relativa posizione di riproduzione; pertanto, una connessione persa e ripristinata riprende dopo l'ultimo evento consegnato anziché saltare i record creati mentre era interrotta. Salesforce conserva gli ID di riproduzione per **72 ore**.\n\nAnche un evento `GAP_CREATE`, che segnala una creazione che Salesforce non ha potuto consegnare completamente, viene consegnato da questa azione, in modo che una creazione non vada mai persa in modo silenzioso.\n\nChange Data Capture deve essere abilitato per l'oggetto in **Setup -> Integrations -> Change Data Capture**"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.display_name": {
-          "source": "New Salesforce Record",
+          "source": "New Salesforce record",
           "message": "Nuovo record Salesforce"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.Y2hhbm5lbA.desc": {
@@ -244,7 +244,7 @@
           "message": "Se `True` e l'organizzazione segnala che non è possibile sottoscrivere questo canale **Change Data Capture** perché l'oggetto non è mai stato selezionato, lo attiva e prosegue anziché interrompersi con un errore.\n\nQuesto esiste perché una sottoscrizione a un oggetto non abilitato ha esito positivo e poi non consegna nulla, il che è indistinguibile da un'organizzazione inattiva. Il valore predefinito è `False`: la sottoscrizione agli eventi non dovrebbe modificare silenziosamente la configurazione dell'organizzazione.\n\n**Questo modifica la configurazione dell'organizzazione.** Avvia uno stream con conservazione di 72 ore per l'oggetto e il numero di oggetti che un'organizzazione può selezionare dipende dalla sua edizione e dai componenti aggiuntivi. L'utente della connessione deve disporre dell'autorizzazione per modificare i metadati. Per un passaggio unico e verificabile, utilizzare invece l'azione `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable Change Data Capture",
+          "source": "Enable change data capture",
           "message": "Abilita Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -256,7 +256,7 @@
           "message": "Quanti eventi il client mantiene richiesti al server alla volta; tra 1 e 100, che è il massimo accettato dall'API Pub/Sub in una singola `FetchRequest`"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.bnVtX3JlcXVlc3RlZA.display_name": {
-          "source": "Flow Control Window",
+          "source": "Flow control window",
           "message": "Finestra di controllo del flusso"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.bnVtX3JlcXVlc3RlZA.short_desc": {
@@ -304,7 +304,7 @@
           "message": "Punto di avvio della sottoscrizione: `LATEST` (la testa dello stream, impostazione predefinita), `EARLIEST` (l'evento conservato più vecchio) o `CUSTOM` (dopo l'evento identificato da `replay_id`).\n\nSalesforce conserva gli ID di riproduzione per **72 ore**"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.display_name": {
-          "source": "Replay Preset",
+          "source": "Replay preset",
           "message": "Preimpostazione di riproduzione"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.short_desc": {
@@ -316,7 +316,7 @@
           "message": "Il nome del topic Pub/Sub, che sostituisce quello derivato dal nome di questo provider. Impostare questo valore per sottoscrivere un **canale personalizzato**, non elencato da `describeGlobal`; ad esempio `/event/MyChannel__chn`"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.dG9waWNfbmFtZQ.display_name": {
-          "source": "Topic Name",
+          "source": "Topic name",
           "message": "Nome del topic"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.dG9waWNfbmFtZQ.short_desc": {
@@ -332,7 +332,7 @@
           "message": "Reagisce agli eventi pubblicati su un canale dell'**API Pub/Sub** di Salesforce: eventi di piattaforma, eventi Change Data Capture e canali personalizzati arrivano tutti tramite la stessa sottoscrizione.\n\nLa sottoscrizione tiene traccia della relativa posizione di riproduzione, per cui una connessione persa e ripristinata riprende dopo l'ultimo evento consegnato anziché saltare in avanti. Salesforce conserva gli ID di riproduzione per **72 ore**."
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.display_name": {
-          "source": "Salesforce Event",
+          "source": "Salesforce event",
           "message": "Evento Salesforce"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbm5lbA.desc": {
@@ -368,7 +368,7 @@
           "message": "Un record è stato creato, ma la modifica non è stata consegnata; implicita da `CREATE`"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9DUkVBVEU.display_name": {
-          "source": "Gap: Create",
+          "source": "Gap: create",
           "message": "Gap: Crea"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9ERUxFVEU.desc": {
@@ -376,7 +376,7 @@
           "message": "Un record è stato eliminato, ma la modifica non è stata consegnata; implicita da `DELETE`"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9ERUxFVEU.display_name": {
-          "source": "Gap: Delete",
+          "source": "Gap: delete",
           "message": "Gap: Elimina"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9PVkVSRkxPVw.desc": {
@@ -384,7 +384,7 @@
           "message": "Un numero sconosciuto di modifiche è andato perso; sempre consegnato"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9PVkVSRkxPVw.display_name": {
-          "source": "Gap: Overflow",
+          "source": "Gap: overflow",
           "message": "Gap: Overflow"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VTkRFTEVURQ.desc": {
@@ -392,7 +392,7 @@
           "message": "Un record è stato ripristinato, ma la modifica non è stata consegnata; implicita da `UNDELETE`"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VTkRFTEVURQ.display_name": {
-          "source": "Gap: Undelete",
+          "source": "Gap: undelete",
           "message": "Gap: Ripristina"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VUERBVEU.desc": {
@@ -400,7 +400,7 @@
           "message": "Un record è stato aggiornato, ma la modifica non è stata consegnata; implicita da `UPDATE`"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VUERBVEU.display_name": {
-          "source": "Gap: Update",
+          "source": "Gap: update",
           "message": "Gap: Aggiorna"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOlVOREVMRVRF.desc": {
@@ -424,7 +424,7 @@
           "message": "Limita la consegna ai tipi di modifica **Change Data Capture** specificati; lasciare vuoto per ricevere qualsiasi modifica sul canale.\n\nUn **evento gap** segnala una modifica che Salesforce non ha potuto consegnare completamente. I tipi gap soddisfano il tipo che sostituiscono, pertanto la selezione di `CREATE` consegna anche `GAP_CREATE` anziché scartare la creazione in modo silenzioso. `GAP_OVERFLOW` viene sempre consegnato, indipendentemente dal filtro, poiché segnala che un numero sconosciuto di modifiche è andato perso.\n\nQuesta opzione si applica solo ai canali Change Data Capture; gli eventi di piattaforma non contengono `ChangeEventHeader` e l'impostazione di tale opzione su un canale di eventi di piattaforma genera un errore."
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.display_name": {
-          "source": "Change Types",
+          "source": "Change types",
           "message": "Tipi di modifica"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.short_desc": {
@@ -436,7 +436,7 @@
           "message": "Se `True` e l'organizzazione segnala che non è possibile sottoscrivere questo canale **Change Data Capture** perché l'oggetto non è mai stato selezionato, lo attiva e prosegue anziché interrompersi con un errore.\n\nQuesto esiste perché una sottoscrizione a un oggetto non abilitato ha esito positivo e poi non consegna nulla, il che è indistinguibile da un'organizzazione inattiva. Il valore predefinito è `False`: la sottoscrizione agli eventi non dovrebbe modificare silenziosamente la configurazione dell'organizzazione.\n\n**Questo modifica la configurazione dell'organizzazione.** Avvia uno stream con conservazione di 72 ore per l'oggetto e il numero di oggetti che un'organizzazione può selezionare dipende dalla sua edizione e dai componenti aggiuntivi. L'utente della connessione deve disporre dell'autorizzazione per modificare i metadati. Per un passaggio unico e verificabile, utilizzare invece l'azione `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable Change Data Capture",
+          "source": "Enable change data capture",
           "message": "Abilita Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -448,7 +448,7 @@
           "message": "Quanti eventi il client mantiene richiesti al server alla volta; tra 1 e 100, che è il massimo accettato dall'API Pub/Sub in una singola `FetchRequest`"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.bnVtX3JlcXVlc3RlZA.display_name": {
-          "source": "Flow Control Window",
+          "source": "Flow control window",
           "message": "Finestra di controllo del flusso"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.bnVtX3JlcXVlc3RlZA.short_desc": {
@@ -496,7 +496,7 @@
           "message": "Punto di avvio della sottoscrizione: `LATEST` (la testa dello stream, impostazione predefinita), `EARLIEST` (l'evento conservato più vecchio) o `CUSTOM` (dopo l'evento identificato da `replay_id`).\n\nSalesforce conserva gli ID di riproduzione per **72 ore**"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.display_name": {
-          "source": "Replay Preset",
+          "source": "Replay preset",
           "message": "Preimpostazione di riproduzione"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.short_desc": {
@@ -508,7 +508,7 @@
           "message": "Il nome del topic Pub/Sub, che sostituisce quello derivato dal nome di questo provider. Impostare questo valore per sottoscrivere un **canale personalizzato**, non elencato da `describeGlobal`; ad esempio `/event/MyChannel__chn`"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.dG9waWNfbmFtZQ.display_name": {
-          "source": "Topic Name",
+          "source": "Topic name",
           "message": "Nome del topic"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.dG9waWNfbmFtZQ.short_desc": {
@@ -524,7 +524,7 @@
           "message": "Reagisce quando un record dell'oggetto Salesforce specificato viene **aggiornato**, utilizzando lo stream Change Data Capture della **Pub/Sub API**.\n\nIl payload dell'evento contiene l'elenco `ChangeEventHeader.changedFields`, consentendo di conoscere i campi effettivamente modificati senza dover rileggere il record.\n\nLa consegna avviene in tempo reale anziché tramite polling e l'abbonamento riprende dalla sua ultima posizione di replay dopo una riconnessione; Salesforce conserva gli ID di replay per **72 ore**.\n\nAnche un evento `GAP_UPDATE`, che segnala un aggiornamento che Salesforce non è riuscita a consegnare per intero, viene consegnato da questa azione.\n\nChange Data Capture deve essere abilitato per l'oggetto in **Setup -> Integrations -> Change Data Capture**"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.display_name": {
-          "source": "Updated Salesforce Record",
+          "source": "Updated Salesforce record",
           "message": "Record Salesforce aggiornato"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.Y2hhbm5lbA.desc": {
@@ -544,7 +544,7 @@
           "message": "Se `True` e l'organizzazione segnala che non è possibile sottoscrivere questo canale **Change Data Capture** perché l'oggetto non è mai stato selezionato, lo attiva e prosegue anziché interrompersi con un errore.\n\nQuesto esiste perché una sottoscrizione a un oggetto non abilitato ha esito positivo e poi non consegna nulla, il che è indistinguibile da un'organizzazione inattiva. Il valore predefinito è `False`: la sottoscrizione agli eventi non dovrebbe modificare silenziosamente la configurazione dell'organizzazione.\n\n**Questo modifica la configurazione dell'organizzazione.** Avvia uno stream con conservazione di 72 ore per l'oggetto e il numero di oggetti che un'organizzazione può selezionare dipende dalla sua edizione e dai componenti aggiuntivi. L'utente della connessione deve disporre dell'autorizzazione per modificare i metadati. Per un passaggio unico e verificabile, utilizzare invece l'azione `enable-change-data-capture`."
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable Change Data Capture",
+          "source": "Enable change data capture",
           "message": "Abilita Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -556,7 +556,7 @@
           "message": "Quanti eventi il client mantiene richiesti al server alla volta; tra 1 e 100, che è il massimo accettato dall'API Pub/Sub in una singola `FetchRequest`"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.bnVtX3JlcXVlc3RlZA.display_name": {
-          "source": "Flow Control Window",
+          "source": "Flow control window",
           "message": "Finestra di controllo del flusso"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.bnVtX3JlcXVlc3RlZA.short_desc": {
@@ -604,7 +604,7 @@
           "message": "Punto di avvio della sottoscrizione: `LATEST` (la testa dello stream, impostazione predefinita), `EARLIEST` (l'evento conservato più vecchio) o `CUSTOM` (dopo l'evento identificato da `replay_id`).\n\nSalesforce conserva gli ID di riproduzione per **72 ore**"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.display_name": {
-          "source": "Replay Preset",
+          "source": "Replay preset",
           "message": "Preimpostazione di riproduzione"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.short_desc": {
@@ -616,7 +616,7 @@
           "message": "Il nome del topic Pub/Sub, che sostituisce quello derivato dal nome di questo provider. Impostare questo valore per sottoscrivere un **canale personalizzato**, non elencato da `describeGlobal`; ad esempio `/event/MyChannel__chn`"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.dG9waWNfbmFtZQ.display_name": {
-          "source": "Topic Name",
+          "source": "Topic name",
           "message": "Nome del topic"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.dG9waWNfbmFtZQ.short_desc": {

@@ -16,7 +16,7 @@
           "message": "La taille maximale en octets d'un message de réponse reçu depuis le serveur ; `0` (par défaut) signifie aucune limite.\n\nUne réponse plus grande interrompt l'appel avec le statut `RESOURCE_EXHAUSTED`, de sorte qu'une réponse très volumineuse ne peut pas épuiser la mémoire ; cette limite s'applique également aux appels en flux."
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X21lc3NhZ2Vfc2l6ZQ.display_name": {
-          "source": "Max Message Size",
+          "source": "Max message size",
           "message": "Taille maximale de message"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X21lc3NhZ2Vfc2l6ZQ.short_desc": {
@@ -28,7 +28,7 @@
           "message": "La taille maximale en octets du corps de réponse d'un appel unaire, qui est entièrement chargé en mémoire avant décodage ; `0` (par défaut) signifie aucune limite.\n\nUne réponse plus grande interrompt l'appel avec le statut `RESOURCE_EXHAUSTED`. Le corps d'une réponse en flux est reçu message par message et est limité par `max_message_size` à la place."
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.display_name": {
-          "source": "Max Response Body Size",
+          "source": "Max response body size",
           "message": "Taille maximale du corps de réponse"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.short_desc": {
@@ -40,7 +40,7 @@
           "message": "Définition de schéma protobuf en inline sous forme de chaîne ; utilisez-la lorsque le schéma n'est pas disponible sous forme de fichier"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fY29udGVudA.display_name": {
-          "source": "Proto Content",
+          "source": "Proto content",
           "message": "Contenu Proto"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fY29udGVudA.short_desc": {
@@ -52,7 +52,7 @@
           "message": "Le nom de fichier `.proto` dans le répertoire `proto_path`"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fZmlsZQ.display_name": {
-          "source": "Proto File Name",
+          "source": "Proto file name",
           "message": "Nom du fichier Proto"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fZmlsZQ.short_desc": {
@@ -64,7 +64,7 @@
           "message": "Chemin du système de fichiers vers le répertoire contenant les fichiers `.proto`"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fcGF0aA.display_name": {
-          "source": "Proto File Path",
+          "source": "Proto file path",
           "message": "Chemin du fichier proto"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fcGF0aA.short_desc": {
@@ -88,7 +88,7 @@
           "message": "Si `True`, le protocole de réflexion du serveur gRPC sera utilisé pour découvrir dynamiquement les services disponibles et leurs schémas"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.dXNlX3JlZmxlY3Rpb24.display_name": {
-          "source": "Use Reflection",
+          "source": "Use reflection",
           "message": "Utiliser la réflexion"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.dXNlX3JlZmxlY3Rpb24.short_desc": {

@@ -16,7 +16,7 @@
           "message": "從伺服器接收的單一回應訊息的最大位元組大小；`0`（預設值）表示無限制。\n\n若訊息過大，會以 `RESOURCE_EXHAUSTED` 狀態結束呼叫，因此不會耗盡記憶體；此限制也適用於串流呼叫。"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X21lc3NhZ2Vfc2l6ZQ.display_name": {
-          "source": "Max Message Size",
+          "source": "Max message size",
           "message": "最大訊息容量"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X21lc3NhZ2Vfc2l6ZQ.short_desc": {
@@ -28,7 +28,7 @@
           "message": "單一呼叫的回應主體最大位元組大小，會完全載入記憶體後才進行解碼；`0`（預設值）表示無限制。\n\n若回應過大，會以 `RESOURCE_EXHAUSTED` 狀態結束呼叫。串流呼叫的回應是逐筆接收，其限制由 `max_message_size` 決定。"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.display_name": {
-          "source": "Max Response Body Size",
+          "source": "Max response body size",
           "message": "回應本文大小上限"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.short_desc": {
@@ -40,7 +40,7 @@
           "message": "以字串形式內嵌的 Protobuf 設計範本；當設計範本無法以檔案形式取得時使用"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fY29udGVudA.display_name": {
-          "source": "Proto Content",
+          "source": "Proto content",
           "message": "Proto 內容"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fY29udGVudA.short_desc": {
@@ -52,7 +52,7 @@
           "message": "`.proto` 目錄中的 `proto_path` 檔案名稱"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fZmlsZQ.display_name": {
-          "source": "Proto File Name",
+          "source": "Proto file name",
           "message": "Proto 檔案名稱"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fZmlsZQ.short_desc": {
@@ -64,7 +64,7 @@
           "message": "包含 `.proto` 檔案的目錄路徑"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fcGF0aA.display_name": {
-          "source": "Proto File Path",
+          "source": "Proto file path",
           "message": "Proto 檔案路徑"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fcGF0aA.short_desc": {
@@ -88,7 +88,7 @@
           "message": "若 `True`，將使用 gRPC 伺服器反射協定動態發現可用服務及其結構"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.dXNlX3JlZmxlY3Rpb24.display_name": {
-          "source": "Use Reflection",
+          "source": "Use reflection",
           "message": "使用反射"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.dXNlX3JlZmxlY3Rpb24.short_desc": {

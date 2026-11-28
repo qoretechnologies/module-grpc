@@ -16,7 +16,7 @@
           "message": "Maksymalny rozmiar w bajtach pojedynczej odpowiedzi otrzymanej od serwera; `0` (domyślnie) oznacza brak limitu.\n\nOdpowiedź o większym rozmiarze kończy wywołanie stanem `RESOURCE_EXHAUSTED`, więc ogromna odpowiedź nie może wyczerpać pamięci; ten limit dotyczy również wywołań strumieniowych."
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X21lc3NhZ2Vfc2l6ZQ.display_name": {
-          "source": "Max Message Size",
+          "source": "Max message size",
           "message": "Maksymalny rozmiar wiadomości"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X21lc3NhZ2Vfc2l6ZQ.short_desc": {
@@ -28,7 +28,7 @@
           "message": "Maksymalny rozmiar ciała odpowiedzi wywołania jednokrotnego, które jest całkowicie odczytywane do pamięci przed dekodowaniem; `0` (domyślnie) oznacza brak limitu.\n\nOdpowiedź o większym rozmiarze kończy wywołanie stanem `RESOURCE_EXHAUSTED`. Odpowiedź wywołania strumieniowego jest odbierana pojedynczo i ograniczona przez `max_message_size` zamiast tego."
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.display_name": {
-          "source": "Max Response Body Size",
+          "source": "Max response body size",
           "message": "Maksymalny rozmiar treści odpowiedzi"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.short_desc": {
@@ -40,7 +40,7 @@
           "message": "Wbudowana definicja schematu protobuf jako ciąg; użyj tego, gdy schemat nie jest dostępny jako plik"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fY29udGVudA.display_name": {
-          "source": "Proto Content",
+          "source": "Proto content",
           "message": "Zawartość Proto"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fY29udGVudA.short_desc": {
@@ -52,7 +52,7 @@
           "message": "Nazwa pliku `.proto` w katalogu `proto_path`"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fZmlsZQ.display_name": {
-          "source": "Proto File Name",
+          "source": "Proto file name",
           "message": "Nazwa pliku Proto"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fZmlsZQ.short_desc": {
@@ -64,7 +64,7 @@
           "message": "Ścieżka katalogu systemu plików zawierającego pliki `.proto`"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fcGF0aA.display_name": {
-          "source": "Proto File Path",
+          "source": "Proto file path",
           "message": "Ścieżka pliku proto"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.cHJvdG9fcGF0aA.short_desc": {
@@ -88,7 +88,7 @@
           "message": "Jeśli `True`, protokół odbudowy odbudowy gRPC będzie używany do dynamicznego odkrywania dostępnych usług i ich schematów"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.dXNlX3JlZmxlY3Rpb24.display_name": {
-          "source": "Use Reflection",
+          "source": "Use reflection",
           "message": "Użyj odbudowy"
         },
         "connection.R3JwY0RhdGFQcm92aWRlcg.scheme.R3JwY0Nvbm5lY3Rpb24.option.dXNlX3JlZmxlY3Rpb24.short_desc": {

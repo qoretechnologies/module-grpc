@@ -81,7 +81,7 @@ public class ActionTypeResponseDataType inherits HashDataType {
     public {
         const Fields = {
             "type": {
-                "display_name": "Action Type",
+                "display_name": "Action type",
                 "type": AbstractDataProviderType::get(StringType),
                 "desc": "The action type identifier string",
             },

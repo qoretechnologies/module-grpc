@@ -8,7 +8,7 @@
           "message": "透過 DoGet 串流 RPC 從 Arrow Flight 服務檢索欄位式資料；預設將所有記錄批次作為列雜湊傳回，或者當 `output_shape` 為 `columnar` 時傳回 ColumnarResult 批次"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.display_name": {
-          "source": "Get Flight Data",
+          "source": "Get flight data",
           "message": "取得 Flight 資料"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.desc": {
@@ -36,7 +36,7 @@
           "message": "選填的輸出形狀：`rows` 會傳回列雜湊清單；`columnar` 會傳回 ColumnarResult 記錄批次清單"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.display_name": {
-          "source": "Output Shape",
+          "source": "Output shape",
           "message": "輸出形狀"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1kYXRh.option.b3V0cHV0X3NoYXBl.short_desc": {
@@ -64,7 +64,7 @@
           "message": "透過 GetFlightInfo RPC 檢索特定資料集的元資料，包括結構描述 (schema)、記錄數和端點資訊"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.display_name": {
-          "source": "Get Flight Info",
+          "source": "Get flight info",
           "message": "取得 Flight 資訊"
         },
         "app.QXJyb3dGbGlnaHQ.action.Z2V0LWZsaWdodC1pbmZv.option.ZGF0YXNldA.desc": {
@@ -88,7 +88,7 @@
           "message": "透過 DoAction RPC 執行自訂伺服器端動作；動作類型和選填的二進位內文會傳送到伺服器，伺服器會傳回二進位結果清單"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.display_name": {
-          "source": "Execute Flight Action",
+          "source": "Execute flight action",
           "message": "執行 Flight 動作"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.desc": {
@@ -96,7 +96,7 @@
           "message": "識別要執行的伺服器端動作的動作類型字串"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.display_name": {
-          "source": "Action Type",
+          "source": "Action type",
           "message": "動作類型"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZG8tYWN0aW9u.option.YWN0aW9uX3R5cGU.short_desc": {
@@ -124,7 +124,7 @@
           "message": "透過 DoExchange 串流 RPC 進行雙向資料交換；傳送輸入列或欄位式批次，並預設接收轉換後的輸出列，或者當 `output_shape` 為 `columnar` 時接收 ColumnarResult 批次"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.display_name": {
-          "source": "Exchange Flight Data",
+          "source": "Exchange flight data",
           "message": "交換 Flight 資料"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.ZGF0YXNldA.desc": {
@@ -152,7 +152,7 @@
           "message": "選填的回應形狀：`rows` 會傳回列雜湊清單；`columnar` 會傳回 ColumnarResult 記錄批次清單"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.display_name": {
-          "source": "Output Shape",
+          "source": "Output shape",
           "message": "輸出形狀"
         },
         "app.QXJyb3dGbGlnaHQ.action.ZXhjaGFuZ2UtZmxpZ2h0LWRhdGE.option.b3V0cHV0X3NoYXBl.short_desc": {
@@ -180,7 +180,7 @@
           "message": "透過 ListActions RPC 列出 Arrow Flight 伺服器上可用的自訂動作；每個動作皆有類型識別碼和描述"
         },
         "app.QXJyb3dGbGlnaHQ.action.bGlzdC1hY3Rpb25z.display_name": {
-          "source": "List Flight Actions",
+          "source": "List flight actions",
           "message": "列出 Flight 動作"
         },
         "app.QXJyb3dGbGlnaHQ.action.bGlzdC1hY3Rpb25z.short_desc": {
@@ -192,7 +192,7 @@
           "message": "透過 ListFlights RPC 探索 Arrow Flight 伺服器上的可用資料集；傳回包含資料集元資料的 FlightInfo 雜湊清單"
         },
         "app.QXJyb3dGbGlnaHQ.action.bGlzdC1mbGlnaHRz.display_name": {
-          "source": "List Flights",
+          "source": "List flights",
           "message": "列出 Flight"
         },
         "app.QXJyb3dGbGlnaHQ.action.bGlzdC1mbGlnaHRz.short_desc": {
@@ -204,7 +204,7 @@
           "message": "透過 DoPut 串流 RPC 傳送欄位式資料至 Arrow Flight 服務；資料會作為一個或多個 Arrow 記錄批次傳送，來源可為列清單、雜湊列表區塊、ColumnarResult 物件、DataFrame 物件或 ArrowRecordBatch 物件"
         },
         "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.display_name": {
-          "source": "Put Flight Data",
+          "source": "Put flight data",
           "message": "放置 Flight 資料"
         },
         "app.QXJyb3dGbGlnaHQ.action.cHV0LWZsaWdodC1kYXRh.option.ZGF0YXNldA.desc": {

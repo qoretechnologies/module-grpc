@@ -72,7 +72,7 @@ module SalesforcePubSubDataProvider {
             # grouped with the event actions: this exists to make those deliver, so it belongs
             # where someone configuring Salesforce events will look for it
             "groups": "Events",
-            "display_name": "Enable Change Data Capture",
+            "display_name": "Enable change data capture",
             "short_desc": "Enable Change Data Capture for a Salesforce object",
             "desc": "Enables **Change Data Capture** for a Salesforce object, so that its "
                 "creates, updates, deletes and undeletes can be subscribed to through the "
@@ -111,7 +111,7 @@ module SalesforcePubSubDataProvider {
             },
             "action": "pubsub-event",
             "groups": "Events",
-            "display_name": "Salesforce Event",
+            "display_name": "Salesforce event",
             "short_desc": "React to a Salesforce platform or change data capture event",
             "desc": "Reacts to events published on a Salesforce **Pub/Sub API** channel: platform "
                 "events, Change Data Capture events and custom channels all arrive through the "
@@ -154,7 +154,7 @@ module SalesforcePubSubDataProvider {
             "path_vars": {"channel": cdc_channel_var},
             "action": "new-record",
             "groups": "Events",
-            "display_name": "New Salesforce Record",
+            "display_name": "New Salesforce record",
             "short_desc": "React when a record of the given object is created",
             "desc": "Reacts when a record of the given Salesforce object is **created**, using "
                 "the **Pub/Sub API** Change Data Capture stream.\n\n"
@@ -180,7 +180,7 @@ module SalesforcePubSubDataProvider {
             "path_vars": {"channel": cdc_channel_var},
             "action": "updated-record",
             "groups": "Events",
-            "display_name": "Updated Salesforce Record",
+            "display_name": "Updated Salesforce record",
             "short_desc": "React when a record of the given object is updated",
             "desc": "Reacts when a record of the given Salesforce object is **updated**, using "
                 "the **Pub/Sub API** Change Data Capture stream.\n\n"
@@ -205,7 +205,7 @@ module SalesforcePubSubDataProvider {
             "path": "/" + PubSubChildName + "/ContactChangeEvent/created",
             "action": "new-contact",
             "groups": "Events",
-            "display_name": "New Salesforce Contact",
+            "display_name": "New Salesforce contact",
             "short_desc": "React when a contact is created",
             "desc": "Reacts when a Salesforce **contact** is created, using the **Pub/Sub API** "
                 "Change Data Capture stream.\n\n"
@@ -226,7 +226,7 @@ module SalesforcePubSubDataProvider {
             "path": "/" + PubSubChildName + "/LeadChangeEvent/created",
             "action": "new-lead",
             "groups": "Events",
-            "display_name": "New Salesforce Lead",
+            "display_name": "New Salesforce lead",
             "short_desc": "React when a lead is created",
             "desc": "Reacts when a Salesforce **lead** is created, using the **Pub/Sub API** "
                 "Change Data Capture stream.\n\n"

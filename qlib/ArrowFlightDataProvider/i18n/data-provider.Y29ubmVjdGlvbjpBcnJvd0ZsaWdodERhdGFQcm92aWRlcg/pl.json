@@ -16,7 +16,7 @@
           "message": "Maksymalny rozmiar w bajtach pojedynczej odpowiedzi otrzymanej od serwera; `0` (domyślnie) oznacza brak limitu.\n\nOdpowiedź o większym rozmiarze kończy wywołanie stanem `RESOURCE_EXHAUSTED`, więc ogromna odpowiedź nie może wyczerpać pamięci; ten limit dotyczy również wywołań strumieniowych."
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.display_name": {
-          "source": "Max Message Size",
+          "source": "Max message size",
           "message": "Maksymalny rozmiar wiadomości"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.short_desc": {
@@ -28,7 +28,7 @@
           "message": "Maksymalny rozmiar ciała odpowiedzi wywołania jednokrotnego, które jest całkowicie odczytywane do pamięci przed dekodowaniem; `0` (domyślnie) oznacza brak limitu.\n\nOdpowiedź o większym rozmiarze kończy wywołanie stanem `RESOURCE_EXHAUSTED`. Odpowiedź wywołania strumieniowego jest odbierana pojedynczo i ograniczona przez `max_message_size` zamiast tego."
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.display_name": {
-          "source": "Max Response Body Size",
+          "source": "Max response body size",
           "message": "Maksymalny rozmiar treści odpowiedzi"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.short_desc": {

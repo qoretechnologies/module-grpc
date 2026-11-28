@@ -57,7 +57,7 @@ public class ArrowFlightConnection inherits ConnectionProvider::AbstractConnecti
             },
             "options": {
                 "max_message_size": <ConnectionOptionInfo>{
-                    "display_name": "Max Message Size",
+                    "display_name": "Max message size",
                     "short_desc": "The maximum size of a response message received",
                     "type": "int",
                     "desc": "The maximum size in bytes of one response message received from the server; `0` (the "
@@ -66,7 +66,7 @@ public class ArrowFlightConnection inherits ConnectionProvider::AbstractConnecti
                         "exhaust memory; this limit also applies to streaming calls.",
                 },
                 "max_response_body_size": <ConnectionOptionInfo>{
-                    "display_name": "Max Response Body Size",
+                    "display_name": "Max response body size",
                     "short_desc": "The maximum size of a unary response body received into memory",
                     "type": "int",
                     "desc": "The maximum size in bytes of the response body of a unary call, which is received into "

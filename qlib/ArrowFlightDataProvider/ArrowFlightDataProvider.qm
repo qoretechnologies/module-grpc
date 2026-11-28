@@ -86,7 +86,7 @@ module ArrowFlightDataProvider {
             "path_vars": dataset_path_var,
             "action": "get-flight-data",
             "groups": "Data Operations",
-            "display_name": "Get Flight Data",
+            "display_name": "Get flight data",
             "short_desc": "Retrieve data from an Arrow Flight dataset",
             "desc": "Retrieves columnar data from an Arrow Flight service via the DoGet "
                 "streaming RPC; returns all record batches as row hashes by default, or "
@@ -104,7 +104,7 @@ module ArrowFlightDataProvider {
             "path_vars": dataset_path_var,
             "action": "put-flight-data",
             "groups": "Data Operations",
-            "display_name": "Put Flight Data",
+            "display_name": "Put flight data",
             "short_desc": "Send data to an Arrow Flight dataset",
             "desc": "Sends columnar data to an Arrow Flight service via the DoPut streaming "
                 "RPC; the data is sent as one or more Arrow record batches from row "
@@ -123,7 +123,7 @@ module ArrowFlightDataProvider {
             "path_vars": dataset_path_var,
             "action": "exchange-flight-data",
             "groups": "Data Operations",
-            "display_name": "Exchange Flight Data",
+            "display_name": "Exchange flight data",
             "short_desc": "Bidirectional data exchange on an Arrow Flight dataset",
             "desc": "Performs a bidirectional data exchange via the DoExchange streaming RPC; "
                 "sends input rows or columnar batches and receives transformed output rows "
@@ -142,7 +142,7 @@ module ArrowFlightDataProvider {
             "path": "/list-flights",
             "action": "list-flights",
             "groups": "Discovery",
-            "display_name": "List Flights",
+            "display_name": "List flights",
             "short_desc": "List available Arrow Flight datasets",
             "desc": "Discovers available datasets on the Arrow Flight server via the "
                 "ListFlights RPC; returns a list of FlightInfo hashes with dataset metadata",
@@ -158,7 +158,7 @@ module ArrowFlightDataProvider {
             "path": "/get-flight-info",
             "action": "get-flight-info",
             "groups": "Discovery",
-            "display_name": "Get Flight Info",
+            "display_name": "Get flight info",
             "short_desc": "Get metadata for an Arrow Flight dataset",
             "desc": "Retrieves metadata for a specific dataset via the GetFlightInfo RPC, "
                 "including schema, record count, and endpoint information",
@@ -176,7 +176,7 @@ module ArrowFlightDataProvider {
             "path": "/do-action",
             "action": "do-action",
             "groups": "Actions",
-            "display_name": "Execute Flight Action",
+            "display_name": "Execute flight action",
             "short_desc": "Execute a custom action on the Arrow Flight server",
             "desc": "Executes a custom server-side action via the DoAction RPC; the action "
                 "type and optional binary body are sent to the server, which returns a list "
@@ -194,7 +194,7 @@ module ArrowFlightDataProvider {
             "path": "/list-actions",
             "action": "list-actions",
             "groups": "Actions",
-            "display_name": "List Flight Actions",
+            "display_name": "List flight actions",
             "short_desc": "List available actions on the Arrow Flight server",
             "desc": "Lists custom actions available on the Arrow Flight server via the "
                 "ListActions RPC; each action has a type identifier and description",
@@ -387,7 +387,7 @@ public namespace ArrowFlightDataProvider {
             "desc": "Optional flight ticket; defaults to the dataset path if not provided",
         },
         "output_shape": {
-            "display_name": "Output Shape",
+            "display_name": "Output shape",
             "short_desc": "rows or columnar",
             "type": AbstractDataProviderType::get(SoftStringOrNothingType),
             "desc": "Optional output shape: `rows` returns a list of row hashes; `columnar` "
@@ -422,7 +422,7 @@ public namespace ArrowFlightDataProvider {
             "required": True,
         },
         "output_shape": {
-            "display_name": "Output Shape",
+            "display_name": "Output shape",
             "short_desc": "rows or columnar",
             "type": AbstractDataProviderType::get(SoftStringOrNothingType),
             "desc": "Optional response shape: `rows` returns a list of row hashes; "

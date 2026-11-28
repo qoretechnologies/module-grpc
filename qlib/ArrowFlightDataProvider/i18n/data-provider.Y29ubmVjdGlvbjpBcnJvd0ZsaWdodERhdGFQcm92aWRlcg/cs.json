@@ -16,7 +16,7 @@
           "message": "Největší velikost v bajtech jedné odpovědi přijaté ze serveru; `0` (výchozí) znamená žádné omezení.\n\nVětší zpráva ukončí volání stavem `RESOURCE_EXHAUSTED`, takže obrovská zpráva nemůže vyčerpat paměť; toto omezení se vztahuje i na streamovací volání."
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.display_name": {
-          "source": "Max Message Size",
+          "source": "Max message size",
           "message": "Maximální velikost zprávy"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.short_desc": {
@@ -28,7 +28,7 @@
           "message": "Největší velikost těla odpovědi jednorázového volání, která je přijata do paměti před dekódováním; `0` (výchozí) znamená žádné omezení.\n\nVětší odpověď ukončí volání stavem `RESOURCE_EXHAUSTED`. Odpověď streamovacího volání je přijímána po jednotlivých zprávách a je omezena hodnotou `max_message_size`."
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.display_name": {
-          "source": "Max Response Body Size",
+          "source": "Max response body size",
           "message": "Maximální velikost těla odpovědi"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.short_desc": {

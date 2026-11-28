@@ -722,8 +722,8 @@ public class ArrowFlightDataProviderTest inherits QUnit::Test {
         hash<auto> opts = ArrowFlightConnection::ConnectionScheme.options;
         assertEq("int", opts.max_message_size.type);
         assertEq("int", opts.max_response_body_size.type);
-        assertEq("Max Message Size", ArrowFlightDataProvider::ConstructorOptions.max_message_size.display_name);
-        assertEq("Max Response Body Size",
+        assertEq("Max message size", ArrowFlightDataProvider::ConstructorOptions.max_message_size.display_name);
+        assertEq("Max response body size",
             ArrowFlightDataProvider::ConstructorOptions.max_response_body_size.display_name);
 
         # a ListFlights response message is larger than 10 bytes

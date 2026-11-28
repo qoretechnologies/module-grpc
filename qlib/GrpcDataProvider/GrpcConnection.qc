@@ -61,7 +61,7 @@ public class GrpcConnection inherits ConnectionProvider::AbstractConnectionWithI
             },
             "options": {
                 "max_message_size": <ConnectionOptionInfo>{
-                    "display_name": "Max Message Size",
+                    "display_name": "Max message size",
                     "short_desc": "The maximum size of a response message received",
                     "type": "int",
                     "desc": "The maximum size in bytes of one response message received from the server; `0` (the "
@@ -70,7 +70,7 @@ public class GrpcConnection inherits ConnectionProvider::AbstractConnectionWithI
                         "exhaust memory; this limit also applies to streaming calls.",
                 },
                 "max_response_body_size": <ConnectionOptionInfo>{
-                    "display_name": "Max Response Body Size",
+                    "display_name": "Max response body size",
                     "short_desc": "The maximum size of a unary response body received into memory",
                     "type": "int",
                     "desc": "The maximum size in bytes of the response body of a unary call, which is received into "
@@ -79,26 +79,26 @@ public class GrpcConnection inherits ConnectionProvider::AbstractConnectionWithI
                         "streaming call is received one message at a time and is limited by `max_message_size` instead.",
                 },
                 "proto_path": <ConnectionOptionInfo>{
-                    "display_name": "Proto File Path",
+                    "display_name": "Proto file path",
                     "short_desc": "Path to directory containing .proto files",
                     "type": "string",
                     "desc": "Filesystem path to the directory containing `.proto` files",
                 },
                 "proto_file": <ConnectionOptionInfo>{
-                    "display_name": "Proto File Name",
+                    "display_name": "Proto file name",
                     "short_desc": "Name of the .proto file to load",
                     "type": "string",
                     "desc": "The `.proto` file name within the `proto_path` directory",
                 },
                 "proto_content": <ConnectionOptionInfo>{
-                    "display_name": "Proto Content",
+                    "display_name": "Proto content",
                     "short_desc": "Inline .proto definition as a string",
                     "type": "string",
                     "desc": "Inline protobuf schema definition as a string; use this "
                         "when the schema is not available as a file",
                 },
                 "use_reflection": <ConnectionOptionInfo>{
-                    "display_name": "Use Reflection",
+                    "display_name": "Use reflection",
                     "short_desc": "Use gRPC server reflection for schema discovery",
                     "type": "bool",
                     "desc": "If `True`, the gRPC server reflection protocol will be used "

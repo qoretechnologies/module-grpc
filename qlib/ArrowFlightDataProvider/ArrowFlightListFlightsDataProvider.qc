@@ -80,7 +80,7 @@ public class FlightInfoResponseDataType inherits HashDataType {
     public {
         const Fields = {
             "flight_descriptor": {
-                "display_name": "Flight Descriptor",
+                "display_name": "Flight descriptor",
                 "type": AbstractDataProviderType::get(AutoHashOrNothingType),
                 "desc": "The flight descriptor identifying the dataset",
             },
@@ -90,12 +90,12 @@ public class FlightInfoResponseDataType inherits HashDataType {
                 "desc": "The IPC-serialized Arrow schema for the dataset",
             },
             "total_records": {
-                "display_name": "Total Records",
+                "display_name": "Total records",
                 "type": AbstractDataProviderType::get(SoftIntOrNothingType),
                 "desc": "The total number of records in the dataset (-1 if unknown)",
             },
             "total_bytes": {
-                "display_name": "Total Bytes",
+                "display_name": "Total bytes",
                 "type": AbstractDataProviderType::get(SoftIntOrNothingType),
                 "desc": "The total size in bytes (-1 if unknown)",
             },

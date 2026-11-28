@@ -8,7 +8,7 @@
           "message": "向指定的服務方法進行 gRPC 呼叫"
         },
         "app.Z1JQQw.action.Y2FsbA.display_name": {
-          "source": "Call gRPC Method",
+          "source": "Call gRPC method",
           "message": "呼叫 gRPC 方法"
         },
         "app.Z1JQQw.action.Y2FsbA.option.bWV0aG9k.desc": {

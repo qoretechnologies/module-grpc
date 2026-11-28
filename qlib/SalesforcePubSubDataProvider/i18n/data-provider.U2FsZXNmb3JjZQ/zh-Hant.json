@@ -8,7 +8,7 @@
           "message": "為 Salesforce 物件啟用 **Change Data Capture**，以便能透過 **Pub/Sub API** 訂閱其建立、更新、刪除與取消刪除操作。\n\n在訂閱交付任何內容之前，必須針對每個物件開啟 Change Data Capture，且對從未啟用的物件進行訂閱雖會成功但保持靜默——因此通常會在設定整合時執行 **一次**，而非作為流程的一部分。\n\n啟用已啟用的物件並非錯誤。\n\n**這會變更組織設定。** 它會為該物件啟動 72 小時的保留串流，且組織可選擇的物件數量取決於其版本與附加元件。連線的使用者需要修改中繼資料的權限。"
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.display_name": {
-          "source": "Enable Change Data Capture",
+          "source": "Enable change data capture",
           "message": "啟用 Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.desc": {
@@ -16,7 +16,7 @@
           "message": "要為其啟用 Change Data Capture 的 **變更事件**，以其所報告的物件命名，並加上 `ChangeEvent` 後綴：`AccountChangeEvent` 對應 `Account`，`CaseChangeEvent` 對應 `Case`，依此類推。自訂物件使用 `__ChangeEvent`，例如 `MyObject__ChangeEvent`。\n\n啟用已啟用的物件 **並非** 錯誤；回應會透過 `already_enabled` 報告此情況。\n\n**啟用 Change Data Capture 並非完全沒有副作用**：它會為該物件啟動 72 小時的保留串流，且組織可選擇的物件數量取決於其版本與附加元件。"
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.display_name": {
-          "source": "Change Event",
+          "source": "Change event",
           "message": "變更事件"
         },
         "app.U2FsZXNmb3JjZQ.action.ZW5hYmxlLWNoYW5nZS1kYXRhLWNhcHR1cmU.option.ZW50aXR5.short_desc": {
@@ -32,7 +32,7 @@
           "message": "使用 **Pub/Sub API** Change Data Capture 串流，於建立 Salesforce **聯絡人** 時觸發反應。\n\n這是固定至 `Contact` 物件的 `new-record` 操作。交付為即時傳送而非輪詢，且重新連線後，訂閱會從上次重播位置繼續。\n\n必須在 **Setup -> Integrations -> Change Data Capture** 中為 `Contact` 啟用 Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.display_name": {
-          "source": "New Salesforce Contact",
+          "source": "New Salesforce contact",
           "message": "新增 Salesforce 聯絡人"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.desc": {
@@ -40,7 +40,7 @@
           "message": "如果為 `True`，且組織報告由於從未選擇該物件而無法訂閱此 **Change Data Capture** 通道，則開啟該物件並繼續，而非失敗。\n\n此設定存在是因為對未啟用的物件進行訂閱會成功但什麼都不交付，這與閒置的組織無法區分。預設值為 `False`：訂閱事件不應無聲無息地變更組織設定。\n\n**這會變更組織設定。** 它會為該物件啟動 72 小時的保留串流，且組織可選擇的物件數量取決於其版本與附加元件。連線的使用者需要修改中繼資料的權限。若要進行一次性且可審計的步驟，請改用 `enable-change-data-capture` 操作。"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable Change Data Capture",
+          "source": "Enable change data capture",
           "message": "啟用 Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -52,7 +52,7 @@
           "message": "用戶端一次向伺服器保持請求的事件數量；介於 1 到 100 之間，這是 Pub/Sub API 在單一 `FetchRequest` 中可接受的最大值"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.bnVtX3JlcXVlc3RlZA.display_name": {
-          "source": "Flow Control Window",
+          "source": "Flow control window",
           "message": "流量控制視窗"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.bnVtX3JlcXVlc3RlZA.short_desc": {
@@ -100,7 +100,7 @@
           "message": "訂閱開始之處：`LATEST`（串流最新端，預設值）、`EARLIEST`（保留的最早事件）或 `CUSTOM`（在由 `replay_id` 識別的事件之後）。\n\nSalesforce 保留重播 ID **72 小時**"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.display_name": {
-          "source": "Replay Preset",
+          "source": "Replay preset",
           "message": "重播預設設定"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.cmVwbGF5X3ByZXNldA.short_desc": {
@@ -112,7 +112,7 @@
           "message": "Pub/Sub 主題名稱，會覆蓋衍生自此提供者名稱的主題名稱。設定此項以訂閱 `describeGlobal` 未列出的 **自訂通道**；例如 `/event/MyChannel__chn`"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.dG9waWNfbmFtZQ.display_name": {
-          "source": "Topic Name",
+          "source": "Topic name",
           "message": "主題名稱"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWNvbnRhY3Q.option.dG9waWNfbmFtZQ.short_desc": {
@@ -128,7 +128,7 @@
           "message": "使用 **Pub/Sub API** Change Data Capture 串流，於建立 Salesforce **潛在客戶** 時觸發反應。\n\n這是固定至 `Lead` 物件的 `new-record` 操作。交付為即時傳送而非輪詢，且重新連線後，訂閱會從上次重播位置繼續。\n\n必須在 **Setup -> Integrations -> Change Data Capture** 中為 `Lead` 啟用 Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.display_name": {
-          "source": "New Salesforce Lead",
+          "source": "New Salesforce lead",
           "message": "新增 Salesforce 潛在客戶"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.desc": {
@@ -136,7 +136,7 @@
           "message": "如果為 `True`，且組織報告由於從未選擇該物件而無法訂閱此 **Change Data Capture** 通道，則開啟該物件並繼續，而非失敗。\n\n此設定存在是因為對未啟用的物件進行訂閱會成功但什麼都不交付，這與閒置的組織無法區分。預設值為 `False`：訂閱事件不應無聲無息地變更組織設定。\n\n**這會變更組織設定。** 它會為該物件啟動 72 小時的保留串流，且組織可選擇的物件數量取決於其版本與附加元件。連線的使用者需要修改中繼資料的權限。若要進行一次性且可審計的步驟，請改用 `enable-change-data-capture` 操作。"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable Change Data Capture",
+          "source": "Enable change data capture",
           "message": "啟用 Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -148,7 +148,7 @@
           "message": "用戶端一次向伺服器保持請求的事件數量；介於 1 到 100 之間，這是 Pub/Sub API 在單一 `FetchRequest` 中可接受的最大值"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.bnVtX3JlcXVlc3RlZA.display_name": {
-          "source": "Flow Control Window",
+          "source": "Flow control window",
           "message": "流量控制視窗"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.bnVtX3JlcXVlc3RlZA.short_desc": {
@@ -196,7 +196,7 @@
           "message": "訂閱開始之處：`LATEST`（串流最新端，預設值）、`EARLIEST`（保留的最早事件）或 `CUSTOM`（在由 `replay_id` 識別的事件之後）。\n\nSalesforce 保留重播 ID **72 小時**"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.display_name": {
-          "source": "Replay Preset",
+          "source": "Replay preset",
           "message": "重播預設設定"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.cmVwbGF5X3ByZXNldA.short_desc": {
@@ -208,7 +208,7 @@
           "message": "Pub/Sub 主題名稱，會覆蓋衍生自此提供者名稱的主題名稱。設定此項以訂閱 `describeGlobal` 未列出的 **自訂通道**；例如 `/event/MyChannel__chn`"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.dG9waWNfbmFtZQ.display_name": {
-          "source": "Topic Name",
+          "source": "Topic name",
           "message": "主題名稱"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LWxlYWQ.option.dG9waWNfbmFtZQ.short_desc": {
@@ -224,7 +224,7 @@
           "message": "使用 **Pub/Sub API** Change Data Capture 串流，於 **建立** 指定 Salesforce 物件的記錄時觸發反應。\n\n交付為即時傳送而非輪詢，且訂閱會追蹤其重播位置，因此斷線後重新建立連線時，會從上次交付的事件之後繼續，而非跳過停機期間建立的記錄。Salesforce 保留重播 ID **72 小時**。\n\n報告 Salesforce 無法完整交付建立動作的 `GAP_CREATE` 事件也會由此操作交付，因此建立動作絕不會無聲無息地遺失。\n\n必須在 **Setup -> Integrations -> Change Data Capture** 中為該物件啟用 Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.display_name": {
-          "source": "New Salesforce Record",
+          "source": "New Salesforce record",
           "message": "新增 Salesforce 記錄"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.Y2hhbm5lbA.desc": {
@@ -244,7 +244,7 @@
           "message": "如果為 `True`，且組織報告由於從未選擇該物件而無法訂閱此 **Change Data Capture** 通道，則開啟該物件並繼續，而非失敗。\n\n此設定存在是因為對未啟用的物件進行訂閱會成功但什麼都不交付，這與閒置的組織無法區分。預設值為 `False`：訂閱事件不應無聲無息地變更組織設定。\n\n**這會變更組織設定。** 它會為該物件啟動 72 小時的保留串流，且組織可選擇的物件數量取決於其版本與附加元件。連線的使用者需要修改中繼資料的權限。若要進行一次性且可審計的步驟，請改用 `enable-change-data-capture` 操作。"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable Change Data Capture",
+          "source": "Enable change data capture",
           "message": "啟用 Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -256,7 +256,7 @@
           "message": "用戶端一次向伺服器保持請求的事件數量；介於 1 到 100 之間，這是 Pub/Sub API 在單一 `FetchRequest` 中可接受的最大值"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.bnVtX3JlcXVlc3RlZA.display_name": {
-          "source": "Flow Control Window",
+          "source": "Flow control window",
           "message": "流量控制視窗"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.bnVtX3JlcXVlc3RlZA.short_desc": {
@@ -304,7 +304,7 @@
           "message": "訂閱開始之處：`LATEST`（串流最新端，預設值）、`EARLIEST`（保留的最早事件）或 `CUSTOM`（在由 `replay_id` 識別的事件之後）。\n\nSalesforce 保留重播 ID **72 小時**"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.display_name": {
-          "source": "Replay Preset",
+          "source": "Replay preset",
           "message": "重播預設設定"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.cmVwbGF5X3ByZXNldA.short_desc": {
@@ -316,7 +316,7 @@
           "message": "Pub/Sub 主題名稱，會覆蓋衍生自此提供者名稱的主題名稱。設定此項以訂閱 `describeGlobal` 未列出的 **自訂通道**；例如 `/event/MyChannel__chn`"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.dG9waWNfbmFtZQ.display_name": {
-          "source": "Topic Name",
+          "source": "Topic name",
           "message": "主題名稱"
         },
         "app.U2FsZXNmb3JjZQ.action.bmV3LXJlY29yZA.option.dG9waWNfbmFtZQ.short_desc": {
@@ -332,7 +332,7 @@
           "message": "對在 Salesforce **Pub/Sub API** 通道上發佈的事件觸發反應：平台事件、Change Data Capture 事件以及自訂通道均透過相同的訂閱接收。\n\n訂閱會追蹤其重播位置，因此斷線後重新建立連線時，會從上次交付的事件之後繼續，而非跳過。Salesforce 保留重播 ID **72 小時**。"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.display_name": {
-          "source": "Salesforce Event",
+          "source": "Salesforce event",
           "message": "Salesforce 事件"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbm5lbA.desc": {
@@ -368,7 +368,7 @@
           "message": "已建立記錄，但無法交付變更；隱含於 `CREATE`"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9DUkVBVEU.display_name": {
-          "source": "Gap: Create",
+          "source": "Gap: create",
           "message": "間隙：建立"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9ERUxFVEU.desc": {
@@ -376,7 +376,7 @@
           "message": "已刪除記錄，但無法交付變更；隱含於 `DELETE`"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9ERUxFVEU.display_name": {
-          "source": "Gap: Delete",
+          "source": "Gap: delete",
           "message": "間隙：刪除"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9PVkVSRkxPVw.desc": {
@@ -384,7 +384,7 @@
           "message": "未知數量的變更已遺失；始終交付"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9PVkVSRkxPVw.display_name": {
-          "source": "Gap: Overflow",
+          "source": "Gap: overflow",
           "message": "間隙：溢位"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VTkRFTEVURQ.desc": {
@@ -392,7 +392,7 @@
           "message": "已還原記錄，但無法交付變更；隱含於 `UNDELETE`"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VTkRFTEVURQ.display_name": {
-          "source": "Gap: Undelete",
+          "source": "Gap: undelete",
           "message": "間隙：取消刪除"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VUERBVEU.desc": {
@@ -400,7 +400,7 @@
           "message": "已更新記錄，但無法交付變更；隱含於 `UPDATE`"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOkdBUF9VUERBVEU.display_name": {
-          "source": "Gap: Update",
+          "source": "Gap: update",
           "message": "間隙：更新"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.allowed-value.c3RyaW5nOlVOREVMRVRF.desc": {
@@ -424,7 +424,7 @@
           "message": "限制僅交付指定的 **Change Data Capture** 變更類型；留空以接收通道上的所有變更。\n\n**間隙事件** 會報告 Salesforce 無法完整交付的變更。間隙類型可滿足其代表的類型，因此選擇 `CREATE` 也會交付 `GAP_CREATE`，而非無聲無息地丟棄建立動作。無論篩選條件為何，`GAP_OVERFLOW` 始終都會交付，因為它報告未知數量的變更已遺失。\n\n此選項僅適用於 Change Data Capture 通道；平台事件不包含 `ChangeEventHeader`，在平台事件通道上進行設定會產生錯誤。"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.display_name": {
-          "source": "Change Types",
+          "source": "Change types",
           "message": "變更類型"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.Y2hhbmdlX3R5cGU.short_desc": {
@@ -436,7 +436,7 @@
           "message": "如果為 `True`，且組織報告由於從未選擇該物件而無法訂閱此 **Change Data Capture** 通道，則開啟該物件並繼續，而非失敗。\n\n此設定存在是因為對未啟用的物件進行訂閱會成功但什麼都不交付，這與閒置的組織無法區分。預設值為 `False`：訂閱事件不應無聲無息地變更組織設定。\n\n**這會變更組織設定。** 它會為該物件啟動 72 小時的保留串流，且組織可選擇的物件數量取決於其版本與附加元件。連線的使用者需要修改中繼資料的權限。若要進行一次性且可審計的步驟，請改用 `enable-change-data-capture` 操作。"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable Change Data Capture",
+          "source": "Enable change data capture",
           "message": "啟用 Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -448,7 +448,7 @@
           "message": "用戶端一次向伺服器保持請求的事件數量；介於 1 到 100 之間，這是 Pub/Sub API 在單一 `FetchRequest` 中可接受的最大值"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.bnVtX3JlcXVlc3RlZA.display_name": {
-          "source": "Flow Control Window",
+          "source": "Flow control window",
           "message": "流量控制視窗"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.bnVtX3JlcXVlc3RlZA.short_desc": {
@@ -496,7 +496,7 @@
           "message": "訂閱開始之處：`LATEST`（串流最新端，預設值）、`EARLIEST`（保留的最早事件）或 `CUSTOM`（在由 `replay_id` 識別的事件之後）。\n\nSalesforce 保留重播 ID **72 小時**"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.display_name": {
-          "source": "Replay Preset",
+          "source": "Replay preset",
           "message": "重播預設設定"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.cmVwbGF5X3ByZXNldA.short_desc": {
@@ -508,7 +508,7 @@
           "message": "Pub/Sub 主題名稱，會覆蓋衍生自此提供者名稱的主題名稱。設定此項以訂閱 `describeGlobal` 未列出的 **自訂通道**；例如 `/event/MyChannel__chn`"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.dG9waWNfbmFtZQ.display_name": {
-          "source": "Topic Name",
+          "source": "Topic name",
           "message": "主題名稱"
         },
         "app.U2FsZXNmb3JjZQ.action.cHVic3ViLWV2ZW50.option.dG9waWNfbmFtZQ.short_desc": {
@@ -524,7 +524,7 @@
           "message": "當指定 Salesforce 物件的記錄被**更新**時作出反應，此功能使用 **Pub/Sub API** 變更資料擷取串流。\n\n事件負載包含 `ChangeEventHeader.changedFields` 清單，因此無需重新讀取記錄即可得知實際變更的欄位。\n\n交付方式為即時而非輪詢，且在重新連線後，訂閱會從上次的重放位置繼續；Salesforce 會保留重放 ID 達 **72 小時**。\n\n此動作也會交付 `GAP_UPDATE` 事件，該事件用於回報 Salesforce 無法完整交付的更新。\n\n必須在**設定 -> 整合 -> 變更資料擷取**中為該物件啟用變更資料擷取"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.display_name": {
-          "source": "Updated Salesforce Record",
+          "source": "Updated Salesforce record",
           "message": "已更新的 Salesforce 記錄"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.Y2hhbm5lbA.desc": {
@@ -544,7 +544,7 @@
           "message": "如果為 `True`，且組織報告由於從未選擇該物件而無法訂閱此 **Change Data Capture** 通道，則開啟該物件並繼續，而非失敗。\n\n此設定存在是因為對未啟用的物件進行訂閱會成功但什麼都不交付，這與閒置的組織無法區分。預設值為 `False`：訂閱事件不應無聲無息地變更組織設定。\n\n**這會變更組織設定。** 它會為該物件啟動 72 小時的保留串流，且組織可選擇的物件數量取決於其版本與附加元件。連線的使用者需要修改中繼資料的權限。若要進行一次性且可審計的步驟，請改用 `enable-change-data-capture` 操作。"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.display_name": {
-          "source": "Enable Change Data Capture",
+          "source": "Enable change data capture",
           "message": "啟用 Change Data Capture"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.ZW5hYmxlX2NkYw.short_desc": {
@@ -556,7 +556,7 @@
           "message": "用戶端一次向伺服器保持請求的事件數量；介於 1 到 100 之間，這是 Pub/Sub API 在單一 `FetchRequest` 中可接受的最大值"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.bnVtX3JlcXVlc3RlZA.display_name": {
-          "source": "Flow Control Window",
+          "source": "Flow control window",
           "message": "流量控制視窗"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.bnVtX3JlcXVlc3RlZA.short_desc": {
@@ -604,7 +604,7 @@
           "message": "訂閱開始之處：`LATEST`（串流最新端，預設值）、`EARLIEST`（保留的最早事件）或 `CUSTOM`（在由 `replay_id` 識別的事件之後）。\n\nSalesforce 保留重播 ID **72 小時**"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.display_name": {
-          "source": "Replay Preset",
+          "source": "Replay preset",
           "message": "重播預設設定"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.cmVwbGF5X3ByZXNldA.short_desc": {
@@ -616,7 +616,7 @@
           "message": "Pub/Sub 主題名稱，會覆蓋衍生自此提供者名稱的主題名稱。設定此項以訂閱 `describeGlobal` 未列出的 **自訂通道**；例如 `/event/MyChannel__chn`"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.dG9waWNfbmFtZQ.display_name": {
-          "source": "Topic Name",
+          "source": "Topic name",
           "message": "主題名稱"
         },
         "app.U2FsZXNmb3JjZQ.action.dXBkYXRlZC1yZWNvcmQ.option.dG9waWNfbmFtZQ.short_desc": {

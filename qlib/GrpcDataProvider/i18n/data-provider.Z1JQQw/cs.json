@@ -8,7 +8,7 @@
           "message": "Provádí volání gRPC na zadanou metodu služby"
         },
         "app.Z1JQQw.action.Y2FsbA.display_name": {
-          "source": "Call gRPC Method",
+          "source": "Call gRPC method",
           "message": "Zavolat metodu gRPC"
         },
         "app.Z1JQQw.action.Y2FsbA.option.bWV0aG9k.desc": {

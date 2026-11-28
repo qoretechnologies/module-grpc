@@ -16,7 +16,7 @@
           "message": "La taille maximale en octets d'un message de réponse reçu depuis le serveur ; `0` (par défaut) signifie aucune limite.\n\nUne réponse plus grande interrompt l'appel avec le statut `RESOURCE_EXHAUSTED`, de sorte qu'une réponse très volumineuse ne peut pas épuiser la mémoire ; cette limite s'applique également aux appels en flux."
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.display_name": {
-          "source": "Max Message Size",
+          "source": "Max message size",
           "message": "Taille maximale de message"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X21lc3NhZ2Vfc2l6ZQ.short_desc": {
@@ -28,7 +28,7 @@
           "message": "La taille maximale en octets du corps de réponse d'un appel unaire, qui est entièrement chargé en mémoire avant décodage ; `0` (par défaut) signifie aucune limite.\n\nUne réponse plus grande interrompt l'appel avec le statut `RESOURCE_EXHAUSTED`. Le corps d'une réponse en flux est reçu message par message et est limité par `max_message_size` à la place."
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.display_name": {
-          "source": "Max Response Body Size",
+          "source": "Max response body size",
           "message": "Taille maximale du corps de réponse"
         },
         "connection.QXJyb3dGbGlnaHREYXRhUHJvdmlkZXI.scheme.QXJyb3dGbGlnaHRDb25uZWN0aW9u.option.bWF4X3Jlc3BvbnNlX2JvZHlfc2l6ZQ.short_desc": {
