@@ -9,4 +9,9 @@
     - a connection that a host lends to restricted code creates its data provider, channels and pings from the members
       that the host gave it (see @ref grpcdplent)
     - a ping of a connection makes the HTTP/2 connection and reports its error (see @ref grpcdpconnection)
+    - the Salesforce Pub/Sub event provider reports \c supports_refusal_redelivery in its provider info, as an event
+      that an observer refuses is delivered again; the gRPC and Arrow Flight stream event providers do not
+      (<a href="https://github.com/qoretechnologies/qore/issues/7562">qore#7562</a>)
+    - the module's action, option and field names are in sentence case
+      (<a href="https://github.com/qoretechnologies/qore/issues/7749">qore#7749</a>)
 */
