@@ -739,6 +739,8 @@ public class GrpcDataProviderTest inherits QUnit::Test {
         # Get the events child provider
         AbstractDataProvider event_prov = method_prov.getChildProvider("events");
         assertEq(True, event_prov instanceof GrpcStreamEventDataProvider);
+        # a message of a server stream is not delivered again when an observer refuses it (qore#7562)
+        assertFalse(event_prov.getInfo().supports_refusal_redelivery, "a stream event is not redelivered");
 
         # Set up observer to collect events
         list<hash<auto>> events = ();

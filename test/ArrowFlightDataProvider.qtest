@@ -625,6 +625,8 @@ public class ArrowFlightDataProviderTest inherits QUnit::Test {
                 .getChildProvider("events"));
 
         assertEq("events", event_dp.getName());
+        # a batch of a Flight stream is not delivered again when an observer refuses it (qore#7562)
+        assertFalse(event_dp.getInfo().supports_refusal_redelivery, "a stream batch is not redelivered");
 
         hash<DataProviderInfo> info = event_dp.getInfo();
         assertTrue(info.supports_observable);
